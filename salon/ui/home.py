@@ -11,8 +11,9 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+gi.require_version("GdkWayland", "4.0")
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GdkWayland, Gio, GLib, Gtk  # noqa: E402
 
 from salon.core.model import LaunchKind, LaunchSpec, Row, Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -273,6 +274,24 @@ class HomeView(Gtk.Box):
                 Adw.Toast(title="Pointer control wasn't granted — check the permission prompt.")
             )
 
+    def _start_pointer_session(self) -> None:
+        # Export our window handle so the portal's consent dialog is
+        # properly anchored to Salon instead of appearing unparented —
+        # without this, xdg-desktop-portal logs "Failed to associate portal
+        # window with parent window" and the dialog isn't reliably visible.
+        root = self.get_root()
+        surface = root.get_surface() if isinstance(root, Gtk.Window) else None
+        if isinstance(surface, GdkWayland.WaylandToplevel):
+            exported = surface.export_handle(self._on_handle_exported)
+            if exported:
+                return
+        self._pointer.start()
+
+    def _on_handle_exported(
+        self, toplevel: GdkWayland.WaylandToplevel, handle: str, user_data: object = None
+    ) -> None:
+        self._pointer.start(parent_window=f"wayland:{handle}")
+
     def _move(self, d_row: int, d_col: int) -> None:
         new_row = self._focus_row + d_row
         if 0 <= new_row < len(self._row_widgets):
@@ -295,7 +314,7 @@ class HomeView(Gtk.Box):
         is_browser = _is_browser_launch(tile)
         if is_browser:
             self._pointer_mode = True
-            self._pointer.start()
+            self._start_pointer_session()
             self._toast_overlay.add_toast(
                 Adw.Toast(title="Right stick = cursor, A = click, Y = keyboard, B = back")
             )

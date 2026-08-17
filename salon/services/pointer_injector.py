@@ -45,18 +45,40 @@ class PointerInjector:
     def __init__(self, on_ready: Callable[[bool], None] | None = None) -> None:
         self._connection: Gio.DBusConnection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self._session_handle: str | None = None
+        self._parent_window = ""
         self._starting = False
+        self._timeout_id: int | None = None
         self._on_ready = on_ready
 
     @property
     def ready(self) -> bool:
         return self._session_handle is not None
 
-    def start(self) -> None:
+    def start(self, parent_window: str = "") -> None:
+        """Begin the portal handshake. parent_window should be a handle from
+        Gdk export_handle (e.g. "wayland:HANDLE") so the consent dialog is
+        properly anchored to Salon's window instead of appearing unparented
+        — xdg-desktop-portal logs "Failed to associate portal window with
+        parent window" and the dialog may not be reliably visible without
+        it. Empty string is legal (no parent) but not recommended."""
         if self._session_handle is not None or self._starting:
             return
         self._starting = True
+        self._parent_window = parent_window
+        print(f"[pointer] requesting RemoteDesktop session (parent={parent_window!r})...")
+        self._timeout_id = GLib.timeout_add_seconds(20, self._on_timeout)
         self._create_session()
+
+    def _on_timeout(self) -> bool:
+        print("[pointer] RemoteDesktop session request timed out after 20s — no response.")
+        self._timeout_id = None
+        self._fail()
+        return GLib.SOURCE_REMOVE
+
+    def _clear_timeout(self) -> None:
+        if self._timeout_id is not None:
+            GLib.source_remove(self._timeout_id)
+            self._timeout_id = None
 
     def move(self, dx: float, dy: float) -> None:
         if self._session_handle is None:
@@ -172,6 +194,7 @@ class PointerInjector:
             # not GLib.Variant, despite the a{sv} signature suggesting it.
             handle = results.get("session_handle")
             self._session_handle = handle if isinstance(handle, str) else session_token
+            print("[pointer] session created, selecting devices...")
             self._select_devices()
 
         return handler
@@ -206,8 +229,10 @@ class PointerInjector:
 
     def _on_devices_selected(self, code: int, results: dict[str, object]) -> None:
         if code != 0:
+            print(f"[pointer] SelectDevices was denied or failed (code={code}).")
             self._fail()
             return
+        print("[pointer] devices selected, starting session (consent dialog should appear)...")
         self._start_session()
 
     def _start_session(self) -> None:
@@ -224,7 +249,11 @@ class PointerInjector:
             "Start",
             GLib.Variant(
                 "(osa{sv})",
-                (self._session_handle, "", {"handle_token": GLib.Variant("s", handle_token)}),
+                (
+                    self._session_handle,
+                    self._parent_window,
+                    {"handle_token": GLib.Variant("s", handle_token)},
+                ),
             ),
             GLib.VariantType("(o)"),
             Gio.DBusCallFlags.NONE,
@@ -234,13 +263,17 @@ class PointerInjector:
 
     def _on_started(self, code: int, results: dict[str, object]) -> None:
         self._starting = False
+        self._clear_timeout()
         if code != 0:
+            print(f"[pointer] Start was denied or failed (code={code}) — consent not granted?")
             self._fail()
             return
+        print("[pointer] RemoteDesktop session ready.")
         if self._on_ready is not None:
             self._on_ready(True)
 
     def _fail(self) -> None:
+        self._clear_timeout()
         self._starting = False
         self._session_handle = None
         if self._on_ready is not None:
