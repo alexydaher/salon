@@ -12,11 +12,31 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gdk, Gtk  # noqa: E402
+from gi.repository import Adw, Gtk  # noqa: E402
 
 from salon.core.model import LaunchKind, LaunchSpec, Row, Tile  # noqa: E402
+from salon.input.actions import Action  # noqa: E402
+from salon.input.gamepad import GamepadSource  # noqa: E402
+from salon.input.keyboard import action_for_keyval  # noqa: E402
 from salon.services.launcher import LauncherService  # noqa: E402
+from salon.services.pointer_injector import (  # noqa: E402
+    PointerInjector,
+    onscreen_keyboard_enabled,
+    set_onscreen_keyboard_enabled,
+)
 from salon.ui.tile import TileWidget  # noqa: E402
+
+# Pixels of cursor motion per poll tick at full stick deflection (~60 ticks/s).
+_POINTER_SPEED = 22.0
+
+
+def _is_browser_launch(tile: Tile) -> bool:
+    """Whether launching this tile hands control to a browser window we
+    can't reach directly — the case where the gamepad should drive the
+    system pointer instead of tile navigation."""
+    if tile.launch.kind is LaunchKind.URL:
+        return True
+    return tile.launch.kind is LaunchKind.DESKTOP and tile.launch.target == "com.google.Chrome"
 
 
 def _demo_rows() -> list[Row]:
@@ -170,6 +190,13 @@ class HomeView(Gtk.Box):
         self.set_can_focus(True)
         self.set_focusable(True)
 
+        self._pointer_mode = False
+        self._pointer = PointerInjector(on_ready=self._on_pointer_ready)
+
+        # Keep a reference alive — GamepadSource holds the only strong ref
+        # to the Manette.Monitor/Device connections that keep signals firing.
+        self._gamepad = GamepadSource(self._handle_action, on_right_stick=self._on_right_stick)
+
     def _update_focus(self) -> None:
         for r, widgets in enumerate(self._row_widgets):
             for c, widget in enumerate(widgets):
@@ -180,25 +207,52 @@ class HomeView(Gtk.Box):
         controller: Gtk.EventControllerKey,
         keyval: int,
         keycode: int,
-        state: Gdk.ModifierType,
+        state: object,
     ) -> bool:
-        if keyval == Gdk.KEY_Right:
+        action = action_for_keyval(keyval)
+        if action is None:
+            return False
+        self._handle_action(action)
+        return True
+
+    def _handle_action(self, action: Action) -> None:
+        if action is Action.SEARCH:
+            set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+            return
+
+        if self._pointer_mode:
+            if action is Action.OK:
+                self._pointer.click()
+            elif action is Action.BACK:
+                self._pointer_mode = False
+                self._toast_overlay.add_toast(Adw.Toast(title="Back to tiles"))
+            return
+
+        if action is Action.RIGHT:
             self._move(0, 1)
-        elif keyval == Gdk.KEY_Left:
+        elif action is Action.LEFT:
             self._move(0, -1)
-        elif keyval == Gdk.KEY_Down:
+        elif action is Action.DOWN:
             self._move(1, 0)
-        elif keyval == Gdk.KEY_Up:
+        elif action is Action.UP:
             self._move(-1, 0)
-        elif keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+        elif action is Action.OK:
             self._launch_focused()
-        elif keyval == Gdk.KEY_Escape:
+        elif action is Action.BACK:
             root = self.get_root()
             if isinstance(root, Gtk.Window):
                 root.close()
-        else:
-            return False
-        return True
+
+    def _on_right_stick(self, x: float, y: float) -> None:
+        if self._pointer_mode and self._pointer.ready:
+            self._pointer.move(x * _POINTER_SPEED, y * _POINTER_SPEED)
+
+    def _on_pointer_ready(self, ok: bool) -> None:
+        if not ok:
+            self._pointer_mode = False
+            self._toast_overlay.add_toast(
+                Adw.Toast(title="Pointer control wasn't granted — check the permission prompt.")
+            )
 
     def _move(self, d_row: int, d_col: int) -> None:
         new_row = self._focus_row + d_row
@@ -215,3 +269,10 @@ class HomeView(Gtk.Box):
         error = self._launcher.launch(tile.launch)
         if error is not None:
             self._toast_overlay.add_toast(Adw.Toast(title=error))
+            return
+        if _is_browser_launch(tile):
+            self._pointer_mode = True
+            self._pointer.start()
+            self._toast_overlay.add_toast(
+                Adw.Toast(title="Right stick = cursor, A = click, Y = keyboard, B = back")
+            )

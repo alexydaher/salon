@@ -1,7 +1,16 @@
-configure_file(
-  input: '__init__.py',
-  output: '__init__.py',
-  copy: true,
-  install: true,
-  install_dir: moduledir / 'input',
-)
+python_sources = [
+  '__init__.py',
+  'actions.py',
+  'keyboard.py',
+  'gamepad.py',
+]
+
+foreach f : python_sources
+  configure_file(
+    input: f,
+    output: f,
+    copy: true,
+    install: true,
+    install_dir: moduledir / 'input',
+  )
+endforeach
