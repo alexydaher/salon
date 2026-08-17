@@ -42,7 +42,10 @@ class LauncherService:
         if argv is None:
             return None
         try:
-            Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+            # Silence the child's stdout/stderr — Chrome/GeForce NOW/etc. are
+            # noisy on the console by default, and that's not Salon's log.
+            flags = Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE
+            Gio.Subprocess.new(argv, flags)
         except GLib.Error as exc:
             return f"Couldn't start {spec.target}: {exc.message}"
         return None
