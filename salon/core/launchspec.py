@@ -55,7 +55,11 @@ def _resolve_url(
         *browser_command,
         f"--user-data-dir={user_data_dir}",
         f"--app={spec.target}",
-        "--ozone-platform=wayland",
+        # Deliberately NOT --ozone-platform=wayland: running the browser
+        # under XWayland instead gets GNOME's on-screen-keyboard auto-show
+        # working, since Chromium's native-Wayland text-input-protocol
+        # support has known gaps that keep the shell from ever seeing a
+        # focused text field. Revisit if XWayland causes other issues.
         f"--force-device-scale-factor={scale_factor}",
     ]
     if spec.fullscreen:
