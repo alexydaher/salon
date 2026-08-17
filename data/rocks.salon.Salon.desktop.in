@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Salon
+Comment=A living-room launcher
+Exec=salon
+Icon=@APP_ID@
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;
+StartupNotify=true

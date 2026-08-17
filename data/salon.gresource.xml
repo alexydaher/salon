@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/rocks/salon/Salon">
+    <file compressed="true">style/tokens.css</file>
+    <file compressed="true">style/salon.css</file>
+  </gresource>
+</gresources>

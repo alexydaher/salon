@@ -1,0 +1,5 @@
+@import url("resource:///rocks/salon/Salon/style/tokens.css");
+
+window {
+  background-color: @surface-0;
+}

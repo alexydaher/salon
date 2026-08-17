@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="rocks.salon.Salon" path="/rocks/salon/Salon/">
+    <key name="accent-color" type="s">
+      <default>'#E8A33D'</default>
+      <summary>Accent colour</summary>
+      <description>Hex colour used for focus highlighting and bloom.</description>
+    </key>
+    <key name="safe-area-percent" type="d">
+      <range min="2.0" max="8.0"/>
+      <default>4.5</default>
+      <summary>Safe area inset</summary>
+      <description>Percentage inset from screen edges to avoid TV overscan.</description>
+    </key>
+    <key name="animation-scale" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Animation speed multiplier</summary>
+      <description>0 disables animation entirely.</description>
+    </key>
+    <key name="reduced-motion" type="b">
+      <default>false</default>
+      <summary>Reduced motion override</summary>
+      <description>Force the reduced-motion focus treatment regardless of the system setting.</description>
+    </key>
+    <key name="browser-command" type="s">
+      <default>''</default>
+      <summary>Browser executable</summary>
+      <description>Command used to launch URL tiles. Empty means autodetect.</description>
+    </key>
+    <key name="autostart" type="b">
+      <default>false</default>
+      <summary>Autostart Salon</summary>
+      <description>Launch Salon automatically on login.</description>
+    </key>
+    <key name="last-focused-tile" type="s">
+      <default>''</default>
+      <summary>Last focused tile id</summary>
+      <description>Used to restore focus on startup.</description>
+    </key>
+    <key name="monitor" type="s">
+      <default>''</default>
+      <summary>Target monitor connector name</summary>
+      <description>Empty means the primary monitor.</description>
+    </key>
+    <key name="cec-enabled" type="b">
+      <default>false</default>
+      <summary>Enable HDMI-CEC input</summary>
+      <description>Requires cec-client to be installed. Off by default.</description>
+    </key>
+  </schema>
+</schemalist>

@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Dev launcher: run Salon from an uninstalled Meson build tree.
+
+Usage:
+    meson setup build
+    meson compile -C build
+    ./bin/salon                    # uses ./build by default
+    SALON_BUILD_DIR=other ./bin/salon
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+BUILD_DIR = Path(os.environ.get("SALON_BUILD_DIR", ROOT / "build"))
+
+if not (BUILD_DIR / "salon" / "config.py").exists():
+    sys.exit(
+        f"error: no build found at {BUILD_DIR}\n"
+        "Run `meson setup build && meson compile -C build` first, "
+        "or set SALON_BUILD_DIR to point at your build directory."
+    )
+
+sys.path.insert(0, str(BUILD_DIR))
+os.environ.setdefault("GSETTINGS_SCHEMA_DIR", str(BUILD_DIR / "data"))
+os.environ.setdefault("SALON_GRESOURCE_PATH", str(BUILD_DIR / "data" / "salon.gresource"))
+
+from salon.main import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
