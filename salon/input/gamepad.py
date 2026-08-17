@@ -100,9 +100,16 @@ class GamepadSource:
         device.connect("absolute-axis-event", self._on_axis)
 
     def _on_button_press(self, device: Manette.Device, event: Manette.Event) -> None:
-        action = _BUTTON_ACTIONS.get(event.get_hardware_code())
-        if action is not None:
-            self._on_action(action)
+        # get_button() is libmanette's normalized button id — unlike
+        # get_hardware_code(), it correctly distinguishes hat-derived D-pad
+        # directions (confirmed empirically: a Stadia controller's D-pad
+        # reports the *same* hardware_code for both directions on an axis,
+        # but distinct get_button() values matching BTN_DPAD_*).
+        ok, button = event.get_button()
+        if ok:
+            action = _BUTTON_ACTIONS.get(button)
+            if action is not None:
+                self._on_action(action)
 
     def _on_axis(self, device: Manette.Device, event: Manette.Event) -> None:
         ok, axis, value = event.get_absolute()
