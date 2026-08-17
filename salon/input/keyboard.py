@@ -21,7 +21,6 @@ _KEYVAL_ACTIONS: dict[int, Action] = {
     Gdk.KEY_Right: Action.RIGHT,
     Gdk.KEY_Return: Action.OK,
     Gdk.KEY_KP_Enter: Action.OK,
-    Gdk.KEY_Escape: Action.BACK,
     Gdk.KEY_BackSpace: Action.BACK,
     Gdk.KEY_Menu: Action.MENU,
     Gdk.KEY_slash: Action.SEARCH,

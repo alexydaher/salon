@@ -12,7 +12,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from salon.core.model import LaunchKind, LaunchSpec, Row, Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -210,6 +210,15 @@ class HomeView(Gtk.Box):
         keycode: int,
         state: object,
     ) -> bool:
+        if keyval == Gdk.KEY_Escape:
+            # Dev-only quit shortcut, deliberately outside the Action
+            # pipeline — a real TV launcher shouldn't be closeable by a
+            # single button, and this must never be reachable from the
+            # gamepad (B already means BACK, not quit).
+            root = self.get_root()
+            if isinstance(root, Gtk.Window):
+                root.close()
+            return True
         action = action_for_keyval(keyval)
         if action is None:
             return False
@@ -248,10 +257,10 @@ class HomeView(Gtk.Box):
             self._move(-1, 0)
         elif action is Action.OK:
             self._launch_focused()
-        elif action is Action.BACK:
-            root = self.get_root()
-            if isinstance(root, Gtk.Window):
-                root.close()
+        # BACK is intentionally a no-op here: there's no parent screen at
+        # the top level yet (no search/settings overlay stack built), and
+        # it must never quit Salon outright — see _on_key_pressed for the
+        # dev-only Escape shortcut that actually does that.
 
     def _on_right_stick(self, x: float, y: float) -> None:
         if self._pointer_mode and self._pointer.ready:
