@@ -106,7 +106,7 @@ class PointerInjector:
         return f"{prefix}_{uuid.uuid4().hex}"
 
     def _watch_request(
-        self, request_path: str, on_response: Callable[[int, dict[str, GLib.Variant]], None]
+        self, request_path: str, on_response: Callable[[int, dict[str, object]], None]
     ) -> None:
         sub_id_holder: list[int] = []
 
@@ -162,13 +162,16 @@ class PointerInjector:
 
     def _on_session_response(
         self, session_token: str
-    ) -> Callable[[int, dict[str, GLib.Variant]], None]:
-        def handler(code: int, results: dict[str, GLib.Variant]) -> None:
+    ) -> Callable[[int, dict[str, object]], None]:
+        def handler(code: int, results: dict[str, object]) -> None:
             if code != 0:
                 self._fail()
                 return
+            # params.unpack() (in _watch_request) already deep-unpacks the
+            # a{sv} dict, so values here are plain Python objects already —
+            # not GLib.Variant, despite the a{sv} signature suggesting it.
             handle = results.get("session_handle")
-            self._session_handle = handle.unpack() if handle is not None else session_token
+            self._session_handle = handle if isinstance(handle, str) else session_token
             self._select_devices()
 
         return handler
@@ -201,7 +204,7 @@ class PointerInjector:
             None,
         )
 
-    def _on_devices_selected(self, code: int, results: dict[str, GLib.Variant]) -> None:
+    def _on_devices_selected(self, code: int, results: dict[str, object]) -> None:
         if code != 0:
             self._fail()
             return
@@ -229,7 +232,7 @@ class PointerInjector:
             None,
         )
 
-    def _on_started(self, code: int, results: dict[str, GLib.Variant]) -> None:
+    def _on_started(self, code: int, results: dict[str, object]) -> None:
         self._starting = False
         if code != 0:
             self._fail()
