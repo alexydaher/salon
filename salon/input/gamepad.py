@@ -5,12 +5,11 @@ a controller plugged in after startup works without restart) and covers
 the D-pad reported either as digital buttons (BTN_DPAD_*) or as a hat
 switch (ABS_HAT0X/Y), since controllers disagree about which they use.
 
-Cursor/click/on-screen-keyboard for browser-hosted tiles is handled inside
-the page itself via the standard Web Gamepad API (see
-data/browser-extension) rather than through this module — that sidesteps
-Wayland's restrictions on cross-process input injection entirely, so this
-class stays focused on the one thing it needs to do: emit Action for tile
-navigation.
+The right stick is also exposed as raw, unquantized motion via
+on_right_stick, polled on a timer rather than only on evdev change events —
+holding the stick at a steady deflection can stop generating events, and a
+mouse cursor needs continuous motion while held. Everything else (D-pad,
+left stick, face buttons) goes through the quantized Action stream.
 """
 
 from __future__ import annotations
@@ -20,8 +19,9 @@ from collections.abc import Callable
 import gi
 
 gi.require_version("Manette", "0.2")
+gi.require_version("GLib", "2.0")
 
-from gi.repository import Manette  # noqa: E402
+from gi.repository import GLib, Manette  # noqa: E402
 
 from salon.input.actions import Action  # noqa: E402
 
@@ -47,23 +47,37 @@ _BUTTON_ACTIONS: dict[int, Action] = {
     _BTN_DPAD_RIGHT: Action.RIGHT,
 }
 
-# evdev ABS_* axis codes for the left stick and the alternate D-pad
-# reporting (a hat switch).
-_ABS_X = 0
+# evdev ABS_* axis codes.
+_ABS_X = 0  # left stick
 _ABS_Y = 1
-_ABS_HAT0X = 16
+_ABS_Z = 2  # left trigger, on some pads
+_ABS_RX = 3  # right stick, on most pads
+_ABS_RY = 4
+_ABS_RZ = 5  # right trigger, on some pads
+_ABS_HAT0X = 16  # alternate D-pad reporting
 _ABS_HAT0Y = 17
+
+_RIGHT_STICK_AXES = (_ABS_RX, _ABS_RY)
 
 _DEAD_ZONE = 0.35
 _RETRIGGER_THRESHOLD = 0.2
+_STICK_DEAD_ZONE = 0.15  # smaller: pointer motion wants a lighter touch
+_POLL_INTERVAL_MS = 16  # ~60fps
 
 
 class GamepadSource:
-    """Emits Action values from all connected gamepads via on_action."""
+    """Emits Action values (and optionally raw right-stick motion) from
+    all connected gamepads."""
 
-    def __init__(self, on_action: Callable[[Action], None]) -> None:
+    def __init__(
+        self,
+        on_action: Callable[[Action], None],
+        on_right_stick: Callable[[float, float], None] | None = None,
+    ) -> None:
         self._on_action = on_action
+        self._on_right_stick = on_right_stick
         self._axis_state: dict[tuple[Manette.Device, int], int] = {}
+        self._right_stick_raw: dict[tuple[Manette.Device, int], float] = {}
         self._monitor = Manette.Monitor.new()
 
         it = self._monitor.iterate()
@@ -74,6 +88,9 @@ class GamepadSource:
             self._connect_device(device)
 
         self._monitor.connect("device-connected", self._on_device_connected)
+
+        if self._on_right_stick is not None:
+            GLib.timeout_add(_POLL_INTERVAL_MS, self._poll_right_stick)
 
     def _on_device_connected(self, monitor: Manette.Monitor, device: Manette.Device) -> None:
         self._connect_device(device)
@@ -102,6 +119,17 @@ class GamepadSource:
             self._quantize(device, axis, value, negative=Action.LEFT, positive=Action.RIGHT)
         elif axis in (_ABS_HAT0Y, _ABS_Y):
             self._quantize(device, axis, value, negative=Action.UP, positive=Action.DOWN)
+        elif axis in _RIGHT_STICK_AXES:
+            key = (device, axis)
+            self._right_stick_raw[key] = value if abs(value) >= _STICK_DEAD_ZONE else 0.0
+
+    def _poll_right_stick(self) -> bool:
+        if self._on_right_stick is not None and self._right_stick_raw:
+            x = sum(v for (d, a), v in self._right_stick_raw.items() if a == _ABS_RX)
+            y = sum(v for (d, a), v in self._right_stick_raw.items() if a == _ABS_RY)
+            if x or y:
+                self._on_right_stick(x, y)
+        return bool(GLib.SOURCE_CONTINUE)
 
     def _quantize(
         self,
