@@ -217,10 +217,14 @@ class HomeView(Gtk.Box):
         return True
 
     def _handle_action(self, action: Action) -> None:
+        if action is Action.SEARCH:
+            # Global regardless of mode: harmless accessibility toggle, not
+            # a Salon navigation action, so it's never worth swallowing.
+            set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+            return
+
         if self._pointer_mode:
-            if action is Action.SEARCH:
-                set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
-            elif action is Action.OK:
+            if action is Action.OK:
                 self._pointer.click()
             elif action is Action.BACK:
                 self._pointer_mode = False
@@ -234,9 +238,7 @@ class HomeView(Gtk.Box):
             # rather than fight it for button presses. Resumes on exit.
             return
 
-        if action is Action.SEARCH:
-            set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
-        elif action is Action.RIGHT:
+        if action is Action.RIGHT:
             self._move(0, 1)
         elif action is Action.LEFT:
             self._move(0, -1)
