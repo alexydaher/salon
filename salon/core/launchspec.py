@@ -57,6 +57,12 @@ def _resolve_url(
         f"--app={spec.target}",
         "--ozone-platform=wayland",
         f"--force-device-scale-factor={scale_factor}",
+        # Chromium only builds its accessibility tree when an AT client asks
+        # for it — forcing it on is a bet that GNOME's on-screen-keyboard
+        # auto-show depends on the AT-SPI focus events that tree produces,
+        # since neither disabling this nor XWayland alone fixed the OSK not
+        # appearing for a focused Netflix/Prime search field.
+        "--force-renderer-accessibility",
     ]
     if spec.fullscreen:
         argv.append("--start-fullscreen")
