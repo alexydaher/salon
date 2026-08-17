@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Salon Gamepad Navigation",
+  "version": "1.0",
+  "description": "Gamepad cursor, click, D-pad navigation, and on-screen keyboard for Salon-launched pages.",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

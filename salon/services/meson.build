@@ -1,7 +1,6 @@
 python_sources = [
   '__init__.py',
   'launcher.py',
-  'pointer_injector.py',
 ]
 
 foreach f : python_sources

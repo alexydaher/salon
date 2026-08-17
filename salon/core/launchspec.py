@@ -27,8 +27,13 @@ def resolve(
     browser_command: tuple[str, ...] = (),
     scale_factor: float = 1.0,
     desktop_search_dirs: tuple[Path, ...] | None = None,
+    extension_path: Path | None = None,
 ) -> list[str] | None:
-    """Resolve a LaunchSpec to argv, or None for BUILTIN (no process spawned)."""
+    """Resolve a LaunchSpec to argv, or None for BUILTIN (no process spawned).
+
+    extension_path, if given, points at the Salon gamepad-navigation Chrome
+    extension (URL launches only) — see data/browser-extension.
+    """
     if spec.kind is LaunchKind.BUILTIN:
         return None
     if spec.kind is LaunchKind.COMMAND:
@@ -36,14 +41,23 @@ def resolve(
     if spec.kind is LaunchKind.FLATPAK:
         return ["flatpak", "run", spec.target, *spec.args]
     if spec.kind is LaunchKind.URL:
-        return _resolve_url(spec, browser_command=browser_command, scale_factor=scale_factor)
+        return _resolve_url(
+            spec,
+            browser_command=browser_command,
+            scale_factor=scale_factor,
+            extension_path=extension_path,
+        )
     if spec.kind is LaunchKind.DESKTOP:
         return _resolve_desktop(spec, search_dirs=desktop_search_dirs)
     raise LaunchResolutionError(f"Unknown launch kind: {spec.kind!r}")  # pragma: no cover
 
 
 def _resolve_url(
-    spec: LaunchSpec, *, browser_command: tuple[str, ...], scale_factor: float
+    spec: LaunchSpec,
+    *,
+    browser_command: tuple[str, ...],
+    scale_factor: float,
+    extension_path: Path | None,
 ) -> list[str]:
     if not browser_command:
         raise LaunchResolutionError("No browser command configured for URL launch.")
@@ -57,13 +71,16 @@ def _resolve_url(
         f"--app={spec.target}",
         "--ozone-platform=wayland",
         f"--force-device-scale-factor={scale_factor}",
-        # Chromium only builds its accessibility tree when an AT client asks
-        # for it — forcing it on is a bet that GNOME's on-screen-keyboard
-        # auto-show depends on the AT-SPI focus events that tree produces,
-        # since neither disabling this nor XWayland alone fixed the OSK not
-        # appearing for a focused Netflix/Prime search field.
-        "--force-renderer-accessibility",
     ]
+    if extension_path is not None:
+        # Gamepad cursor/click/D-pad-nav/on-screen-keyboard, running entirely
+        # inside the page via the standard Web Gamepad API. Deliberately not
+        # system-level input injection (portal/uinput/etc): those need OS
+        # consent, don't reliably layer above the browser window on Wayland,
+        # and stop working the moment the page itself has focus anyway,
+        # which it always does here.
+        argv.append(f"--load-extension={extension_path}")
+        argv.append(f"--disable-extensions-except={extension_path}")
     if spec.fullscreen:
         argv.append("--start-fullscreen")
     if spec.spatial_nav:

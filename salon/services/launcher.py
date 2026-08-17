@@ -11,7 +11,9 @@ that app is gone to stop fighting it for input.
 
 from __future__ import annotations
 
+import os
 import shutil
+from pathlib import Path
 
 import gi
 
@@ -19,6 +21,7 @@ gi.require_version("Gtk", "4.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from salon import config  # noqa: E402
 from salon.core import launchspec  # noqa: E402
 from salon.core.model import LaunchSpec  # noqa: E402
 
@@ -36,6 +39,19 @@ def detect_browser() -> tuple[str, ...]:
     return ()
 
 
+def extension_path() -> Path:
+    """Path to the Salon gamepad-navigation Chrome extension.
+
+    SALON_EXTENSION_PATH lets the uninstalled dev launcher (bin/salon) point
+    straight at the source tree, mirroring how app.py resolves the GResource
+    path; installed/Flatpak builds fall back to pkgdatadir.
+    """
+    override = os.environ.get("SALON_EXTENSION_PATH")
+    if override:
+        return Path(override)
+    return Path(config.PKGDATADIR) / "browser-extension"
+
+
 class LauncherService:
     def launch(self, spec: LaunchSpec) -> tuple[Gio.Subprocess | None, str | None]:
         """Spawn spec. Returns (subprocess_or_None, error_message_or_None).
@@ -44,7 +60,11 @@ class LauncherService:
         spawn a process at all — check error first.
         """
         try:
-            argv = launchspec.resolve(spec, browser_command=detect_browser())
+            argv = launchspec.resolve(
+                spec,
+                browser_command=detect_browser(),
+                extension_path=extension_path(),
+            )
         except Exception as exc:  # noqa: BLE001 — POC: surface any resolution failure
             return None, str(exc)
         if argv is None:

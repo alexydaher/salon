@@ -11,33 +11,15 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-gi.require_version("GdkWayland", "4.0")
 
-from gi.repository import Adw, Gdk, GdkWayland, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from salon.core.model import LaunchKind, LaunchSpec, Row, Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.input.gamepad import GamepadSource  # noqa: E402
 from salon.input.keyboard import action_for_keyval  # noqa: E402
 from salon.services.launcher import LauncherService  # noqa: E402
-from salon.services.pointer_injector import (  # noqa: E402
-    PointerInjector,
-    onscreen_keyboard_enabled,
-    set_onscreen_keyboard_enabled,
-)
 from salon.ui.tile import TileWidget  # noqa: E402
-
-# Pixels of cursor motion per poll tick at full stick deflection (~60 ticks/s).
-_POINTER_SPEED = 22.0
-
-
-def _is_browser_launch(tile: Tile) -> bool:
-    """Whether launching this tile hands control to a browser window we
-    can't reach directly — the case where the gamepad should drive the
-    system pointer instead of tile navigation."""
-    if tile.launch.kind is LaunchKind.URL:
-        return True
-    return tile.launch.kind is LaunchKind.DESKTOP and tile.launch.target == "com.google.Chrome"
 
 
 def _demo_rows() -> list[Row]:
@@ -191,13 +173,18 @@ class HomeView(Gtk.Box):
         self.set_can_focus(True)
         self.set_focusable(True)
 
-        self._pointer_mode = False
+        # True while any launched process is presumably still using the
+        # controller — a browser tab has its own in-page gamepad handling
+        # (see data/browser-extension) and a native app like GeForce NOW
+        # reads the raw device directly. Either way, gamepad input bypasses
+        # window focus entirely (unlike keyboard/mouse), so Salon has to
+        # deliberately go quiet rather than double-handle every button
+        # press. Cleared automatically when the process exits.
         self._child_active = False
-        self._pointer = PointerInjector(on_ready=self._on_pointer_ready)
 
         # Keep a reference alive — GamepadSource holds the only strong ref
         # to the Manette.Monitor/Device connections that keep signals firing.
-        self._gamepad = GamepadSource(self._handle_action, on_right_stick=self._on_right_stick)
+        self._gamepad = GamepadSource(self._handle_action)
 
     def _update_focus(self) -> None:
         for r, widgets in enumerate(self._row_widgets):
@@ -227,25 +214,7 @@ class HomeView(Gtk.Box):
         return True
 
     def _handle_action(self, action: Action) -> None:
-        if action is Action.SEARCH:
-            # Global regardless of mode: harmless accessibility toggle, not
-            # a Salon navigation action, so it's never worth swallowing.
-            set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
-            return
-
-        if self._pointer_mode:
-            if action is Action.OK:
-                self._pointer.click()
-            elif action is Action.BACK:
-                self._pointer_mode = False
-                self._toast_overlay.add_toast(Adw.Toast(title="Back to tiles"))
-            return
-
         if self._child_active:
-            # A native app (e.g. a game client) reads the same raw gamepad
-            # device directly — that input bypasses window focus entirely,
-            # unlike keyboard/mouse, so Salon has to deliberately go quiet
-            # rather than fight it for button presses. Resumes on exit.
             return
 
         if action is Action.RIGHT:
@@ -262,35 +231,6 @@ class HomeView(Gtk.Box):
         # the top level yet (no search/settings overlay stack built), and
         # it must never quit Salon outright — see _on_key_pressed for the
         # dev-only Escape shortcut that actually does that.
-
-    def _on_right_stick(self, x: float, y: float) -> None:
-        if self._pointer_mode and self._pointer.ready:
-            self._pointer.move(x * _POINTER_SPEED, y * _POINTER_SPEED)
-
-    def _on_pointer_ready(self, ok: bool) -> None:
-        if not ok:
-            self._pointer_mode = False
-            self._toast_overlay.add_toast(
-                Adw.Toast(title="Pointer control wasn't granted — check the permission prompt.")
-            )
-
-    def _start_pointer_session(self) -> None:
-        # Export our window handle so the portal's consent dialog is
-        # properly anchored to Salon instead of appearing unparented —
-        # without this, xdg-desktop-portal logs "Failed to associate portal
-        # window with parent window" and the dialog isn't reliably visible.
-        root = self.get_root()
-        surface = root.get_surface() if isinstance(root, Gtk.Window) else None
-        if isinstance(surface, GdkWayland.WaylandToplevel):
-            exported = surface.export_handle(self._on_handle_exported)
-            if exported:
-                return
-        self._pointer.start()
-
-    def _on_handle_exported(
-        self, toplevel: GdkWayland.WaylandToplevel, handle: str, user_data: object = None
-    ) -> None:
-        self._pointer.start(parent_window=f"wayland:{handle}")
 
     def _move(self, d_row: int, d_col: int) -> None:
         new_row = self._focus_row + d_row
@@ -311,28 +251,17 @@ class HomeView(Gtk.Box):
         if subprocess is None:
             return  # BUILTIN: nothing spawned, nothing to track
 
-        is_browser = _is_browser_launch(tile)
-        if is_browser:
-            self._pointer_mode = True
-            self._start_pointer_session()
-            self._toast_overlay.add_toast(
-                Adw.Toast(title="Right stick = cursor, A = click, Y = keyboard, B = back")
-            )
-        else:
-            self._child_active = True
-            self._toast_overlay.add_toast(
-                Adw.Toast(title=f"{tile.title} has the controller — Salon resumes when it closes")
-            )
+        self._child_active = True
+        self._toast_overlay.add_toast(
+            Adw.Toast(title=f"{tile.title} has the controller — Salon resumes when it closes")
+        )
 
         def on_exited(proc: Gio.Subprocess, result: Gio.AsyncResult) -> None:
             try:
                 proc.wait_finish(result)
             except GLib.Error:
                 pass
-            if is_browser:
-                self._pointer_mode = False
-            else:
-                self._child_active = False
-                self._toast_overlay.add_toast(Adw.Toast(title="Welcome back to Salon"))
+            self._child_active = False
+            self._toast_overlay.add_toast(Adw.Toast(title="Welcome back to Salon"))
 
         subprocess.wait_async(None, on_exited)

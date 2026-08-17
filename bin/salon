@@ -27,6 +27,7 @@ if not (BUILD_DIR / "salon" / "config.py").exists():
 sys.path.insert(0, str(BUILD_DIR))
 os.environ.setdefault("GSETTINGS_SCHEMA_DIR", str(BUILD_DIR / "data"))
 os.environ.setdefault("SALON_GRESOURCE_PATH", str(BUILD_DIR / "data" / "salon.gresource"))
+os.environ.setdefault("SALON_EXTENSION_PATH", str(ROOT / "data" / "browser-extension"))
 
 from salon.main import main  # noqa: E402
 

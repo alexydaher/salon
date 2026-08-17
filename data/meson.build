@@ -22,6 +22,11 @@ configure_file(
 
 subdir('style')
 
+install_subdir(
+  'browser-extension',
+  install_dir: pkgdatadir,
+)
+
 gnome.compile_resources(
   'salon',
   'salon.gresource.xml',
