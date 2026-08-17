@@ -1,8 +1,12 @@
 """Minimal process launcher for the proof-of-concept.
 
 Full lifecycle tracking (launching overlay, dual return detection, idle
-inhibit, recents) is M5 in the implementation plan. This just resolves a
-LaunchSpec to argv and spawns it.
+inhibit, recents) is M5 in the implementation plan. This resolves a
+LaunchSpec to argv, spawns it, and hands back the Gio.Subprocess so the
+caller can track when it exits — needed because a gamepad's input bypasses
+window focus entirely (unlike keyboard/mouse), so a native app like a game
+client reads the same raw controller Salon does; Salon has to know when
+that app is gone to stop fighting it for input.
 """
 
 from __future__ import annotations
@@ -33,19 +37,23 @@ def detect_browser() -> tuple[str, ...]:
 
 
 class LauncherService:
-    def launch(self, spec: LaunchSpec) -> str | None:
-        """Spawn spec. Returns a human-readable error message, or None on success."""
+    def launch(self, spec: LaunchSpec) -> tuple[Gio.Subprocess | None, str | None]:
+        """Spawn spec. Returns (subprocess_or_None, error_message_or_None).
+
+        subprocess is None either on error, or for BUILTIN specs that don't
+        spawn a process at all — check error first.
+        """
         try:
             argv = launchspec.resolve(spec, browser_command=detect_browser())
         except Exception as exc:  # noqa: BLE001 — POC: surface any resolution failure
-            return str(exc)
+            return None, str(exc)
         if argv is None:
-            return None
+            return None, None
         try:
             # Silence the child's stdout/stderr — Chrome/GeForce NOW/etc. are
             # noisy on the console by default, and that's not Salon's log.
             flags = Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE
-            Gio.Subprocess.new(argv, flags)
+            subprocess = Gio.Subprocess.new(argv, flags)
         except GLib.Error as exc:
-            return f"Couldn't start {spec.target}: {exc.message}"
-        return None
+            return None, f"Couldn't start {spec.target}: {exc.message}"
+        return subprocess, None

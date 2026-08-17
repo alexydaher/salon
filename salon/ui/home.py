@@ -12,7 +12,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from salon.core.model import LaunchKind, LaunchSpec, Row, Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -191,6 +191,7 @@ class HomeView(Gtk.Box):
         self.set_focusable(True)
 
         self._pointer_mode = False
+        self._child_active = False
         self._pointer = PointerInjector(on_ready=self._on_pointer_ready)
 
         # Keep a reference alive — GamepadSource holds the only strong ref
@@ -216,19 +217,26 @@ class HomeView(Gtk.Box):
         return True
 
     def _handle_action(self, action: Action) -> None:
-        if action is Action.SEARCH:
-            set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
-            return
-
         if self._pointer_mode:
-            if action is Action.OK:
+            if action is Action.SEARCH:
+                set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+            elif action is Action.OK:
                 self._pointer.click()
             elif action is Action.BACK:
                 self._pointer_mode = False
                 self._toast_overlay.add_toast(Adw.Toast(title="Back to tiles"))
             return
 
-        if action is Action.RIGHT:
+        if self._child_active:
+            # A native app (e.g. a game client) reads the same raw gamepad
+            # device directly — that input bypasses window focus entirely,
+            # unlike keyboard/mouse, so Salon has to deliberately go quiet
+            # rather than fight it for button presses. Resumes on exit.
+            return
+
+        if action is Action.SEARCH:
+            set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+        elif action is Action.RIGHT:
             self._move(0, 1)
         elif action is Action.LEFT:
             self._move(0, -1)
@@ -266,13 +274,35 @@ class HomeView(Gtk.Box):
 
     def _launch_focused(self) -> None:
         tile = self._rows[self._focus_row].tiles[self._focus_col]
-        error = self._launcher.launch(tile.launch)
+        subprocess, error = self._launcher.launch(tile.launch)
         if error is not None:
             self._toast_overlay.add_toast(Adw.Toast(title=error))
             return
-        if _is_browser_launch(tile):
+        if subprocess is None:
+            return  # BUILTIN: nothing spawned, nothing to track
+
+        is_browser = _is_browser_launch(tile)
+        if is_browser:
             self._pointer_mode = True
             self._pointer.start()
             self._toast_overlay.add_toast(
                 Adw.Toast(title="Right stick = cursor, A = click, Y = keyboard, B = back")
             )
+        else:
+            self._child_active = True
+            self._toast_overlay.add_toast(
+                Adw.Toast(title=f"{tile.title} has the controller — Salon resumes when it closes")
+            )
+
+        def on_exited(proc: Gio.Subprocess, result: Gio.AsyncResult) -> None:
+            try:
+                proc.wait_finish(result)
+            except GLib.Error:
+                pass
+            if is_browser:
+                self._pointer_mode = False
+            else:
+                self._child_active = False
+                self._toast_overlay.add_toast(Adw.Toast(title="Welcome back to Salon"))
+
+        subprocess.wait_async(None, on_exited)
