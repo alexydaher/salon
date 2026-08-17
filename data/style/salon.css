@@ -3,3 +3,27 @@
 window {
   background-color: @surface-0;
 }
+
+.salon-row-heading {
+  color: @text-secondary;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.salon-tile {
+  background-color: @surface-1;
+  border-radius: 12px;
+  border: 4px solid transparent;
+  padding: 16px;
+  color: @text-primary;
+}
+
+.salon-tile.focused {
+  background-color: @surface-2;
+  border: 4px solid @accent;
+}
+
+.salon-tile-title {
+  color: @text-primary;
+  font-weight: 600;
+}

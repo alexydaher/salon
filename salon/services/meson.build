@@ -1,7 +1,14 @@
-configure_file(
-  input: '__init__.py',
-  output: '__init__.py',
-  copy: true,
-  install: true,
-  install_dir: moduledir / 'services',
-)
+python_sources = [
+  '__init__.py',
+  'launcher.py',
+]
+
+foreach f : python_sources
+  configure_file(
+    input: f,
+    output: f,
+    copy: true,
+    install: true,
+    install_dir: moduledir / 'services',
+  )
+endforeach

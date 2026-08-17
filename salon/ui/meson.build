@@ -1,6 +1,8 @@
 python_sources = [
   '__init__.py',
   'window.py',
+  'home.py',
+  'tile.py',
 ]
 
 foreach f : python_sources

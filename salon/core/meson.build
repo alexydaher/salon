@@ -1,5 +1,10 @@
 python_sources = [
   '__init__.py',
+  'errors.py',
+  'model.py',
+  'catalog.py',
+  'config.py',
+  'launchspec.py',
   'tokens.py',
 ]
 
