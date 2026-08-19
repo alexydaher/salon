@@ -1,11 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Gamepad-driven pointer/click injection via the RemoteDesktop portal.
 
 Wayland forbids one app from injecting input into another app's window
 directly (unlike X11's XTestFakeInput), so this goes through
 org.freedesktop.portal.RemoteDesktop instead — the sanctioned, sandbox-safe
-mechanism GNOME Remote Desktop and similar tools use. The user sees a
-one-time system consent dialog the first time a session starts per process
-lifetime; after that this reuses the same session.
+mechanism GNOME Remote Desktop and similar tools use.
+
+**The consent dialog is shown once, ever.** RemoteDesktop portal version 2
+added `persist_mode` and `restore_token` (the same mechanism screen-sharing
+tools use so they don't re-prompt every call). Salon asks for
+`PERSIST_EXPLICITLY_REVOKED`, keeps the token the portal hands back, and
+passes it to `SelectDevices` next time; the portal then restores the grant
+silently. Without this the dialog appears on *every* browser launch, landing
+on top of whatever the user just opened.
+
+The token is deliberately stored by the caller (GSettings) rather than here:
+this class holds no policy, and clearing that key is how the grant is given
+back. A token the portal no longer honours is dropped on failure so the next
+attempt starts clean rather than retrying a dead grant forever.
 """
 
 from __future__ import annotations
@@ -28,6 +40,16 @@ _REQUEST_IFACE = "org.freedesktop.portal.Request"
 _DEVICE_POINTER = 1
 _DEVICE_KEYBOARD = 2
 
+# org.freedesktop.portal.RemoteDesktop v2 persist modes.
+_PERSIST_NONE = 0
+_PERSIST_WHILE_RUNNING = 1
+_PERSIST_EXPLICITLY_REVOKED = 2
+
+# persist_mode/restore_token only exist from version 2 of the interface.
+# On an older portal both are ignored and the dialog appears every time,
+# which is the pre-existing behaviour rather than a failure.
+_RD_VERSION_WITH_PERSIST = 2
+
 BTN_LEFT = 0x110
 
 _PRESSED = 1
@@ -42,13 +64,22 @@ class PointerInjector:
     pointer mode is entered) — it only does the handshake once.
     """
 
-    def __init__(self, on_ready: Callable[[bool], None] | None = None) -> None:
+    def __init__(
+        self,
+        on_ready: Callable[[bool], None] | None = None,
+        *,
+        load_restore_token: Callable[[], str] | None = None,
+        save_restore_token: Callable[[str], None] | None = None,
+    ) -> None:
         self._connection: Gio.DBusConnection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self._session_handle: str | None = None
         self._parent_window = ""
         self._starting = False
         self._timeout_id: int | None = None
         self._on_ready = on_ready
+        self._load_restore_token = load_restore_token
+        self._save_restore_token = save_restore_token
+        self._used_restore_token = ""
 
     @property
     def ready(self) -> bool:
@@ -65,12 +96,14 @@ class PointerInjector:
             return
         self._starting = True
         self._parent_window = parent_window
-        print(f"[pointer] requesting RemoteDesktop session (parent={parent_window!r})...")
         self._timeout_id = GLib.timeout_add_seconds(20, self._on_timeout)
         self._create_session()
 
     def _on_timeout(self) -> bool:
-        print("[pointer] RemoteDesktop session request timed out after 20s — no response.")
+        print(
+            "[pointer] RemoteDesktop request timed out after 20s — the consent "
+            "dialog was probably left unanswered."
+        )
         self._timeout_id = None
         self._fail()
         return GLib.SOURCE_REMOVE
@@ -194,10 +227,26 @@ class PointerInjector:
             # not GLib.Variant, despite the a{sv} signature suggesting it.
             handle = results.get("session_handle")
             self._session_handle = handle if isinstance(handle, str) else session_token
-            print("[pointer] session created, selecting devices...")
             self._select_devices()
 
         return handler
+
+    def _portal_version(self) -> int:
+        try:
+            result = self._connection.call_sync(
+                _BUS_NAME,
+                _OBJECT_PATH,
+                "org.freedesktop.DBus.Properties",
+                "Get",
+                GLib.Variant("(ss)", (_RD_IFACE, "version")),
+                GLib.VariantType("(v)"),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            )
+        except GLib.Error:
+            return 1
+        return int(result.unpack()[0])
 
     def _select_devices(self) -> None:
         assert self._session_handle is not None
@@ -206,21 +255,22 @@ class PointerInjector:
             f"/org/freedesktop/portal/desktop/request/{self._sender_token()}/{handle_token}"
         )
         self._watch_request(request_path, self._on_devices_selected)
+        options = {
+            "types": GLib.Variant("u", _DEVICE_POINTER | _DEVICE_KEYBOARD),
+            "handle_token": GLib.Variant("s", handle_token),
+        }
+        if self._portal_version() >= _RD_VERSION_WITH_PERSIST:
+            options["persist_mode"] = GLib.Variant("u", _PERSIST_EXPLICITLY_REVOKED)
+            token = self._load_restore_token() if self._load_restore_token else ""
+            self._used_restore_token = token
+            if token:
+                options["restore_token"] = GLib.Variant("s", token)
         self._connection.call_sync(
             _BUS_NAME,
             _OBJECT_PATH,
             _RD_IFACE,
             "SelectDevices",
-            GLib.Variant(
-                "(oa{sv})",
-                (
-                    self._session_handle,
-                    {
-                        "types": GLib.Variant("u", _DEVICE_POINTER | _DEVICE_KEYBOARD),
-                        "handle_token": GLib.Variant("s", handle_token),
-                    },
-                ),
-            ),
+            GLib.Variant("(oa{sv})", (self._session_handle, options)),
             GLib.VariantType("(o)"),
             Gio.DBusCallFlags.NONE,
             -1,
@@ -232,7 +282,6 @@ class PointerInjector:
             print(f"[pointer] SelectDevices was denied or failed (code={code}).")
             self._fail()
             return
-        print("[pointer] devices selected, starting session (consent dialog should appear)...")
         self._start_session()
 
     def _start_session(self) -> None:
@@ -266,11 +315,30 @@ class PointerInjector:
         self._clear_timeout()
         if code != 0:
             print(f"[pointer] Start was denied or failed (code={code}) — consent not granted?")
+            # A token the portal has stopped honouring (revoked in system
+            # settings, or invalidated by a compositor restart) would
+            # otherwise be retried forever, and the retry is silent — the
+            # user would just see the pointer never work again.
+            self._forget_restore_token()
             self._fail()
             return
-        print("[pointer] RemoteDesktop session ready.")
+        self._store_restore_token(results.get("restore_token"))
         if self._on_ready is not None:
             self._on_ready(True)
+
+    def _store_restore_token(self, token: object) -> None:
+        if self._save_restore_token is None:
+            return
+        # The portal issues a *fresh* token each time and the old one stops
+        # working, so this has to be written on every successful start, not
+        # only the first.
+        if isinstance(token, str) and token and token != self._used_restore_token:
+            self._save_restore_token(token)
+
+    def _forget_restore_token(self) -> None:
+        if self._save_restore_token is not None and self._used_restore_token:
+            self._save_restore_token("")
+        self._used_restore_token = ""
 
     def _fail(self) -> None:
         self._clear_timeout()
