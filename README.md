@@ -173,11 +173,62 @@ Two rules matter more than the rest:
 
 ## Logs
 
-Salon is a required component of its own gnome-session, so a crash is
+Salon restarts itself when it is running as the session, so a crash is
 followed by a restart and, without somewhere to write, no evidence. It logs
 to stderr — which the session manager hands to the journal — and to
 `$XDG_STATE_HOME/salon/salon.log` (rotated, 512 KiB × 3). `SALON_DEBUG=1`
 turns on debug output, including GTK's own.
+
+## What hasn't been tested
+
+Salon is 0.1. The gates are green — ruff, `mypy --strict`, 235 tests, and
+the AppStream and desktop-entry validators, on every push — but green tests
+are not the same as a verified appliance, and some of this needs hardware
+that wasn't attached to the machine it was written on.
+
+* **HDMI-CEC has never touched a CEC adapter.** The keycode table and the
+  `cec-client` line parsing are covered by tests; nothing else about it has
+  run against a television.
+* **One controller, once.** A DualSense over USB enumerates and works. The
+  button *mapping* has not been confirmed press by press against a log, and
+  no other pad has been tried. If yours is wrong, that's a bug worth
+  filing — the mapping is in `salon/input/gamepad.py`.
+* **Suspend, restart and shut down have never been invoked.** Only logind's
+  read-only `CanSuspend`/`CanReboot`/`CanPowerOff` queries have been made.
+  The calls themselves, and the refusal path that reports a polkit denial
+  back to the screen, are unexercised.
+* **The session has not been logged into.** Its systemd units install and
+  pass `systemd-analyze verify`, which is more than the previous
+  arrangement could say, but nobody has yet picked *Salon* at the login
+  screen and watched it come up.
+* **No screen reader.** Roles, names and the selected/active-descendant
+  relationships are published and were checked by walking the live AT-SPI
+  tree, but Orca has never been run against Salon, so whether each tile is
+  actually *spoken* on arrival is unknown.
+* **Read at a desk, not across a room.** Whether the tile size and the row
+  anchor work at three metres, and whether the focus bloom is right on a
+  panel with a television's black level, are both still guesses.
+
+### The phone keyboard is not private
+
+The pairing server (search → type on your phone) is plain HTTP on your local
+network. The four-digit code and its lockout stop a stranger *sending* text
+to your television; they do nothing to stop anyone on the same network
+*reading* what you type, because it isn't encrypted. It's a search box, so
+this is usually nothing — but don't type a password into it. The server only
+runs while the search screen is open, and closing search shuts it down.
+
+### Other known limits
+
+* **Only web tiles can be made fullscreen.** URL tiles pass
+  `--start-fullscreen`; native applications decide their own window state,
+  and no Wayland client may override another's.
+* **English only.** There is no gettext and no `po/`. That's a decision for
+  0.1 rather than an oversight, but it is a decision.
+* **The backdrop is a pool of accent light, not blurred artwork.**
+* **Building the Flatpak may need `--disable-rofiles-fuse`**, on hosts where
+  `org.flatpak.Builder` can't spawn `rofiles-fuse`. It only turns off a
+  hardlink-protection layer over the build tree.
 
 ## Licence
 

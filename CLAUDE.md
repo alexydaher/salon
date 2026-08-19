@@ -331,16 +331,38 @@ libmanette builds against the GNOME 50 SDK, `$bindir/salon` finds the
 gresource and the compiled schemas inside the sandbox, and the packaged
 module tree imports. The manifest header carries the exact command.
 
-Two things are deliberately left for when there is a public repository:
-the metainfo has no `<screenshots>` (AppStream needs absolute URLs; the
-images are already in `docs/screenshots/`), and the homepage URL claims
-`salon.rocks`, which is the domain the application id already asserts —
-if that isn't registered, the *id* is what has to change.
+Both of the things that were "left for when there is a public repository"
+are now done. The application id is **`io.github.alexydaher.Salon`** — the
+old one asserted `salon.rocks`, which was never registered, and an AppStream
+id has to be something its author demonstrably controls. The metainfo has
+`<screenshots>` pinned to the `v0.1.0` tag, plus bugtracker, vcs-browser and
+contribute URLs, and the Flatpak manifest builds from a git source rather
+than `type: dir`. The repository is `github.com/alexydaher/salon`.
+
+**The session was the big one.** `RequiredComponents=` in the `.session`
+file did nothing — gnome-session 50 doesn't act on that key and it isn't in
+the manual page any more — so picking Salon at the login screen would have
+started a session containing nothing, and the restart-on-exit behaviour the
+"television rather than a desktop" claim rests on did not exist. It's a real
+systemd unit now (`data/systemd/`), with `Restart=always` and a bounded
+start limit, plus a drop-in on `gnome-session@salon.target`. See DECISIONS.
 
 ## What is still missing
 
 What's left is hardware verification and a short list of documented gaps.
 
+- **The Salon session has never been logged into.** Its systemd units
+  install to the right place and pass `systemd-analyze verify` against a
+  staged `DESTDIR` install, which is strictly more than the old
+  `RequiredComponents=` arrangement could claim — but nobody has picked
+  *Salon* at the login screen and watched the Shell and Salon come up. This
+  is a two-minute test on real hardware and it is the highest-value one
+  left.
+- **The power actions have never been invoked.** `services/power.py` calls
+  `Suspend`/`Reboot`/`PowerOff` on logind, and only the read-only
+  `Can*` queries have ever run. The refusal path — a polkit denial arriving
+  back as a message on screen rather than vanishing — is the part most
+  likely to be wrong, and it is untested.
 - **CEC has never touched hardware.** `input/cec_in.py` and
   `services/cec_out.py` are written and the keycode table is tested, but
   there is no CEC adapter here and `cec-client` isn't installed.
@@ -365,6 +387,10 @@ What's left is hardware verification and a short list of documented gaps.
   hardlink-protection layer and the build proceeds normally.
 - **No i18n.** No gettext, no `po/`; every string is hardcoded English.
   A decision for 0.1, not an oversight — but it is a decision.
+- **The phone keyboard is plaintext.** `services/pairing.py` is HTTP on the
+  LAN: the code and its lockout stop a stranger *sending* text, not anyone
+  on the same network *reading* it. Documented in the README rather than
+  fixed, because a search box is what it is for.
 - **Smaller gaps:** the backdrop is a pool of accent light, not blurred
   artwork (§7.4) — pre-blurring at fetch time is the missing piece;
   `data/fonts/` is empty, so Archivo/Inter are requested but fall back to
