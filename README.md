@@ -119,10 +119,23 @@ more honest option.
 ## Running it as the session
 
 Installing puts a session entry in `wayland-sessions`, so **Salon** can be
-chosen at the login screen. That starts GNOME Shell with Salon as a
-required component — if Salon exits, the session restarts it, which is what
-makes the machine behave like a television rather than a desktop with a
-launcher on it.
+chosen at the login screen. That session is GNOME Shell, the standard GNOME
+session services, and Salon — not the full desktop with a launcher on top.
+
+Salon is started by a systemd user unit with `Restart=always`, so if it ever
+exits, it comes straight back: the screen blinks and the television is still
+a television. A genuine crash *loop* — five starts in thirty seconds, which
+means it is never coming up — gives up and returns you to the login screen
+rather than spinning on a black screen forever. Either way the reason is in
+`$XDG_STATE_HOME/salon/salon.log`, because the restart is otherwise the only
+evidence anything happened.
+
+In this session Salon also switches off GNOME's **idle screen lock** for as
+long as it is running, and puts it back on the way out. The screen still
+blanks on idle; it just doesn't come back asking for a password, which is a
+question a gamepad and a TV remote cannot answer. Salon does not do this
+when you start it from Show Applications — a guest in someone's desktop has
+no business changing that.
 
 For a gentler version, Settings → System → **Start Salon at login** just
 adds an autostart entry to your normal desktop session.

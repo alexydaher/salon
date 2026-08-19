@@ -9,6 +9,7 @@ python_sources = [
   'pairing.py',
   'netinfo.py',
   'power.py',
+  'screenlock.py',
   'cec_out.py',
 ]
 

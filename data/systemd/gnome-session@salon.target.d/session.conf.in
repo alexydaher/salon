@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# What the Salon session is made of. gnome-session(1): "Session definitions
+# don't do anything on their own, and they need to be accompanied by systemd
+# configuration to provide some functionality." This is that configuration —
+# the `salon` here matches `gnome-session --session=salon` in the
+# wayland-sessions entry, which is what names the target.
+#
+# Deliberately not the full GNOME desktop: the Shell, the standard session
+# services, and Salon. No gnome-shell extensions target, no desktop autostart
+# (see Kiosk=true in the .session file).
+[Unit]
+# Settings daemon and friends: without these there is no network applet
+# feeding NetworkManager, no media keys, no colour management.
+Requires=gnome-session-services.target
+
+# `user` is gnome-shell's built-in default mode, present on every GNOME —
+# unlike `ubuntu`, which only exists where Ubuntu's gnome-shell is installed.
+# Salon is an ordinary Wayland client and cannot be its own compositor, so
+# something has to be one.
+Requires=org.gnome.Shell@user.service
+
+Requires=@APP_ID@.service

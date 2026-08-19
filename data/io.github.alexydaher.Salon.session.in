@@ -1,7 +1,17 @@
 [GNOME Session]
 Name=Salon
-# Shell first: Salon is an ordinary Wayland client and needs a compositor to
-# connect to. It is a *required* component, so gnome-session restarts it if
-# it ever exits — which is what makes this a television rather than a
-# desktop that happens to be running a launcher.
-RequiredComponents=org.gnome.Shell;@APP_ID@;
+
+# Kiosk sessions are gnome-session's own term for "a session built around
+# starting one specific app", which is exactly this. It stops gnome-session
+# autostarting the XDG entries in ~/.config/autostart — wanted here for two
+# reasons: a television should not silently run whatever the desktop
+# accumulated, and Settings' own "Start Salon at login" writes one of those
+# entries, so without this, logging into the Salon session with that toggle
+# on would start Salon twice.
+Kiosk=true
+
+# What actually starts the Shell and Salon is not in this file. gnome-session
+# stopped acting on RequiredComponents= — as of 50 the key isn't even in
+# gnome-session(1), and a session definition "doesn't do anything on its own".
+# The components live in a systemd drop-in on gnome-session@salon.target
+# instead; see data/systemd/.

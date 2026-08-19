@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Where Salon says what happened.
 
-Salon is a `RequiredComponent` of its own gnome-session, so when it dies
-gnome-session starts it again — which is the right behaviour for a
+Salon runs from a systemd user unit with `Restart=always` when it is the
+session, so when it dies it is started again — the right behaviour for a
 television and the worst possible one for diagnosis: the screen blinks, the
 launcher is back, and whatever went wrong left no trace. There is no
 terminal in the room to have been watching.

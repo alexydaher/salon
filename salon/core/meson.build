@@ -5,6 +5,7 @@ python_sources = [
   'catalog.py',
   'provider.py',
   'sandbox.py',
+  'session.py',
   'config.py',
   'focus.py',
   'launchspec.py',

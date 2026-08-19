@@ -985,3 +985,68 @@ readings must produce exactly 0.0.
 The left stick's 0.35 quantisation dead zone was already safe against this
 (0.15 max observed), which is why nothing had ever misbehaved on the
 directional path.
+
+## 2026-08-19 (release preparation)
+
+**The application id is `io.github.alexydaher.Salon`, not `rocks.salon.Salon`.**
+An AppStream id has to be something its author demonstrably controls, and
+Flathub checks it: either a domain, or a code-hosting account. `salon.rocks`
+was never registered, so the old id asserted something untrue and would have
+been rejected at submission. The GitHub form needs no registrar. Rejected:
+registering the domain to keep the prettier id — it costs money annually to
+hold a claim the project doesn't otherwise need, and the id can move to a
+domain later if one is ever bought. Note this orphans settings already on
+disk under `/rocks/salon/Salon/`, including the RemoteDesktop restore token;
+`dconf dump` piped into `dconf load` at the new path moves them.
+
+**The gnome-session `RequiredComponents=` key did nothing, and the session
+mode had never been run.** The `.session` file said the Shell and Salon were
+required components, and both the README and `logs.py` stated as fact that
+this is what restarts Salon when it exits. It isn't. gnome-session 50 does
+not act on that key — it isn't in `gnome-session(1)` at all any more, where
+SESSION DEFINITION now lists only `Name` and `Kiosk`, and the page says
+plainly that a session definition "doesn't do anything on their own" and must
+be accompanied by systemd configuration. The shipped `ubuntu.session` is two
+lines, `Name=Ubuntu`, with all the wiring in
+`gnome-session@ubuntu.target.d/ubuntu.session.conf`. So Salon's session entry
+would have started a session containing nothing, and the restart behaviour
+that the whole "television, not a desktop" claim rests on did not exist.
+
+Fixed by shipping what actually works: a drop-in on `gnome-session@salon.target`
+naming `gnome-session-services.target`, `org.gnome.Shell@user.service` and
+Salon's own unit, plus `io.github.alexydaher.Salon.service` carrying
+`Restart=always`. The restart is now a real, inspectable policy rather than a
+property assumed of a key. `StartLimitBurst=5` in thirty seconds bounds it:
+an app that cannot start at all should return the user to the login screen,
+not spin forever behind a black screen. `org.gnome.Shell@user.service` rather
+than `@ubuntu` because `user` is gnome-shell's built-in default mode and
+exists everywhere. Installed to `datadir/systemd/user`, which is on systemd's
+user unit search path under both `--prefix=/usr` and `--prefix=$HOME/.local`.
+
+**The session definition is `Kiosk=true`.** It is gnome-session's own term for
+a session built around starting one specific app, which is exactly this, and
+it stops `~/.config/autostart` being replayed into a television. It also
+resolves a collision that would otherwise be a real bug: Settings' "Start
+Salon at login" writes an autostart entry, so without `Kiosk=true`, logging
+into the Salon session with that toggle on would have started Salon twice.
+
+**Salon suppresses the idle screen lock, but only when it is the session.**
+GNOME blanks after five minutes and locks when it blanks. In a living room
+that is a dead end — the screen returns showing a password field, and neither
+a gamepad nor a CEC remote can type one, so the set is bricked until someone
+fetches a keyboard. `services/screenlock.py` sets
+`org.gnome.desktop.screensaver lock-enabled` false while Salon runs and
+restores it on shutdown. Blanking is deliberately left alone: the panel and
+the power bill both want the screen to go dark, and only the *lock* is the
+trap. Rejected: inhibiting idle entirely (leaves a static bright image on an
+OLED indefinitely), and a gschema override (changes the default system-wide,
+including for the user's ordinary desktop session). The guard is
+`core/session.py`, pure and tested, and it is deliberately strict: a false
+positive means silently unlocking somebody's laptop because they opened Salon
+from Show Applications, which is far worse than a false negative.
+
+**The Flatpak manifest is tag-only, with no `commit:`.** Flathub wants a git
+source pinned to a hash as well as a tag, but this manifest lives inside the
+repository it builds and no commit can contain its own hash. That is what the
+separate `flathub/<app-id>` repository is for; the in-tree manifest stays
+tag-only, for building from a clean checkout.

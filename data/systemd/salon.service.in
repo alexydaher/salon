@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Salon as a component of its own gnome-session. This unit is what makes the
+# machine behave like a television rather than a desktop that happens to have
+# a launcher on it: Restart=always is here, and it is the only thing in the
+# tree that actually provides that behaviour.
+#
+# The previous arrangement claimed it came from RequiredComponents= in the
+# .session file. It didn't: gnome-session 50 doesn't act on that key, and
+# nothing restarted anything.
+[Unit]
+Description=Salon, the living-room launcher
+Documentation=https://github.com/alexydaher/salon
+
+# Tie the unit's life to the session's. Requisite rather than Requires so
+# that starting this by hand outside a graphical session fails cleanly
+# instead of dragging a session target up underneath it.
+Requisite=gnome-session-initialized.target
+PartOf=gnome-session-initialized.target
+After=gnome-session-initialized.target
+
+# Started by the session target, not by a person.
+RefuseManualStart=on
+RefuseManualStop=on
+CollectMode=inactive-or-failed
+
+# A crash loop must end somewhere. Five starts in thirty seconds means Salon
+# is not going to come up — a missing gresource, a broken GTK, a bad tile
+# file — and spinning forever would leave a black screen with no way in.
+# Failing the unit takes gnome-session-shutdown.target with it and returns
+# the user to the login screen, where another session can be chosen.
+StartLimitIntervalSec=30
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=@bindir@/salon
+Slice=session.slice
+
+# The whole point. An unhandled exception is logged and survived in-process
+# (see salon/logs.py), so reaching here means the process is genuinely gone.
+Restart=always
+RestartSec=200ms
+
+# Don't leave a stuck launcher holding the screen.
+TimeoutStopSec=5

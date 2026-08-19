@@ -13,6 +13,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 from salon import config  # noqa: E402
+from salon.services.screenlock import ScreenLockPolicy  # noqa: E402
 from salon.ui.scale import ScaleManager  # noqa: E402
 from salon.ui.theme import ThemeManager  # noqa: E402
 from salon.ui.window import SalonWindow  # noqa: E402
@@ -27,11 +28,18 @@ class SalonApplication(Adw.Application):
         self._window: SalonWindow | None = None
         self.scale_manager = ScaleManager()
         self.theme_manager = ThemeManager(Gio.Settings.new(config.APP_ID))
+        self._screen_lock = ScreenLockPolicy()
 
     def do_startup(self) -> None:
         Adw.Application.do_startup(self)
         self._register_resources()
         self._load_css()
+        # Only does anything when Salon is the session; see services/screenlock.
+        self._screen_lock.apply()
+
+    def do_shutdown(self) -> None:
+        self._screen_lock.restore()
+        Adw.Application.do_shutdown(self)
 
     def do_activate(self) -> None:
         if self._window is None:

@@ -27,8 +27,9 @@ configure_file(
 )
 
 # The session entry (§6.11): picking "Salon" at the login screen starts
-# gnome-session with a session definition whose required components are the
-# Shell and Salon, rather than the full GNOME desktop with Salon on top.
+# gnome-session with a session definition naming the Shell and Salon, rather
+# than the full GNOME desktop with Salon on top. The definition names the
+# session; the systemd units below are what actually start anything.
 session_conf = configuration_data()
 session_conf.set('APP_ID', 'io.github.alexydaher.Salon')
 
@@ -46,6 +47,38 @@ configure_file(
   configuration: session_conf,
   install: true,
   install_dir: datadir / 'wayland-sessions',
+)
+
+# The session's actual moving parts. gnome-session(1) is explicit that a
+# .session file "doesn't do anything on its own" and has to be accompanied by
+# systemd configuration; RequiredComponents= is no longer acted on, and isn't
+# in the manual page as of 50. So: a drop-in naming what the session requires,
+# and a unit for Salon itself carrying the Restart= policy that makes a crash
+# invisible to whoever is watching television.
+#
+# datadir rather than libdir: /usr/share/systemd/user and
+# ~/.local/share/systemd/user are both on systemd's user unit search path, so
+# this works under a --prefix=/usr install and a --prefix=$HOME/.local one
+# without changing.
+systemd_user_dir = datadir / 'systemd' / 'user'
+
+service_conf = configuration_data()
+service_conf.set('bindir', prefix / get_option('bindir'))
+
+configure_file(
+  input: 'systemd/salon.service.in',
+  output: 'io.github.alexydaher.Salon.service',
+  configuration: service_conf,
+  install: true,
+  install_dir: systemd_user_dir,
+)
+
+configure_file(
+  input: 'systemd/gnome-session@salon.target.d/session.conf.in',
+  output: 'session.conf',
+  configuration: session_conf,
+  install: true,
+  install_dir: systemd_user_dir / 'gnome-session@salon.target.d',
 )
 
 # AppStream metadata: what a software centre shows, and what Flathub
