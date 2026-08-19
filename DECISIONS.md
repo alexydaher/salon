@@ -903,3 +903,58 @@ of the title above it, rather than clipping two pixels of glow.
 there, but not the horizontal one: the left edge of that viewport is the
 boundary with the on-screen keyboard, three columns already fill the pane,
 and glow spilling over the keys is worse than glow that stops at them.
+
+## 2026-08-19 — What a first release actually needed
+
+**GPL-3.0-or-later, and an SPDX line rather than a copyright block.** The
+project had no licence at all, which is not a neutral state: it means nobody
+may legally use, fork or package it, and Flathub rejects a submission
+outright. GPL-3 matches the GNOME applications Salon sits beside and links
+against. One SPDX identifier per file rather than a header paragraph, so the
+licence travels with a file that gets moved and the header stays one line.
+
+**The tree became eleven milestone commits, not one.** Eighty-seven
+uncommitted paths had accumulated — the entire application below the
+original proof-of-concept. Grouped by milestone because that is the only
+grouping that explains *why* a file exists; a subsystem split would cut
+across every feature, and one "backfill" commit would say nothing at all.
+The commits are snapshots of a tree built out of order, so an intermediate
+one does not necessarily build: that is inherent in backfilling, and worth
+less than the history being readable.
+
+**Metadata is validated by the build, not at submission time.**
+`appstreamcli validate` and `desktop-file-validate` run as `meson test`, and
+`check.sh` now runs `meson test`. A wrong AppStream tag otherwise surfaces
+when someone tries to publish, which is the worst moment to learn it. Two
+things are deliberately missing from the metainfo — screenshots need
+absolute URLs and there is no public repository yet, and the homepage claims
+the domain the app id already asserts. Both are flagged in comments in the
+file rather than filled with plausible-looking lies.
+
+**The pairing code is now rate-limited, because four digits is not a
+secret.** `compare_digest` defeats a timing oracle; it does nothing about a
+loop over ten thousand possibilities, which any script on the same network
+finishes in seconds, and the prize is typing into a search box that launches
+applications. Five wrong codes burn the session — including for the right
+code, so guessing it on the last allowed attempt wins nothing — and the only
+way back is closing and reopening search, which mints a new one. The
+television says so, since otherwise the phone has silently stopped working
+and nothing on screen explains it. Driven over real HTTP in
+`tests/test_pairing.py`, because what is being asserted is what a request
+from the network gets back.
+
+**Logging exists because the restart hides the crash.** Salon is a
+`RequiredComponent` of its own gnome-session, so a crash is followed
+immediately by a restart: the screen blinks and there is nothing to look at
+afterwards, and no terminal in the room was watching. Two sinks — stderr for
+the journal, and a rotated file under `$XDG_STATE_HOME` because a set-top
+box may keep the journal in volatile storage. `sys.excepthook`,
+`threading.excepthook` and GLib's writer all route through it; an exception
+escaping into a GTK callback otherwise prints a traceback nobody sees and is
+swallowed by the main loop. Unhandled exceptions are logged and the process
+is left running — taking the whole television down because an artwork thread
+raised would be the worse failure. Everything below WARNING from GLib is
+dropped unless `SALON_DEBUG` is set: a custom writer bypasses
+`G_MESSAGES_DEBUG` filtering, and the first version filled the log with the
+Vulkan loader enumerating physical devices four times per startup, which
+would have rotated away the one thing the file exists to keep.

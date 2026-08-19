@@ -14,7 +14,7 @@
 # still the easiest way to hand someone a build.
 app-id: rocks.salon.Salon
 runtime: org.gnome.Platform
-runtime-version: '48'
+runtime-version: '50'
 sdk: org.gnome.Sdk
 command: salon
 

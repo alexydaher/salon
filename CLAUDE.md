@@ -31,10 +31,14 @@ whichever was written last wins; re-run `install-dev.sh` after a
 ## Gates
 
 ```sh
-./scripts/check.sh         # ruff, mypy --strict (core+input), pytest, meson compile
+./scripts/check.sh         # ruff, mypy --strict (core+input), pytest,
+                           # meson compile, meson test (metadata validation)
 ```
 
-Must exit 0 before any milestone is considered done.
+Must exit 0 before any milestone is considered done. The same gates run in
+CI (`.github/workflows/checks.yml`) on every push, under Xvfb so the tests
+that resolve real icon names run rather than skip, finishing with a staged
+`DESTDIR` install.
 
 ## Layer rules
 
@@ -312,10 +316,25 @@ verified.** What remains is hardware that isn't attached to this machine
     longer clamped at the bottom so the last row can reach the anchor line.
   - Power actions **report their refusal** instead of failing silently.
 
+## Release state (0.1.0)
+
+The paperwork a first release needs is done: **GPL-3.0-or-later** with an
+SPDX line in every source file, an AppStream metainfo file validated by
+`meson test` (and so by `check.sh` and CI), logging to the journal *and* to
+`$XDG_STATE_HOME/salon/salon.log` with `sys.excepthook`, `threading`'s and
+GLib's writer all routed through it, CI, and the phone keyboard's
+brute-force lockout. The tree is committed as eleven milestone-grouped
+commits rather than the working directory it used to be.
+
+Two things are deliberately left for when there is a public repository:
+the metainfo has no `<screenshots>` (AppStream needs absolute URLs; the
+images are already in `docs/screenshots/`), and the homepage URL claims
+`salon.rocks`, which is the domain the application id already asserts —
+if that isn't registered, the *id* is what has to change.
+
 ## What is still missing
 
-Phase 1 and Phase 2 are complete. What's left is hardware verification and
-a short list of documented gaps.
+What's left is hardware verification and a short list of documented gaps.
 
 - **CEC has never touched hardware.** `input/cec_in.py` and
   `services/cec_out.py` are written and the keycode table is tested, but
@@ -327,6 +346,11 @@ a short list of documented gaps.
 - **Only web tiles can be launched fullscreen.** URL tiles pass
   `--start-fullscreen` (per-tile toggle in the editor); native apps decide
   their own window state and no Wayland client may override another's.
+- **The Flatpak needs `--disable-rofiles-fuse` here.** `org.flatpak.Builder`
+  can't spawn `rofiles-fuse` in this environment; the flag skips the
+  hardlink-protection layer and the build proceeds normally.
+- **No i18n.** No gettext, no `po/`; every string is hardcoded English.
+  A decision for 0.1, not an oversight — but it is a decision.
 - **Smaller gaps:** the backdrop is a pool of accent light, not blurred
   artwork (§7.4) — pre-blurring at fetch time is the missing piece;
   `data/fonts/` is empty, so Archivo/Inter are requested but fall back to
