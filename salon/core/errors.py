@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Error types raised by salon.core. No gi here, ever — see the AST test."""
 
 from __future__ import annotations

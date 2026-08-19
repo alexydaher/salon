@@ -1,28 +1,53 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Dev launcher: run Salon from an uninstalled Meson build tree.
 
 Usage:
     meson setup build
-    meson compile -C build
-    ./bin/salon                    # uses ./build by default
+    ./bin/salon                    # builds, then runs ./build
     SALON_BUILD_DIR=other ./bin/salon
+    SALON_NO_AUTOBUILD=1 ./bin/salon
+
+Meson copies the Python sources into the build tree, so running the current
+code always means building first. This does that itself rather than trusting
+whoever launched it to remember — an out-of-date build is silent, and the
+symptom (a fix that "didn't work") costs far more than the fraction of a
+second ninja spends deciding there is nothing to do. `scripts/install-dev.sh`
+points GNOME's Show Applications entry at this file for the same reason.
+
+Set SALON_NO_AUTOBUILD=1 to skip it.
 """
 
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD_DIR = Path(os.environ.get("SALON_BUILD_DIR", ROOT / "build"))
 
-if not (BUILD_DIR / "salon" / "config.py").exists():
+if not (BUILD_DIR / "build.ninja").exists():
     sys.exit(
         f"error: no build found at {BUILD_DIR}\n"
-        "Run `meson setup build && meson compile -C build` first, "
-        "or set SALON_BUILD_DIR to point at your build directory."
+        "Run `meson setup build` first, or set SALON_BUILD_DIR to point at "
+        "your build directory."
     )
+
+if not os.environ.get("SALON_NO_AUTOBUILD"):
+    ninja = shutil.which("ninja") or shutil.which("ninja-build")
+    if ninja is not None:
+        result = subprocess.run([ninja, "-C", str(BUILD_DIR)], capture_output=True, text=True)
+        if result.returncode != 0:
+            # Refuse to run stale code behind a broken build: launching the
+            # previous binary here would look like the edit did nothing.
+            sys.stderr.write(result.stdout + result.stderr)
+            sys.exit(f"error: build failed in {BUILD_DIR}")
+
+if not (BUILD_DIR / "salon" / "config.py").exists():
+    sys.exit(f"error: {BUILD_DIR} has no built sources; run `meson compile -C {BUILD_DIR}`")
 
 sys.path.insert(0, str(BUILD_DIR))
 os.environ.setdefault("GSETTINGS_SCHEMA_DIR", str(BUILD_DIR / "data"))

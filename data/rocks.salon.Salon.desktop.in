@@ -1,9 +1,16 @@
 [Desktop Entry]
 Name=Salon
-Comment=A living-room launcher
+GenericName=Living-room launcher
+Comment=Start apps and web video from the sofa, with a remote or a controller
 Exec=salon
 Icon=@APP_ID@
 Terminal=false
 Type=Application
-Categories=AudioVideo;Video;
+Categories=AudioVideo;Video;Player;
+Keywords=tv;television;launcher;remote;controller;gamepad;couch;livingroom;kiosk;
 StartupNotify=true
+StartupWMClass=@APP_ID@
+# Salon is a fullscreen surface with no window controls; a second copy would
+# fight the first for the screen and for the gamepad.
+SingleMainWindow=true
+X-GNOME-UsesNotifications=false

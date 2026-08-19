@@ -1,29 +1,392 @@
+/* Salon's stylesheet.
+ *
+ * Two rules govern this file (§7.2):
+ *   - colours come from tokens.css, generated at build time from
+ *     salon/core/tokens.py;
+ *   - every size comes from a custom property that salon/ui/scale.py
+ *     resolves at runtime from the monitor's height, so there is never a
+ *     raw px value here. tests/test_css_has_no_raw_px.py enforces that.
+ *
+ * The tiles themselves aren't styled here: they draw in do_snapshot,
+ * because GTK4 CSS has no transform and no blur (see ui/tile.py).
+ */
+
 @import url("resource:///rocks/salon/Salon/style/tokens.css");
 
 window {
   background-color: @surface-0;
 }
 
+/* §6.1: row headings sit above the row in the display face, dimmed when the
+   row isn't focused so the eye lands on the live one. */
 .salon-row-heading {
+  color: @text-primary;
+  font-size: var(--font-row-heading);
+  font-weight: var(--weight-row-heading);
+  letter-spacing: 0.01em;
+  opacity: 0.45;
+  transition: opacity 180ms ease;
+}
+
+.salon-row-heading.row-focused {
+  opacity: 1;
+}
+
+.salon-status-bar {
+  /* Tabular figures: without them the clock's layout twitches every time a
+     1 ticks past, which is very visible at this size. */
+  font-feature-settings: "tnum" 1;
+}
+
+.salon-status-clock {
+  color: @text-primary;
+  font-size: var(--font-clock);
+  font-weight: var(--weight-clock);
+}
+
+.salon-status-date {
   color: @text-secondary;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--font-date);
+  font-weight: var(--weight-date);
 }
 
-.salon-tile {
+/* The two status glyphs (§6.9). Quieter than the date beside them: they
+   are there to be checked, not read, and on a screen that is mostly artwork
+   a bright icon in the corner pulls the eye for no reason. Battery goes
+   @danger below 15% — the one time it does need to pull the eye. */
+.salon-status-glyph {
+  color: @text-secondary;
+  opacity: 0.75;
+}
+
+.salon-status-glyph.low {
+  color: @danger;
+  opacity: 1;
+}
+
+.salon-launching-title {
+  color: @text-primary;
+  font-size: var(--font-overlay-title);
+  font-weight: var(--weight-overlay-title);
+}
+
+.salon-launching-message {
+  color: @text-secondary;
+  font-size: var(--font-overlay-body);
+  font-weight: var(--weight-overlay-body);
+}
+
+.salon-osd {
+  background-color: alpha(@surface-2, 0.94);
+  border-radius: var(--radius-pill);
+  padding: var(--pad-s) var(--pad-m);
+  color: @text-primary;
+}
+
+.salon-osd progressbar > trough {
+  background-color: alpha(@text-primary, 0.18);
+  border-radius: var(--radius-pill);
+  min-height: var(--pad-s);
+}
+
+.salon-osd progressbar > trough > progress {
+  background-color: @accent;
+  border-radius: var(--radius-pill);
+  min-height: var(--pad-s);
+}
+
+.salon-system-menu-scrim {
+  background-color: alpha(@surface-0, 0.88);
+}
+
+.salon-system-menu-card {
   background-color: @surface-1;
-  border-radius: 12px;
-  border: 4px solid transparent;
-  padding: 16px;
+  border: var(--focus-ring) solid alpha(@text-primary, 0.06);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-m);
+}
+
+.salon-system-menu-item {
+  background-color: transparent;
+  color: @text-primary;
+  font-size: var(--font-menu-item);
+  font-weight: var(--weight-menu-item);
+  padding: var(--pad-s) var(--pad-m);
+  border-radius: var(--radius);
+  border: none;
+  outline: none;
+  transition: background-color 120ms ease;
+}
+
+.salon-system-menu-item.selected {
+  background-color: @accent;
+  color: @surface-0;
+}
+
+.salon-system-menu-item.danger.selected {
+  background-color: @danger;
   color: @text-primary;
 }
 
-.salon-tile.focused {
+/* Toasts are libadwaita's, so they arrive desktop-sized; scale the text up
+   or they're unreadable from a sofa. */
+toast {
+  font-size: var(--font-overlay-body);
+  padding: var(--pad-s) var(--pad-m);
+}
+
+toast > label {
+  font-size: var(--font-overlay-body);
+}
+
+/* --- Search (§6.6) ---------------------------------------------------- */
+
+.salon-search {
+  /* Fully opaque, not a translucent scrim: at 10 feet, the home screen's
+     white tile titles ghosting through behind a keyboard is noise, not
+     depth. */
+  background-color: @surface-0;
+}
+
+.salon-search-query {
+  color: @text-primary;
+  font-size: var(--font-overlay-title);
+  font-weight: var(--weight-overlay-title);
+}
+
+.salon-search-hint {
+  color: @text-secondary;
+  font-size: var(--font-overlay-body);
+  font-weight: var(--weight-overlay-body);
+}
+
+.salon-search-phone {
   background-color: @surface-2;
-  border: 4px solid @accent;
+  color: @text-primary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-settings-body);
+  padding: var(--pad-s) var(--pad-m);
+  border: none;
+  border-radius: var(--radius);
 }
 
-.salon-tile-title {
+/* --- On-screen keyboard (§6.6) ---------------------------------------- */
+
+.salon-osk-key {
+  background-color: @surface-1;
   color: @text-primary;
-  font-weight: 600;
+  font-size: var(--font-tile-title);
+  font-weight: var(--weight-tile-title);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0;
+  transition: background-color 100ms ease;
+}
+
+.salon-osk-key.wide {
+  font-size: var(--font-tile-subtitle);
+  color: @text-secondary;
+}
+
+/* Latched shift is a *state*, not a selection: it has to stay legible
+   while the cursor is somewhere else entirely. */
+.salon-osk-key.latched {
+  background-color: @surface-2;
+  color: @accent;
+}
+
+.salon-osk-key.selected {
+  background-color: @accent;
+  color: @surface-0;
+}
+
+/* When the results pane has focus, the keyboard's cursor drops to a marker
+   rather than a second full-strength highlight — two amber selections on
+   screen at once leaves no answer to "what does OK do right now". */
+.salon-search:not(.keyboard-pane) .salon-osk-key.selected {
+  background-color: @surface-2;
+  color: @text-primary;
+  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@accent, 0.55);
+}
+
+/* --- Settings (§6.8) --------------------------------------------------- */
+
+/* Styled like the home screen, never like a desktop preferences dialog:
+   one full-bleed dark field, rows the size of a sofa target, and the same
+   amber selection the tiles and the system menu already use. */
+.salon-settings-row {
+  background-color: transparent;
+  border: none;
+  outline: none;
+  border-radius: var(--radius);
+  padding: var(--pad-s) var(--pad-m);
+  transition: background-color 120ms ease;
+}
+
+.salon-settings-row.selected {
+  background-color: alpha(@accent, 0.16);
+  box-shadow: inset 0 0 0 var(--focus-ring) @accent;
+}
+
+/* A row that has been stepped into: LEFT and RIGHT now belong to it, and
+   that has to be readable from three metres. The selected state is a tint
+   and a ring; this is the tint at full strength with a heavier ring, so the
+   difference between "the cursor is here" and "this row has the buttons" is
+   a difference in weight rather than one more small glyph. */
+.salon-settings-row.adjusting {
+  background-color: alpha(@accent, 0.32);
+  box-shadow: inset 0 0 0 calc(var(--focus-ring) * 1.75) @accent;
+}
+
+.salon-settings-row.adjusting .salon-settings-label,
+.salon-settings-row.adjusting .salon-settings-value {
+  color: @text-primary;
+}
+
+/* RIGHT on a row with nothing to step into, or a step past the end of a
+   range. The lists rubber-band vertically for the same reason; there is no
+   horizontal scroll here to bump, so the row blinks instead. Neutral, not
+   @danger — nothing went wrong, there is just nothing there. */
+.salon-settings-row.denied {
+  background-color: alpha(@text-primary, 0.22);
+}
+
+.salon-settings-label {
+  color: @text-primary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-menu-item);
+}
+
+.salon-settings-detail {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
+  font-weight: var(--weight-tile-subtitle);
+}
+
+/* The value carries the accent, not the label: on a list of twenty rows
+   the thing the eye needs to find is what each one is currently set to. */
+.salon-settings-value {
+  color: @accent;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-settings-body);
+}
+
+.salon-settings-row.info .salon-settings-value {
+  color: @text-secondary;
+}
+
+.salon-settings-row.danger .salon-settings-label {
+  color: @danger;
+}
+
+.salon-settings-row.danger.selected {
+  background-color: alpha(@danger, 0.18);
+  box-shadow: inset 0 0 0 var(--focus-ring) @danger;
+}
+
+/* The pane that doesn't have the cursor keeps its selection visible but
+   inert — same rule as the search overlay's keyboard, and for the same
+   reason: only one thing on screen may look like what OK will hit. */
+.salon-settings-list:not(.active) .salon-settings-row.selected {
+  background-color: alpha(@text-primary, 0.07);
+  box-shadow: none;
+}
+
+.salon-settings-list:not(.active) .salon-settings-row.selected
+  .salon-settings-value {
+  color: @text-secondary;
+}
+
+/* The only visible entry points to Settings and the power menu. A
+   controller reaches both through MENU; a mouse has nothing to press
+   unless they are on screen. Dim until hovered, so they read as
+   available without competing with the tiles for attention. */
+.salon-status-button {
+  background-color: transparent;
+  border: none;
+  outline: none;
+  border-radius: var(--radius-pill);
+  padding: var(--pad-s);
+  color: @text-secondary;
+  opacity: 0.55;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.salon-status-button:hover {
+  background-color: alpha(@text-primary, 0.10);
+  color: @text-primary;
+  opacity: 1;
+}
+
+/* The D-pad has moved up into the bar. This is the same amber the tiles and
+   the menus use, so "where am I" reads identically wherever the cursor is —
+   and it has to be unmistakable, because nothing else on screen is
+   highlighted while the bar holds focus. */
+.salon-status-button.selected {
+  background-color: @accent;
+  color: @surface-0;
+  opacity: 1;
+}
+
+/* --- First run (§6.11) ------------------------------------------------- */
+
+.salon-onboarding-body {
+  color: @text-primary;
+  font-size: var(--font-menu-item);
+  font-weight: var(--weight-overlay-body);
+  /* Looser than the default: this is the only running prose in Salon, and
+     it's read once, from a sofa. */
+  line-height: 1.45;
+}
+
+/* The per-tile options menu names the tile it belongs to; the system menu
+   has no title and doesn't show this at all. */
+.salon-system-menu-title {
+  color: @text-secondary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-settings-body);
+  padding: var(--pad-s) var(--pad-m);
+}
+
+/* Section icons in the settings list: present enough to aim at from a
+   sofa, quiet enough not to compete with the label beside them. */
+.salon-settings-icon {
+  color: @text-secondary;
+  opacity: 0.8;
+}
+
+.salon-settings-row.selected .salon-settings-icon {
+  color: @accent;
+  opacity: 1;
+}
+
+/* The button legend along the bottom of Settings. There is no title bar and
+   no close button on a television, so the only thing that can say how to
+   leave is a line of text that says it. */
+.salon-settings-legend {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
+  font-weight: var(--weight-tile-subtitle);
+  opacity: 0.7;
+  padding-top: var(--pad-s);
+}
+
+/* Live preview (§6.8): Settings collapses to this strip and the home screen
+   renders behind it, so a change to tile size or accent is judged against
+   the thing it changes rather than against its own name. */
+.salon-search.preview {
+  background-color: transparent;
+}
+
+.salon-settings-preview-bar {
+  background-color: alpha(@surface-1, 0.94);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-m) var(--pad-l);
+}
+
+.salon-settings-preview-value {
+  color: @accent;
+  font-size: var(--font-menu-item);
+  font-weight: var(--weight-menu-item);
+  font-feature-settings: "tnum" 1;
 }

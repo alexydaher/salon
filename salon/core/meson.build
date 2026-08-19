@@ -3,8 +3,16 @@ python_sources = [
   'errors.py',
   'model.py',
   'catalog.py',
+  'provider.py',
+  'sandbox.py',
   'config.py',
+  'focus.py',
   'launchspec.py',
+  'editing.py',
+  'osk.py',
+  'qr.py',
+  'ranking.py',
+  'status.py',
   'tokens.py',
 ]
 

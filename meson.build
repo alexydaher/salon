@@ -14,6 +14,7 @@ datadir = prefix / get_option('datadir')
 pkgdatadir = datadir / meson.project_name()
 moduledir = pkgdatadir / 'salon'
 
+subdir('bin')
 subdir('data')
 subdir('salon')
 

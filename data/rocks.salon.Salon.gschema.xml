@@ -48,5 +48,86 @@
       <summary>Enable HDMI-CEC input</summary>
       <description>Requires cec-client to be installed. Off by default.</description>
     </key>
+    <key name="favourite-tile-ids" type="as">
+      <default>[]</default>
+      <summary>Pinned tile ids</summary>
+      <description>Tiles the user pinned from the options menu, in the order they were pinned. Backs the Favourites row, which sits above Recents.</description>
+    </key>
+    <key name="recent-tile-ids" type="as">
+      <default>[]</default>
+      <summary>Recently launched tile ids</summary>
+      <description>Most-recent-first, backs the Recents row.</description>
+    </key>
+    <key name="idle-inhibit-seconds" type="i">
+      <range min="0" max="600"/>
+      <default>90</default>
+      <summary>Idle inhibit window after launch</summary>
+      <description>How long Salon inhibits screen blanking after launching something, before handing off to the child app's own inhibit (if any). 0 disables the inhibit entirely.</description>
+    </key>
+    <key name="tile-scale" type="d">
+      <range min="0.75" max="1.5"/>
+      <default>1.0</default>
+      <summary>Tile size multiplier</summary>
+      <description>Scales every tile relative to the design size (320x180du for a wide tile).</description>
+    </key>
+    <key name="row-spacing-scale" type="d">
+      <range min="0.6" max="1.6"/>
+      <default>1.0</default>
+      <summary>Row density</summary>
+      <description>Scales the vertical gap between rows. Lower packs more rows on screen.</description>
+    </key>
+    <key name="volume-step-percent" type="i">
+      <range min="1" max="25"/>
+      <default>5</default>
+      <summary>Volume step</summary>
+      <description>How far one press of volume up or down moves the output level.</description>
+    </key>
+    <key name="audio-sink" type="s">
+      <default>''</default>
+      <summary>Preferred audio output</summary>
+      <description>Description of the output to select on startup. Empty follows the system default. Matched by description because node ids are not stable across reboots.</description>
+    </key>
+    <key name="key-repeat-initial-ms" type="i">
+      <range min="150" max="1000"/>
+      <default>400</default>
+      <summary>Key repeat delay</summary>
+      <description>How long a direction must be held before it starts repeating.</description>
+    </key>
+    <key name="key-repeat-interval-ms" type="i">
+      <range min="40" max="400"/>
+      <default>120</default>
+      <summary>Key repeat interval</summary>
+      <description>Interval between repeats before acceleration kicks in.</description>
+    </key>
+    <key name="gamepad-pointer" type="b">
+      <default>true</default>
+      <summary>Gamepad pointer control in browser tiles</summary>
+      <description>When on, the right stick drives the system cursor over a browser-hosted tile so a controller can operate a site that has no remote-friendly UI. The desktop asks for remote-control permission once; the grant is remembered in remote-desktop-restore-token.</description>
+    </key>
+    <key name="remote-desktop-restore-token" type="s">
+      <default>''</default>
+      <summary>RemoteDesktop portal restore token</summary>
+      <description>Opaque token from xdg-desktop-portal that lets Salon reopen its remote-control session without asking again. Written by the portal, never by hand. Clearing it makes the permission prompt reappear once, which is how the grant is revoked from Salon's side.</description>
+    </key>
+    <key name="onboarding-complete" type="b">
+      <default>false</default>
+      <summary>First-run introduction has been shown</summary>
+      <description>Set once the user has been through the welcome screens. Clearing it shows them again, which is the supported way to see the introduction a second time.</description>
+    </key>
+    <key name="show-apps-row" type="b">
+      <default>false</default>
+      <summary>Show a row of every installed application</summary>
+      <description>Off by default: a fresh install has well over a hundred desktop entries, and search already covers starting something that has no tile. On by choice for a machine used as a console.</description>
+    </key>
+    <key name="disabled-providers" type="as">
+      <default>[]</default>
+      <summary>Providers the user has turned off</summary>
+      <description>Provider ids that are skipped when building the catalogue. Disabling by id rather than by deleting the file means a misbehaving provider can be switched off from the sofa.</description>
+    </key>
+    <key name="browser-extra-flags" type="as">
+      <default>[]</default>
+      <summary>Extra browser flags</summary>
+      <description>Appended to every URL tile's browser command, after the flags Salon computes.</description>
+    </key>
   </schema>
 </schemalist>

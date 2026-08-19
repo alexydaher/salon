@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Generate data/style/tokens.css from salon.core.tokens.
 
 Invoked by Meson at build time (see data/style/meson.build). The generated

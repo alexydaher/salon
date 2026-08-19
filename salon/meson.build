@@ -4,6 +4,7 @@
 python_sources = [
   '__init__.py',
   'app.py',
+  'logs.py',
   'main.py',
 ]
 
