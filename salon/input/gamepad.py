@@ -6,10 +6,12 @@ a controller plugged in after startup works without restart) and covers
 the D-pad reported either as digital buttons (BTN_DPAD_*) or as a hat
 switch (ABS_HAT0X/Y), since controllers disagree about which they use.
 
-The right stick is also exposed as raw, unquantized motion via
+The right stick is also exposed as continuous, unquantized motion via
 on_right_stick, polled on a timer rather than only on evdev change events —
 holding the stick at a steady deflection can stop generating events, and a
-mouse cursor needs continuous motion while held. Everything else (D-pad,
+mouse cursor needs continuous motion while held. What it reports is
+dead-zoned and rescaled by `actions.stick_deflection`, because a stick at
+rest is not at zero: a DualSense idles at +0.11..+0.15 on both Y axes. Everything else (D-pad,
 left stick, face buttons) goes through the quantized Action stream.
 """
 
@@ -24,7 +26,7 @@ gi.require_version("GLib", "2.0")
 
 from gi.repository import GLib, Manette  # noqa: E402
 
-from salon.input.actions import Action  # noqa: E402
+from salon.input.actions import Action, stick_deflection  # noqa: E402
 
 # Linux evdev codes (linux/input-event-codes.h) — stable across vendors.
 # This is what libmanette hands back via Event.get_hardware_code().
@@ -64,7 +66,12 @@ _RIGHT_STICK_AXES = (_ABS_RX, _ABS_RY)
 
 _DEAD_ZONE = 0.35
 _RETRIGGER_THRESHOLD = 0.2
-_STICK_DEAD_ZONE = 0.15  # smaller: pointer motion wants a lighter touch
+# Wider than the 0.35 above looks necessary, and it is: a DualSense at rest
+# reports +0.11..+0.15 on both Y axes, sixty times a second, with nobody
+# touching it (measured 2026-08-19). 0.15 left a margin of 0.016 against a
+# cursor that drifts down the screen by itself. `stick_deflection` rescales
+# what's left, so a wider dead zone doesn't cost slow-speed control.
+_STICK_DEAD_ZONE = 0.25
 _POLL_INTERVAL_MS = 16  # ~60fps
 
 
@@ -140,7 +147,7 @@ class GamepadSource:
             self._quantize(device, axis, value, negative=Action.UP, positive=Action.DOWN)
         elif axis in _RIGHT_STICK_AXES:
             key = (device, axis)
-            self._right_stick_raw[key] = value if abs(value) >= _STICK_DEAD_ZONE else 0.0
+            self._right_stick_raw[key] = stick_deflection(value, _STICK_DEAD_ZONE)
 
     def _poll_right_stick(self) -> bool:
         if self._on_right_stick is not None and self._right_stick_raw:

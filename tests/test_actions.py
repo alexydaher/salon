@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
-from salon.input.actions import Action, Repeater, RepeaterTiming
+import pytest
+
+from salon.input.actions import Action, Repeater, RepeaterTiming, stick_deflection
 
 
 class FakeClock:
@@ -82,3 +84,49 @@ def test_press_resets_repeat_count() -> None:
     assert repeater.poll() is None  # back to the slow interval, not yet due
     clock.advance(0.06)
     assert repeater.poll() is Action.UP
+
+
+# --- analogue sticks -------------------------------------------------------
+#
+# The numbers here are measurements, not choices: a DualSense at rest reports
+# +0.11..+0.15 on both Y axes continuously. Anything that treats that as
+# motion drifts the pointer down the screen with the controller on the table.
+
+
+def test_a_stick_at_rest_is_not_motion() -> None:
+    for resting in (0.0, 0.079, 0.111, 0.134, 0.142, 0.150, 0.25):
+        assert stick_deflection(resting, 0.25) == 0.0
+        assert stick_deflection(-resting, 0.25) == 0.0
+
+
+def test_deflection_starts_from_zero_at_the_dead_zone_edge() -> None:
+    """A threshold is not a floor. Passing the raw value straight through
+    once it clears the dead zone means the slowest speed available is the
+    dead zone itself, and the cursor jumps rather than creeps."""
+    just_past = stick_deflection(0.2501, 0.25)
+    assert 0.0 < just_past < 0.01
+
+
+def test_full_deflection_is_full_speed() -> None:
+    assert stick_deflection(1.0, 0.25) == pytest.approx(1.0)
+    assert stick_deflection(-1.0, 0.25) == pytest.approx(-1.0)
+    # Sticks can read slightly past their nominal range on the diagonals.
+    assert stick_deflection(1.4, 0.25) == pytest.approx(1.0)
+
+
+def test_the_scale_is_linear_between_the_two() -> None:
+    half = stick_deflection(0.25 + 0.75 / 2, 0.25)
+    assert half == pytest.approx(0.5)
+
+
+def test_sign_is_preserved() -> None:
+    assert stick_deflection(-0.625, 0.25) == pytest.approx(-0.5)
+
+
+def test_a_dead_zone_of_one_silences_the_stick_without_dividing_by_zero() -> None:
+    """Degenerate, but a settings key could produce it one day, and a
+    ZeroDivisionError in the input path takes the whole interface out."""
+    assert stick_deflection(1.0, 1.0) == 0.0
+    assert stick_deflection(-1.0, 1.0) == 0.0
+    # Sticks do read past their nominal range; that must not divide either.
+    assert stick_deflection(1.4, 1.0) == 1.0

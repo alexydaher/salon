@@ -344,10 +344,19 @@ What's left is hardware verification and a short list of documented gaps.
 - **CEC has never touched hardware.** `input/cec_in.py` and
   `services/cec_out.py` are written and the keycode table is tested, but
   there is no CEC adapter here and `cec-client` isn't installed.
-- **The gamepad has never touched hardware either.** The libmanette source
-  and hotplug are wired, and Settings → Input → "Test a controller" shows
-  what Salon receives live, but no controller has been attached in any
-  session.
+- **The gamepad has met one controller.** A DualSense over USB, 2026-08-19:
+  libmanette enumerates it as "Sony Interactive Entertainment DualSense
+  Wireless Controller", and the human reports the buttons working in Salon.
+  What was measured rather than reported: **a stick at rest is not at
+  zero.** Hands off the pad, both Y axes report +0.11..+0.15 continuously,
+  about sixty events a second, so the old 0.15 right-stick dead zone had a
+  margin of 0.016 against a cursor that slides down the screen by itself.
+  It's 0.25 now, with `actions.stick_deflection` rescaling what's left so
+  the wider dead zone costs no slow-speed control. The button *mapping*
+  (Cross→OK, Circle→BACK, Square→OPTIONS, Triangle→SEARCH, Options→MENU) has
+  not been confirmed press by press against a log. The DualSense's touchpad
+  also enumerates as a mouse, which is worth knowing: brushing it moves
+  Salon's pointer and wakes hover-to-focus.
 - **Only web tiles can be launched fullscreen.** URL tiles pass
   `--start-fullscreen` (per-tile toggle in the editor); native apps decide
   their own window state and no Wayland client may override another's.

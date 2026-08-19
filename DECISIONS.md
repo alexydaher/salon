@@ -958,3 +958,30 @@ dropped unless `SALON_DEBUG` is set: a custom writer bypasses
 `G_MESSAGES_DEBUG` filtering, and the first version filled the log with the
 Vulkan loader enumerating physical devices four times per startup, which
 would have rotated away the one thing the file exists to keep.
+
+## 2026-08-19 — A stick at rest is not at zero
+
+The first controller ever attached to this project was a DualSense, and the
+useful finding needed no button presses at all: with the pad face down on
+the table, libmanette reports Y deflections of +0.079..+0.150 on both sticks
+— mean +0.142 left, +0.111 right — at around sixty events a second, forever.
+
+The right-stick dead zone was 0.15. That is a margin of sixteen thousandths
+against a pointer that drifts downwards while nobody is holding the
+controller, on the one input path where drift is not a cosmetic problem:
+gamepad pointer control exists to click things inside Netflix. It is 0.25
+now.
+
+Widening a dead zone normally costs slow-speed control, because the old code
+passed the raw value through once it cleared the threshold — so the slowest
+speed available was the dead zone itself, and the cursor jumped from
+stationary to a quarter speed. `actions.stick_deflection` rescales the
+remaining range back to 0..1, so motion starts from nothing at the edge and
+reaches full speed at full deflection. It's pure and in `actions.py` rather
+than in the gi-bound `gamepad.py`, so the numbers above are asserted in
+`tests/test_actions.py` as regression cases: every one of those resting
+readings must produce exactly 0.0.
+
+The left stick's 0.35 quantisation dead zone was already safe against this
+(0.15 max observed), which is why nothing had ever misbehaved on the
+directional path.

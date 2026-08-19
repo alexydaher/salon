@@ -8,6 +8,7 @@ emits Action values, and nothing downstream has to change.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -87,3 +88,30 @@ class Repeater:
         self._next_fire = now + interval
         self._repeat_count += 1
         return self._action
+
+
+def stick_deflection(value: float, dead_zone: float) -> float:
+    """An analogue stick reading, with its dead zone taken out properly.
+
+    Two things a naive `abs(value) < dead_zone` test gets wrong, both
+    measured on a real DualSense rather than reasoned about:
+
+    * **A stick at rest is not at zero.** Hands off the controller, that pad
+      reports Y deflections of +0.11 to +0.15 on both sticks, continuously,
+      at around sixty events a second. Anything treating 0.15 as "moving"
+      has a pointer that slides down the screen on its own.
+    * **A threshold is not a floor.** Passing the raw value through once it
+      clears the dead zone means the slowest motion available is whatever
+      the dead zone was — the cursor jumps from stationary to a quarter
+      speed. Rescaling the remaining range back to 0..1 gives a stick that
+      starts from nothing and reaches full speed at full deflection.
+
+    Returns a value in -1..1, signed like the input.
+    """
+    magnitude = abs(value)
+    if magnitude <= dead_zone:
+        return 0.0
+    span = 1.0 - dead_zone
+    if span <= 0.0:
+        return math.copysign(1.0, value)
+    return math.copysign(min(1.0, (magnitude - dead_zone) / span), value)
