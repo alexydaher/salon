@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Gamepad input source via libmanette. Normalizes to Action.
 
 Handles hotplug (Manette.Monitor's device-connected/disconnected signals —
@@ -29,6 +30,7 @@ from salon.input.actions import Action  # noqa: E402
 # This is what libmanette hands back via Event.get_hardware_code().
 _BTN_SOUTH = 0x130  # A / Cross
 _BTN_EAST = 0x131  # B / Circle
+_BTN_WEST = 0x134  # X / Square
 _BTN_NORTH = 0x133  # Y / Triangle
 _BTN_START = 0x13B
 _BTN_DPAD_UP = 0x220
@@ -40,6 +42,7 @@ _BUTTON_ACTIONS: dict[int, Action] = {
     _BTN_SOUTH: Action.OK,
     _BTN_EAST: Action.BACK,
     _BTN_NORTH: Action.SEARCH,
+    _BTN_WEST: Action.OPTIONS,
     _BTN_START: Action.MENU,
     _BTN_DPAD_UP: Action.UP,
     _BTN_DPAD_DOWN: Action.DOWN,
@@ -67,15 +70,22 @@ _POLL_INTERVAL_MS = 16  # ~60fps
 
 class GamepadSource:
     """Emits Action values (and optionally raw right-stick motion) from
-    all connected gamepads."""
+    all connected gamepads.
+
+    on_action_release fires when a D-pad direction (button- or
+    axis-reported) is let go, so a caller can drive its own accelerating
+    repeat (input.actions.Repeater) while it's held — libmanette itself
+    only reports discrete press/axis-change events, not "held"."""
 
     def __init__(
         self,
         on_action: Callable[[Action], None],
         on_right_stick: Callable[[float, float], None] | None = None,
+        on_action_release: Callable[[Action], None] | None = None,
     ) -> None:
         self._on_action = on_action
         self._on_right_stick = on_right_stick
+        self._on_action_release = on_action_release
         self._axis_state: dict[tuple[Manette.Device, int], int] = {}
         self._right_stick_raw: dict[tuple[Manette.Device, int], float] = {}
         self._monitor = Manette.Monitor.new()
@@ -97,6 +107,7 @@ class GamepadSource:
 
     def _connect_device(self, device: Manette.Device) -> None:
         device.connect("button-press-event", self._on_button_press)
+        device.connect("button-release-event", self._on_button_release)
         device.connect("absolute-axis-event", self._on_axis)
 
     def _on_button_press(self, device: Manette.Device, event: Manette.Event) -> None:
@@ -110,6 +121,14 @@ class GamepadSource:
             action = _BUTTON_ACTIONS.get(button)
             if action is not None:
                 self._on_action(action)
+
+    def _on_button_release(self, device: Manette.Device, event: Manette.Event) -> None:
+        ok, button = event.get_button()
+        if not ok:
+            return
+        action = _BUTTON_ACTIONS.get(button)
+        if action is not None and self._on_action_release is not None:
+            self._on_action_release(action)
 
     def _on_axis(self, device: Manette.Device, event: Manette.Event) -> None:
         ok, axis, value = event.get_absolute()
@@ -152,9 +171,13 @@ class GamepadSource:
             # centre, so it doesn't double-step right at the dead zone edge.
             state = 0
 
-        if state != self._axis_state.get(key, 0):
+        previous = self._axis_state.get(key, 0)
+        if state != previous:
             self._axis_state[key] = state
             if state == -1:
                 self._on_action(negative)
             elif state == 1:
                 self._on_action(positive)
+            elif self._on_action_release is not None:
+                # Back to centre: released whichever direction was latched.
+                self._on_action_release(negative if previous == -1 else positive)

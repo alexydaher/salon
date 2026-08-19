@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Load/save/migrate the tile catalogue config (~/.config/salon/tiles.json).
 
 GSettings owns scalar preferences (see data/rocks.salon.Salon.gschema.xml);

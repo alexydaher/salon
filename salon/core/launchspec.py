@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Resolve a LaunchSpec to argv. Pure — no subprocess execution, no gi.
 
 Actually spawning processes belongs to salon.services.launcher, which may
@@ -26,27 +27,61 @@ def resolve(
     *,
     browser_command: tuple[str, ...] = (),
     scale_factor: float = 1.0,
+    session_type: str = "",
+    host_prefix: tuple[str, ...] = (),
     desktop_search_dirs: tuple[Path, ...] | None = None,
 ) -> list[str] | None:
-    """Resolve a LaunchSpec to argv, or None for BUILTIN (no process spawned)."""
+    """Resolve a LaunchSpec to argv, or None for BUILTIN (no process spawned).
+
+    `session_type` is the value of $XDG_SESSION_TYPE; it decides whether the
+    browser gets --ozone-platform=wayland (§6.3). `host_prefix` is
+    `("flatpak-spawn", "--host")` when Salon is sandboxed and empty when it
+    isn't. Both are passed in rather than read from the environment here, so
+    this stays pure and testable both ways.
+    """
     if spec.kind is LaunchKind.BUILTIN:
         return None
     if spec.kind is LaunchKind.COMMAND:
-        return [spec.target, *spec.args]
+        return [*host_prefix, spec.target, *spec.args]
     if spec.kind is LaunchKind.FLATPAK:
-        return ["flatpak", "run", spec.target, *spec.args]
+        # `flatpak run` from inside a sandbox would look for the app in the
+        # sandbox's own installation, which has exactly one app in it.
+        return [*host_prefix, "flatpak", "run", spec.target, *spec.args]
     if spec.kind is LaunchKind.URL:
-        return _resolve_url(spec, browser_command=browser_command, scale_factor=scale_factor)
+        return [
+            *host_prefix,
+            *_resolve_url(
+                spec,
+                browser_command=browser_command,
+                scale_factor=scale_factor,
+                session_type=session_type,
+            ),
+        ]
     if spec.kind is LaunchKind.DESKTOP:
+        if host_prefix:
+            # The host's desktop entries aren't visible in the sandbox, so
+            # there is nothing to parse; hand the id to the host's own
+            # launcher instead.
+            name = spec.target
+            if name.endswith(".desktop"):
+                name = name[: -len(".desktop")]
+            return [*host_prefix, "gtk-launch", name, *spec.args]
         return _resolve_desktop(spec, search_dirs=desktop_search_dirs)
     raise LaunchResolutionError(f"Unknown launch kind: {spec.kind!r}")  # pragma: no cover
 
 
 def _resolve_url(
-    spec: LaunchSpec, *, browser_command: tuple[str, ...], scale_factor: float
+    spec: LaunchSpec,
+    *,
+    browser_command: tuple[str, ...],
+    scale_factor: float,
+    session_type: str,
 ) -> list[str]:
     if not browser_command:
-        raise LaunchResolutionError("No browser command configured for URL launch.")
+        raise LaunchResolutionError(
+            "No web browser was found. Install Chrome or Chromium, or name "
+            "one in Settings under Browser."
+        )
     profile = spec.browser_profile or _slugify(spec.target)
     data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
     user_data_dir = data_home / "salon" / "browser" / profile
@@ -55,7 +90,6 @@ def _resolve_url(
         *browser_command,
         f"--user-data-dir={user_data_dir}",
         f"--app={spec.target}",
-        "--ozone-platform=wayland",
         f"--force-device-scale-factor={scale_factor}",
         # Chromium only builds its accessibility tree when an AT client asks
         # for it — forcing it on is a bet that GNOME's on-screen-keyboard
@@ -64,6 +98,11 @@ def _resolve_url(
         # appearing for a focused Netflix/Prime search field.
         "--force-renderer-accessibility",
     ]
+    # Conditional, never hardcoded (§6.3): passing this on an X11 session
+    # leaves the browser unable to find a Wayland display and it fails to
+    # start at all.
+    if session_type == "wayland":
+        argv.append("--ozone-platform=wayland")
     if spec.fullscreen:
         argv.append("--start-fullscreen")
     if spec.spatial_nav:
@@ -81,20 +120,26 @@ def _slugify(text: str) -> str:
 def _resolve_desktop(spec: LaunchSpec, *, search_dirs: tuple[Path, ...] | None) -> list[str]:
     path = _find_desktop_file(spec.target, search_dirs)
     if path is None:
-        raise LaunchResolutionError(f"No .desktop file found for {spec.target!r}")
+        raise LaunchResolutionError(
+            f"{spec.target} isn't installed on this machine any more."
+        )
 
     parser = configparser.RawConfigParser(interpolation=None, strict=False)
     parser.read(path, encoding="utf-8")
     section = "Desktop Entry"
     if not parser.has_section(section) or not parser.has_option(section, "Exec"):
-        raise LaunchResolutionError(f"{path} has no Exec= entry")
+        raise LaunchResolutionError(
+            f"{path.name} doesn't say what to run, so there's nothing to start."
+        )
 
     exec_line = parser.get(section, "Exec")
     for code in _FIELD_CODES:
         exec_line = exec_line.replace(code, "")
     argv = shlex.split(exec_line)
     if not argv:
-        raise LaunchResolutionError(f"{path} has an empty Exec= entry")
+        raise LaunchResolutionError(
+            f"{path.name} doesn't say what to run, so there's nothing to start."
+        )
     return [*argv, *spec.args]
 
 

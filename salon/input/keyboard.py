@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Keyboard input source: normalizes GDK keyvals to Action.
 
 An IR remote behind a Flirc-style receiver presents as a keyboard, so it's
@@ -23,6 +24,11 @@ _KEYVAL_ACTIONS: dict[int, Action] = {
     Gdk.KEY_KP_Enter: Action.OK,
     Gdk.KEY_BackSpace: Action.BACK,
     Gdk.KEY_Menu: Action.MENU,
+    # No standard keyboard key means "context menu for the selected item",
+    # so two spellings: F10 (the GTK convention for a context menu) and a
+    # plain letter, which is what a programmable IR remote can be taught.
+    Gdk.KEY_F10: Action.OPTIONS,
+    Gdk.KEY_o: Action.OPTIONS,
     Gdk.KEY_slash: Action.SEARCH,
     Gdk.KEY_AudioPlay: Action.PLAY_PAUSE,
     Gdk.KEY_AudioRaiseVolume: Action.VOLUME_UP,

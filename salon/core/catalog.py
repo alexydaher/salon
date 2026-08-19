@@ -1,85 +1,106 @@
-"""In-memory tile catalog: ordering and mutation. Pure, no gi.
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""The in-memory catalog: rows assembled from providers, not read directly
+from config (see §4). Pure — no gi.
 
-Assembled from providers (salon.providers), not read directly from config —
-providers are async and live outside salon.core; this class only holds and
-mutates already-resolved Row/Tile values handed to it.
+`Catalog` is strict: duplicate ids raise, because a catalogue that reached
+the widget layer with an ambiguous (row, col) lookup would misbehave in ways
+that are very hard to trace back. `sanitize()` is the lenient front door for
+provider output — it drops exactly what's ambiguous and says what it
+dropped, so one bad tile id costs one row instead of the whole home screen.
 """
 
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 
 from salon.core.errors import CatalogError
 from salon.core.model import Row, Tile
 
 
-@dataclass(slots=True)
 class Catalog:
-    _rows: list[Row] = field(default_factory=list)
+    def __init__(self, rows: list[Row]) -> None:
+        _check_unique_ids(rows)
+        self.rows = rows
 
-    @property
-    def rows(self) -> tuple[Row, ...]:
-        return tuple(self._rows)
+    def row_lengths(self) -> list[int]:
+        return [len(row.tiles) for row in self.rows]
 
-    def set_rows(self, rows: list[Row]) -> None:
-        self._rows = list(rows)
+    def tile_at(self, row: int, col: int) -> Tile | None:
+        if not (0 <= row < len(self.rows)):
+            return None
+        tiles = self.rows[row].tiles
+        if not (0 <= col < len(tiles)):
+            return None
+        return tiles[col]
 
-    def row(self, row_id: str) -> Row:
-        for row in self._rows:
-            if row.id == row_id:
-                return row
-        raise CatalogError(f"No row with id {row_id!r}")
+    def find(self, tile_id: str) -> tuple[int, int] | None:
+        """Locate a tile by id, for focus restoration and recents.
 
-    def row_index(self, row_id: str) -> int:
-        for index, row in enumerate(self._rows):
-            if row.id == row_id:
-                return index
-        raise CatalogError(f"No row with id {row_id!r}")
-
-    def add_row(self, row: Row, index: int | None = None) -> None:
-        if any(r.id == row.id for r in self._rows):
-            raise CatalogError(f"Row id {row.id!r} already exists")
-        if index is None:
-            self._rows.append(row)
-        else:
-            self._rows.insert(index, row)
-
-    def remove_row(self, row_id: str) -> None:
-        del self._rows[self.row_index(row_id)]
-
-    def reorder_row(self, row_id: str, new_index: int) -> None:
-        row = self._rows.pop(self.row_index(row_id))
-        self._rows.insert(max(0, min(new_index, len(self._rows))), row)
-
-    def find_tile(self, tile_id: str) -> tuple[Row, Tile] | None:
-        for row in self._rows:
-            for tile in row.tiles:
+        The same tile id can legitimately appear in more than one row (a
+        recents row re-lists a tile that also lives in its "home" row) —
+        this returns the first occurrence in row order."""
+        for r, row in enumerate(self.rows):
+            for c, tile in enumerate(row.tiles):
                 if tile.id == tile_id:
-                    return row, tile
+                    return (r, c)
         return None
 
-    def add_tile(self, row_id: str, tile: Tile, index: int | None = None) -> None:
-        row = self.row(row_id)
-        if any(t.id == tile.id for t in row.tiles):
-            raise CatalogError(f"Tile id {tile.id!r} already exists in row {row_id!r}")
-        if index is None:
-            row.tiles.append(tile)
+
+def sanitize(rows: list[Row]) -> tuple[list[Row], list[str]]:
+    """Make `rows` safe to hand to `Catalog`, and report what that cost.
+
+    §6.10's failure isolation, applied to the rows themselves rather than to
+    the providers that produced them: a provider can be perfectly healthy and
+    still emit two tiles with the same id. Raising there and falling back to
+    an empty catalogue means one typo blanks the television.
+    """
+    kept: list[Row] = []
+    problems: list[str] = []
+    seen_rows: set[str] = set()
+    for row in rows:
+        if row.id in seen_rows:
+            problems.append(f"Ignoring a second row with id {row.id!r}.")
+            continue
+        seen_rows.add(row.id)
+        seen_tiles: set[str] = set()
+        tiles: list[Tile] = []
+        dropped: list[str] = []
+        for tile in row.tiles:
+            if tile.id in seen_tiles:
+                dropped.append(tile.id)
+                continue
+            seen_tiles.add(tile.id)
+            tiles.append(tile)
+        if dropped:
+            joined = ", ".join(sorted(set(dropped)))
+            title = row.title or row.id
+            problems.append(f"{title}: ignoring duplicate tile ids ({joined}).")
+        if len(tiles) == len(row.tiles):
+            kept.append(row)
         else:
-            row.tiles.insert(index, tile)
+            kept.append(
+                Row(
+                    id=row.id,
+                    title=row.title,
+                    tiles=tiles,
+                    provider_id=row.provider_id,
+                    tile_aspect=row.tile_aspect,
+                )
+            )
+    return kept, problems
 
-    def remove_tile(self, row_id: str, tile_id: str) -> None:
-        row = self.row(row_id)
-        for i, tile in enumerate(row.tiles):
-            if tile.id == tile_id:
-                del row.tiles[i]
-                return
-        raise CatalogError(f"No tile {tile_id!r} in row {row_id!r}")
 
-    def move_tile(self, row_id: str, tile_id: str, new_index: int) -> None:
-        row = self.row(row_id)
-        for i, tile in enumerate(row.tiles):
-            if tile.id == tile_id:
-                moved = row.tiles.pop(i)
-                row.tiles.insert(max(0, min(new_index, len(row.tiles))), moved)
-                return
-        raise CatalogError(f"No tile {tile_id!r} in row {row_id!r}")
+def _check_unique_ids(rows: list[Row]) -> None:
+    """Row ids must be unique catalogue-wide, and a tile id must be unique
+    *within its own row* (ambiguous column lookup otherwise) — but the same
+    tile id is allowed to repeat across different rows, since a provider
+    like recents deliberately re-lists a tile that already exists
+    elsewhere in the catalogue."""
+    seen_rows: set[str] = set()
+    for row in rows:
+        if row.id in seen_rows:
+            raise CatalogError(f"Duplicate row id: {row.id!r}")
+        seen_rows.add(row.id)
+        seen_tiles_in_row: set[str] = set()
+        for tile in row.tiles:
+            if tile.id in seen_tiles_in_row:
+                raise CatalogError(f"Duplicate tile id within row {row.id!r}: {tile.id!r}")
+            seen_tiles_in_row.add(tile.id)

@@ -3,6 +3,7 @@ python_sources = [
   'actions.py',
   'keyboard.py',
   'gamepad.py',
+  'cec_in.py',
 ]
 
 foreach f : python_sources

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Quality gate: salon/core must stay importable without gi (headless-testable)."""
 
 from __future__ import annotations

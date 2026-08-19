@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Core data model: Tile, Row, LaunchSpec. Pure dataclasses, no gi."""
 
 from __future__ import annotations
