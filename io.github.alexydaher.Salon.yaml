@@ -86,5 +86,17 @@ modules:
   - name: salon
     buildsystem: meson
     sources:
-      - type: dir
-        path: .
+      # A published manifest has to name an immutable ref: `type: dir` built
+      # only from a checkout on the author's own disk, which is useless to
+      # anyone else and unreproducible. Bump the tag with the version, and
+      # the <screenshots> URLs in the metainfo with it.
+      #
+      # No `commit:` here, deliberately. Flathub wants a git source pinned to
+      # a hash as well as a tag, but this manifest is *inside* the repository
+      # it builds, and no commit can contain its own hash. That is why a
+      # Flathub submission is a separate flathub/io.github.alexydaher.Salon
+      # repository holding a copy of this file with the hash filled in; this
+      # one stays tag-only, for building the app from a clean checkout.
+      - type: git
+        url: https://github.com/alexydaher/salon.git
+        tag: v0.1.0
