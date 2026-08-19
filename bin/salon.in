@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Installed entry point for Salon.
+
+Not to be confused with the checked-in `bin/salon` beside it, which is the
+*uninstalled* dev launcher that runs straight out of ./build. Meson
+configures this template into $bindir/salon at install time, with the real
+data directory substituted in.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+pkgdatadir = "@pkgdatadir@"
+
+sys.path.insert(1, pkgdatadir)
+os.environ.setdefault("SALON_GRESOURCE_PATH", os.path.join(pkgdatadir, "salon.gresource"))
+os.environ.setdefault(
+    "SALON_EXTENSION_PATH", os.path.join(pkgdatadir, "browser-extension")
+)
+
+from salon.main import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

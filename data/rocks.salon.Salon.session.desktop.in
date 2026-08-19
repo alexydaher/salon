@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Salon
+Comment=Living-room launcher, as the whole session
+Exec=gnome-session --session=salon
+Type=Application
+DesktopNames=GNOME;Salon;

@@ -1,0 +1,83 @@
+# Flatpak manifest for Salon.
+#
+#   flatpak-builder --user --install --force-clean build-flatpak rocks.salon.Salon.yaml
+#   flatpak run rocks.salon.Salon
+#
+# Read the finish-args before shipping this. Salon's whole purpose is
+# starting *other* applications, which is exactly what a sandbox exists to
+# prevent, so this manifest asks for `org.freedesktop.Flatpak` — the
+# host-spawn permission. That is, plainly, equivalent to unsandboxed access
+# to the session bus and the user's login session. There is no version of a
+# launcher that is both meaningfully confined and able to launch things;
+# packaging Salon as a distro package or a Meson install is the more honest
+# option, and this exists because §6.11 asks for it and because Flatpak is
+# still the easiest way to hand someone a build.
+app-id: rocks.salon.Salon
+runtime: org.gnome.Platform
+runtime-version: '48'
+sdk: org.gnome.Sdk
+command: salon
+
+finish-args:
+  # Display, GPU and audio. No --socket=fallback-x11: Salon is Wayland-only
+  # by design (§2) and a silent X11 fallback would hide that.
+  - --socket=wayland
+  - --device=dri
+  - --socket=pulseaudio
+
+  # Gamepads. libmanette reads evdev directly, so this needs the raw input
+  # devices; --device=all is the only Flatpak grant that includes them.
+  - --device=all
+
+  # Artwork fetching (§7.4) and the phone-keyboard pairing server (§6.12),
+  # which listens on the LAN while search is open.
+  - --share=network
+  - --share=ipc
+
+  # Suspend/restart/shut down (§6.7) go to logind on the system bus. Salon
+  # never shells out to systemctl.
+  - --system-talk-name=org.freedesktop.login1
+
+  # Gamepad pointer control over the RemoteDesktop portal (§6.5), and the
+  # screensaver inhibit taken around a launch (§6.4).
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.gnome.SessionManager
+  - --talk-name=org.freedesktop.ScreenSaver
+
+  # Volume via wpctl, which talks to the PipeWire session manager.
+  - --talk-name=org.freedesktop.portal.Flatpak
+
+  # The one that matters: launching host applications through
+  # `flatpak-spawn --host`. See the note at the top of this file.
+  - --talk-name=org.freedesktop.Flatpak
+
+  # Reading GNOME's own settings, so Salon can honour the system's
+  # reduced-motion preference and toggle the on-screen keyboard (§6.5).
+  - --filesystem=xdg-run/dconf
+  - --filesystem=~/.config/dconf:ro
+  - --talk-name=ca.desrt.dconf
+  - --env=DCONF_USER_CONFIG_DIR=.config/dconf
+
+  # Artwork the user drops in by hand, and the browser profiles Salon keeps
+  # per URL tile (§6.3).
+  - --filesystem=xdg-config/salon:create
+  - --filesystem=xdg-data/salon:create
+  - --filesystem=xdg-cache/salon:create
+
+modules:
+  - name: libmanette
+    buildsystem: meson
+    config-opts:
+      - -Dintrospection=true
+      - -Dvapi=false
+      - -Dgudev=enabled
+    sources:
+      - type: git
+        url: https://gitlab.gnome.org/GNOME/libmanette.git
+        tag: '0.2.9'
+
+  - name: salon
+    buildsystem: meson
+    sources:
+      - type: dir
+        path: .

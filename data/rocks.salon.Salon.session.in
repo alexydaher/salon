@@ -1,0 +1,7 @@
+[GNOME Session]
+Name=Salon
+# Shell first: Salon is an ordinary Wayland client and needs a compositor to
+# connect to. It is a *required* component, so gnome-session restarts it if
+# it ever exits — which is what makes this a television rather than a
+# desktop that happens to be running a launcher.
+RequiredComponents=org.gnome.Shell;@APP_ID@;
