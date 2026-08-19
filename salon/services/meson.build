@@ -1,7 +1,15 @@
 python_sources = [
   '__init__.py',
+  'appinfo.py',
+  'artwork.py',
+  'audio.py',
+  'battery.py',
   'launcher.py',
   'pointer_injector.py',
+  'pairing.py',
+  'netinfo.py',
+  'power.py',
+  'cec_out.py',
 ]
 
 foreach f : python_sources
