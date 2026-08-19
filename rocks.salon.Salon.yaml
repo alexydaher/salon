@@ -1,7 +1,14 @@
 # Flatpak manifest for Salon.
 #
-#   flatpak-builder --user --install --force-clean build-flatpak rocks.salon.Salon.yaml
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#     --disable-rofiles-fuse build-flatpak rocks.salon.Salon.yaml
 #   flatpak run rocks.salon.Salon
+#
+# --disable-rofiles-fuse because org.flatpak.Builder can't spawn
+# rofiles-fuse on every host; it only turns off a hardlink-protection
+# layer over the build tree. Built and installed against the GNOME 50
+# runtime on 2026-08-19 — 48 had been end-of-life since March, which
+# Flathub refuses outright.
 #
 # Read the finish-args before shipping this. Salon's whole purpose is
 # starting *other* applications, which is exactly what a sandbox exists to

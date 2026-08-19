@@ -326,6 +326,11 @@ GLib's writer all routed through it, CI, and the phone keyboard's
 brute-force lockout. The tree is committed as eleven milestone-grouped
 commits rather than the working directory it used to be.
 
+The Flatpak has now actually been built and installed rather than assumed:
+libmanette builds against the GNOME 50 SDK, `$bindir/salon` finds the
+gresource and the compiled schemas inside the sandbox, and the packaged
+module tree imports. The manifest header carries the exact command.
+
 Two things are deliberately left for when there is a public repository:
 the metainfo has no `<screenshots>` (AppStream needs absolute URLs; the
 images are already in `docs/screenshots/`), and the homepage URL claims
