@@ -110,7 +110,7 @@ That puts `salon` on your `PATH`, the desktop entry in
 snapshot, not a link to the source tree. For a system-wide install use
 `--prefix=/usr/local` and `sudo meson install -C build` instead.
 
-There is a Flatpak manifest (`rocks.salon.Salon.yaml`). Read the comment at
+There is a Flatpak manifest (`io.github.alexydaher.Salon.yaml`). Read the comment at
 the top of it first: a launcher's entire purpose is starting other
 applications, so the manifest asks for host-spawn access, which is not
 meaningfully a sandbox. A distribution package or a Meson install is the
@@ -130,7 +130,7 @@ adds an autostart entry to your normal desktop session.
 ## Configuration
 
 Tiles live in `~/.config/salon/tiles.json`. Everything else is GSettings
-under `rocks.salon.Salon`. Both are editable by hand, and both are editable
+under `io.github.alexydaher.Salon`. Both are editable by hand, and both are editable
 from the interface; changes made either way take effect immediately.
 
 Artwork can be an explicit path, an `https://` URL that Salon fetches and

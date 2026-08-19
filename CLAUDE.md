@@ -274,7 +274,7 @@ verified.** What remains is hardware that isn't attached to this machine
 - **M10 (packaging and first run) — done.** Installed launcher
   (`bin/salon.in` → `$bindir/salon`; there was none before, despite the
   desktop entry saying `Exec=salon`), app icon and symbolic icon,
-  `rocks.salon.Salon.yaml` Flatpak manifest, `core/sandbox.py` +
+  `io.github.alexydaher.Salon.yaml` Flatpak manifest, `core/sandbox.py` +
   `host_prefix` so every launch kind escapes the sandbox via
   `flatpak-spawn --host`, a gnome-session definition and `wayland-sessions`
   entry, the autostart toggle, HDMI-CEC in both directions, and

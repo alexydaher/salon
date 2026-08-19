@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Load/save/migrate the tile catalogue config (~/.config/salon/tiles.json).
 
-GSettings owns scalar preferences (see data/rocks.salon.Salon.gschema.xml);
+GSettings owns scalar preferences (see data/io.github.alexydaher.Salon.gschema.xml);
 this module owns only the tile/row catalogue, which is why it lives in
 salon.core and stays gi-free and testable headlessly.
 """

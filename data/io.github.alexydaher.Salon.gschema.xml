@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="rocks.salon.Salon" path="/rocks/salon/Salon/">
+  <schema id="io.github.alexydaher.Salon" path="/io/github/alexydaher/Salon/">
     <key name="accent-color" type="s">
       <default>'#E8A33D'</default>
       <summary>Accent colour</summary>

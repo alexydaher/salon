@@ -1,8 +1,8 @@
 # Flatpak manifest for Salon.
 #
 #   flatpak run org.flatpak.Builder --user --install --force-clean \
-#     --disable-rofiles-fuse build-flatpak rocks.salon.Salon.yaml
-#   flatpak run rocks.salon.Salon
+#     --disable-rofiles-fuse build-flatpak io.github.alexydaher.Salon.yaml
+#   flatpak run io.github.alexydaher.Salon
 #
 # --disable-rofiles-fuse because org.flatpak.Builder can't spawn
 # rofiles-fuse on every host; it only turns off a hardlink-protection
@@ -19,7 +19,7 @@
 # packaging Salon as a distro package or a Meson install is the more honest
 # option, and this exists because §6.11 asks for it and because Flatpak is
 # still the easiest way to hand someone a build.
-app-id: rocks.salon.Salon
+app-id: io.github.alexydaher.Salon
 runtime: org.gnome.Platform
 runtime-version: '50'
 sdk: org.gnome.Sdk

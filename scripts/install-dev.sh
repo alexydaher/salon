@@ -21,7 +21,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_ID="rocks.salon.Salon"
+APP_ID="io.github.alexydaher.Salon"
 APPS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
 ENTRY="$APPS_DIR/$APP_ID.desktop"

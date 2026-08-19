@@ -1,7 +1,7 @@
 schemas_dir = get_option('datadir') / 'glib-2.0' / 'schemas'
 
 install_data(
-  'rocks.salon.Salon.gschema.xml',
+  'io.github.alexydaher.Salon.gschema.xml',
   install_dir: schemas_dir,
 )
 
@@ -12,15 +12,15 @@ install_data(
 # app keeps reading the previous set of keys.
 gnome.compile_schemas(
   build_by_default: true,
-  depend_files: files('rocks.salon.Salon.gschema.xml'),
+  depend_files: files('io.github.alexydaher.Salon.gschema.xml'),
 )
 
 desktop_conf = configuration_data()
-desktop_conf.set('APP_ID', 'rocks.salon.Salon')
+desktop_conf.set('APP_ID', 'io.github.alexydaher.Salon')
 
 configure_file(
-  input: 'rocks.salon.Salon.desktop.in',
-  output: 'rocks.salon.Salon.desktop',
+  input: 'io.github.alexydaher.Salon.desktop.in',
+  output: 'io.github.alexydaher.Salon.desktop',
   configuration: desktop_conf,
   install: true,
   install_dir: datadir / 'applications',
@@ -30,10 +30,10 @@ configure_file(
 # gnome-session with a session definition whose required components are the
 # Shell and Salon, rather than the full GNOME desktop with Salon on top.
 session_conf = configuration_data()
-session_conf.set('APP_ID', 'rocks.salon.Salon')
+session_conf.set('APP_ID', 'io.github.alexydaher.Salon')
 
 configure_file(
-  input: 'rocks.salon.Salon.session.in',
+  input: 'io.github.alexydaher.Salon.session.in',
   output: 'salon.session',
   configuration: session_conf,
   install: true,
@@ -41,7 +41,7 @@ configure_file(
 )
 
 configure_file(
-  input: 'rocks.salon.Salon.session.desktop.in',
+  input: 'io.github.alexydaher.Salon.session.desktop.in',
   output: 'salon.desktop',
   configuration: session_conf,
   install: true,
@@ -51,8 +51,8 @@ configure_file(
 # AppStream metadata: what a software centre shows, and what Flathub
 # requires before it will take a submission at all.
 metainfo = configure_file(
-  input: 'rocks.salon.Salon.metainfo.xml.in',
-  output: 'rocks.salon.Salon.metainfo.xml',
+  input: 'io.github.alexydaher.Salon.metainfo.xml.in',
+  output: 'io.github.alexydaher.Salon.metainfo.xml',
   configuration: desktop_conf,
   install: true,
   install_dir: datadir / 'metainfo',
@@ -75,7 +75,7 @@ if desktop_file_validate.found()
   test(
     'validate-desktop-entry',
     desktop_file_validate,
-    args: [meson.current_build_dir() / 'rocks.salon.Salon.desktop'],
+    args: [meson.current_build_dir() / 'io.github.alexydaher.Salon.desktop'],
   )
 endif
 

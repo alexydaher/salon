@@ -80,7 +80,7 @@
        what has to change — not just this line. -->
   <url type="homepage">https://salon.rocks/</url>
 
-  <developer id="rocks.salon">
+  <developer id="io.github.alexydaher">
     <name>Alexy Daher</name>
   </developer>
 

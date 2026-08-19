@@ -29,6 +29,7 @@ gi.require_version("Gtk", "4.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from salon import config as app_config  # noqa: E402
 from salon.core import sandbox, tokens  # noqa: E402
 from salon.services import audio, launcher, netinfo  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
@@ -501,7 +502,7 @@ def _open_updates(context: SettingsContext) -> None:
 def _set_autostart(context: SettingsContext, settings: Gio.Settings, enabled: bool) -> None:
     settings.set_boolean("autostart", enabled)
     path = GLib.build_filenamev(
-        [GLib.get_user_config_dir(), "autostart", "rocks.salon.Salon.desktop"]
+        [GLib.get_user_config_dir(), "autostart", f"{app_config.APP_ID}.desktop"]
     )
     entry = Gio.File.new_for_path(path)
     if not enabled:
@@ -512,14 +513,14 @@ def _set_autostart(context: SettingsContext, settings: Gio.Settings, enabled: bo
         return
     # Under Flatpak `salon` is not on the host's PATH — the autostart entry
     # runs in the host session, so it has to go back in through flatpak run.
-    app_id = sandbox.app_id() or "rocks.salon.Salon"
+    app_id = sandbox.app_id() or app_config.APP_ID
     exec_line = f"flatpak run {app_id}" if sandbox.in_flatpak() else "salon"
     contents = (
         "[Desktop Entry]\n"
         "Type=Application\n"
         "Name=Salon\n"
         f"Exec={exec_line}\n"
-        "Icon=rocks.salon.Salon\n"
+        f"Icon={app_config.APP_ID}\n"
         "X-GNOME-Autostart-enabled=true\n"
     )
     try:

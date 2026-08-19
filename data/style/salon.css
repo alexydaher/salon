@@ -11,7 +11,7 @@
  * because GTK4 CSS has no transform and no blur (see ui/tile.py).
  */
 
-@import url("resource:///rocks/salon/Salon/style/tokens.css");
+@import url("resource:///io/github/alexydaher/Salon/style/tokens.css");
 
 window {
   background-color: @surface-0;
