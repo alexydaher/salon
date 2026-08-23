@@ -26,6 +26,7 @@ from gi.repository import Gdk, Graphene, Gsk, Gtk, Pango  # noqa: E402
 from salon.core import tokens  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.services.artwork import glow_color  # noqa: E402
+from salon.ui import theme  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 
@@ -44,7 +45,6 @@ def _parse(value: str) -> Gdk.RGBA:
     return color
 
 
-_SURFACE_0 = _parse(tokens.color("surface-0"))
 _ACCENT = _parse(tokens.color("accent"))
 _TRANSPARENT = _rgba(0.0, 0.0, 0.0, 0.0)
 
@@ -75,7 +75,8 @@ class _AccentScrim(Gtk.Widget):
             return
         bounds = Graphene.Rect()
         bounds.init(0.0, 0.0, width, height)
-        scrim = _rgba(_SURFACE_0.red, _SURFACE_0.green, _SURFACE_0.blue, 0.95)
+        surface = theme.color("surface-0")
+        scrim = _rgba(surface.red, surface.green, surface.blue, 0.95)
         snapshot.append_color(scrim, bounds)
 
         center = Graphene.Point()
@@ -256,7 +257,7 @@ class SystemMenu(Gtk.Box):
         # Only outside the card: the buttons handle their own clicks, but a
         # click on the card's padding shouldn't dismiss the menu.
         bounds = self._card.compute_bounds(self)
-        if bounds[0] and bounds[1].contains_point(_point(x, y)):
+        if bounds[0] and bounds[1].contains_point(point_at(x, y)):
             return
         self.hide()
 
@@ -301,7 +302,7 @@ class SystemMenu(Gtk.Box):
                 row.remove_css_class("selected")
 
 
-def _point(x: float, y: float) -> Graphene.Point:
+def point_at(x: float, y: float) -> Graphene.Point:
     point = Graphene.Point()
     point.init(x, y)
     return point

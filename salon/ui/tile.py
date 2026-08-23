@@ -170,10 +170,6 @@ def _stops(*pairs: tuple[float, Gdk.RGBA]) -> list[Gsk.ColorStop]:
     return result
 
 
-_SURFACE_0 = _parse(tokens.color("surface-0"))
-_SURFACE_1 = _parse(tokens.color("surface-1"))
-_TEXT_PRIMARY = _parse(tokens.color("text-primary"))
-_TEXT_SECONDARY = _parse(tokens.color("text-secondary"))
 _TRANSPARENT = _rgba(0.0, 0.0, 0.0, 0.0)
 
 _WEIGHTS = {
@@ -254,6 +250,29 @@ class TileWidget(Gtk.Widget):
         backdrop and the launching overlay reuse it so the whole screen
         agrees about what colour the focused thing is."""
         return self._artwork.accent
+
+    @property
+    def artwork_source(self) -> tuple[Gdk.Paintable, bool] | None:
+        """Whatever this tile is drawing, for the backdrop to blur, paired
+        with whether it should fill the screen.
+
+        Real artwork does: a poster blurred across the whole panel is what
+        §7.4 asks for. An icon does not, and the flag is what stops it from
+        trying — a 64px favicon is transparent everywhere but the mark, so
+        cover-fitting it leaves a black screen. Icons light the backdrop's
+        bounded pool instead, which is the same footprint the accent colour
+        already used, now carrying the tile's own colours.
+
+        Only a symbolic icon is refused outright: those are single-colour
+        stencils and blur to a flat grey that says nothing.
+        """
+        if self._artwork.texture is not None:
+            return (self._artwork.texture, True)
+        if self._artwork.icon_texture is not None:
+            return (self._artwork.icon_texture, False)
+        if self._artwork.icon is not None and not self._artwork.icon_is_symbolic:
+            return (self._artwork.icon, False)
+        return None
 
     # --- geometry --------------------------------------------------------
 
@@ -374,13 +393,13 @@ class TileWidget(Gtk.Widget):
             # A brightness lift, not just an outline — the focused tile is
             # meant to read as lit, and this is what carries that when
             # animations are off and the scale never happens.
-            snapshot.append_color(_with_alpha(_TEXT_PRIMARY, 0.07 * focus), rect)
+            snapshot.append_color(_with_alpha(theme.color("text-primary"), 0.07 * focus), rect)
         snapshot.pop()
 
         # A hairline edge so a dark tile still separates from a dark
         # backdrop; the accent ring replaces it as focus comes up.
         hairline = max(1.0, self._scale.du(1.0))
-        edge = _with_alpha(_TEXT_PRIMARY, 0.10 * (1.0 - focus))
+        edge = _with_alpha(theme.color("text-primary"), 0.10 * (1.0 - focus))
         snapshot.append_border(rounded, [hairline] * 4, [edge] * 4)
 
         if focus > 0.01:
@@ -419,7 +438,7 @@ class TileWidget(Gtk.Widget):
             scrim,
             _point(scrim.get_x(), scrim.get_y()),
             _point(scrim.get_x(), scrim.get_y() + scrim_height),
-            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(_SURFACE_0, 0.92))),
+            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(theme.color("surface-0"), 0.92))),
         )
 
     def _snapshot_generated(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
@@ -428,8 +447,8 @@ class TileWidget(Gtk.Widget):
         soft top-light, and the title below — this has to look designed,
         because for most tiles it is what the user actually sees."""
         accent = self._artwork.accent
-        top = _mix(_SURFACE_1, accent, 0.26)
-        bottom = _mix(_SURFACE_0, accent, 0.07)
+        top = _mix(theme.color("surface-1"), accent, 0.26)
+        bottom = _mix(theme.color("surface-0"), accent, 0.07)
         snapshot.append_linear_gradient(
             rect,
             _point(rect.get_x(), rect.get_y()),
@@ -444,11 +463,13 @@ class TileWidget(Gtk.Widget):
             rect.get_height() * 0.75,
             0.0,
             1.0,
-            _stops((0.0, _with_alpha(_TEXT_PRIMARY, 0.08)), (1.0, _TRANSPARENT)),
+            _stops((0.0, _with_alpha(theme.color("text-primary"), 0.08)), (1.0, _TRANSPARENT)),
         )
 
         icon_box = self._icon_box(rect)
-        if self._artwork.icon is not None:
+        if self._artwork.icon_texture is not None:
+            self._snapshot_icon_texture(snapshot, icon_box)
+        elif self._artwork.icon is not None:
             self._snapshot_icon(snapshot, icon_box)
         else:
             self._snapshot_initial(snapshot, icon_box)
@@ -467,6 +488,33 @@ class TileWidget(Gtk.Widget):
             size,
         )
 
+    def _snapshot_icon_texture(self, snapshot: Gtk.Snapshot, box: Graphene.Rect) -> None:
+        """A site's own icon, fit *inside* the icon box and never cropped.
+
+        Contain-fit rather than the card's cover-fit: these arrive square,
+        or nearly, and a site that ships a 180x120 mark should see it whole
+        rather than have its edges cut off to make a square.
+        """
+        texture = self._artwork.icon_texture
+        assert texture is not None
+        width = float(texture.get_width())
+        height = float(texture.get_height())
+        if width <= 0 or height <= 0:
+            return
+        scale = min(box.get_width() / width, box.get_height() / height)
+        drawn_width = width * scale
+        drawn_height = height * scale
+        snapshot.append_scaled_texture(
+            texture,
+            Gsk.ScalingFilter.TRILINEAR,
+            _rect(
+                box.get_x() + (box.get_width() - drawn_width) / 2.0,
+                box.get_y() + (box.get_height() - drawn_height) / 2.0,
+                drawn_width,
+                drawn_height,
+            ),
+        )
+
     def _snapshot_icon(self, snapshot: Gtk.Snapshot, box: Graphene.Rect) -> None:
         icon = self._artwork.icon
         assert icon is not None
@@ -480,7 +528,7 @@ class TileWidget(Gtk.Widget):
                 snapshot,
                 box.get_width(),
                 box.get_height(),
-                [_with_alpha(_TEXT_PRIMARY, 0.92)],
+                [_with_alpha(theme.color("text-primary"), 0.92)],
             )
         else:
             icon.snapshot(snapshot, box.get_width(), box.get_height())
@@ -502,7 +550,7 @@ class TileWidget(Gtk.Widget):
                 box.get_y() + (box.get_height() - height) / 2.0,
             )
         )
-        snapshot.append_layout(layout, _with_alpha(_TEXT_PRIMARY, 0.30))
+        snapshot.append_layout(layout, _with_alpha(theme.color("text-primary"), 0.30))
         snapshot.restore()
 
     def _snapshot_labels(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
@@ -522,13 +570,13 @@ class TileWidget(Gtk.Widget):
         if subtitle_layout is not None:
             snapshot.save()
             snapshot.translate(_point(rect.get_x() + padding, bottom - subtitle_height))
-            snapshot.append_layout(subtitle_layout, _TEXT_SECONDARY)
+            snapshot.append_layout(subtitle_layout, theme.color("text-secondary"))
             snapshot.restore()
             bottom -= subtitle_height + self._scale.du(2.0)
 
         snapshot.save()
         snapshot.translate(_point(rect.get_x() + padding, bottom - title_height))
-        snapshot.append_layout(title_layout, _TEXT_PRIMARY)
+        snapshot.append_layout(title_layout, theme.color("text-primary"))
         snapshot.restore()
 
     def _layout(
@@ -549,5 +597,5 @@ class TileWidget(Gtk.Widget):
             rect.get_height() * 0.72,
             0.55,
             1.0,
-            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(_SURFACE_0, 0.45))),
+            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(theme.color("surface-0"), 0.45))),
         )

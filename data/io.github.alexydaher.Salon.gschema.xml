@@ -6,6 +6,22 @@
       <summary>Accent colour</summary>
       <description>Hex colour used for focus highlighting and bloom.</description>
     </key>
+    <key name="theme" type="s">
+      <default>'midnight'</default>
+      <summary>Colour palette</summary>
+      <description>Which of salon/core/tokens.py's palettes paints the surfaces and text: midnight (the design default), graphite (hueless), ember (warm) or contrast (true black, for OLED and for a lit room). The accent colour is a separate choice and every palette works with any of them.</description>
+    </key>
+    <key name="wallpaper-path" type="s">
+      <default>''</default>
+      <summary>Background image, or a folder of them</summary>
+      <description>Drawn behind everything, under the focused tile's ambient light. A folder is a slideshow, changing whenever the idle screen would have appeared. Empty means the palette's own surface colour, which is the design default.</description>
+    </key>
+    <key name="wallpaper-dim" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.72</default>
+      <summary>How far the background image is dimmed</summary>
+      <description>1.0 hides it entirely. The default leaves enough to feel like a room and not enough to compete with the tiles, which are the thing on screen that has to be read.</description>
+    </key>
     <key name="safe-area-percent" type="d">
       <range min="2.0" max="8.0"/>
       <default>4.5</default>
@@ -119,10 +135,31 @@
       <summary>Show a row of every installed application</summary>
       <description>Off by default: a fresh install has well over a hundred desktop entries, and search already covers starting something that has no tile. On by choice for a machine used as a console.</description>
     </key>
+    <key name="input-bindings" type="a{ss}">
+      <default>{}</default>
+      <summary>Buttons the user has rebound</summary>
+      <description>Overrides for the built-in button map, as "source:code" to action name — for example "pad:305" to "ok" on a Nintendo-layout controller, whose south and east buttons are the other way round. An empty action means the button is deliberately silenced. Anything not listed here uses Salon's default for that source.</description>
+    </key>
+    <key name="screensaver-minutes" type="i">
+      <range min="0" max="120"/>
+      <default>10</default>
+      <summary>Minutes of inactivity before the idle screen appears</summary>
+      <description>Salon suppresses the desktop's own screen lock in its session, which would otherwise leave a bright static interface on the panel indefinitely. After this many idle minutes it fades to a slowly drifting clock; any button brings it back. 0 turns it off.</description>
+    </key>
+    <key name="show-games-row" type="b">
+      <default>false</default>
+      <summary>Show a row of installed games</summary>
+      <description>Reads the libraries Steam, Heroic, Lutris and RetroArch keep on disk and puts every installed game in one row, with the cover art those launchers have already downloaded. Off by default: a machine with no games would gain an empty row, and the scan costs a directory walk per Steam library.</description>
+    </key>
     <key name="disabled-providers" type="as">
       <default>[]</default>
       <summary>Providers the user has turned off</summary>
       <description>Provider ids that are skipped when building the catalogue. Disabling by id rather than by deleting the file means a misbehaving provider can be switched off from the sofa.</description>
+    </key>
+    <key name="fetch-site-icons" type="b">
+      <default>true</default>
+      <summary>Use each site's own icon for its tile</summary>
+      <description>When a URL tile has no artwork of its own, ask the site it points at for its apple-touch-icon or favicon, once, and cache it. Off means every web tile falls back to the browser's icon, which makes them all look alike. Nothing is asked of any third party either way.</description>
     </key>
     <key name="browser-extra-flags" type="as">
       <default>[]</default>

@@ -43,6 +43,7 @@ put on the home screen, and OPTIONS over it offers the same pin/add actions.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
 import gi
 
@@ -112,11 +113,29 @@ class AppsGrid(Gtk.Box):
         self._title.set_halign(Gtk.Align.START)
         self._content.append(self._title)
 
+        # The full name and description of whatever the cursor is on.
+        # The cards themselves cannot carry this: at seven columns a card is
+        # 240px wide and "Advanced Network Configuration" ellipsises to
+        # "Advanced…", which put two different apps on screen both reading
+        # "Documen…". One full-width line under the heading says what the
+        # card cannot.
         self._hint = Gtk.Label()
         self._hint.add_css_class("salon-search-hint")
         self._hint.set_halign(Gtk.Align.START)
         self._hint.set_ellipsize(Pango.EllipsizeMode.END)
         self._content.append(self._hint)
+
+        # The A–Z rail. Two hundred applications at seven columns is
+        # twenty-nine rows of D-pad; the shoulder buttons cross a letter at
+        # a time, and this is what says where that lands. Horizontal rather
+        # than a column down the side, because a side rail would narrow the
+        # viewport and the viewport has to reach the screen edge for the
+        # edge tiles' bloom to have somewhere to go.
+        self._rail = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._rail.add_css_class("salon-letter-rail")
+        self._rail.set_halign(Gtk.Align.START)
+        self._rail_labels: dict[str, Gtk.Label] = {}
+        self._content.append(self._rail)
 
         self._viewport = Gtk.Fixed()
         self._viewport.set_overflow(Gtk.Overflow.HIDDEN)
@@ -135,12 +154,26 @@ class AppsGrid(Gtk.Box):
         self._viewport_host.set_vexpand(True)
         self._content.append(self._viewport_host)
 
+        # Where Settings puts its legend, for the same reason: what the
+        # buttons do belongs at the bottom edge, out of the way of the
+        # thing the eye is actually scanning.
+        self._legend = Gtk.Label()
+        self._legend.add_css_class("salon-settings-legend")
+        self._legend.set_halign(Gtk.Align.START)
+        self._legend.set_ellipsize(Pango.EllipsizeMode.END)
+        self._content.append(self._legend)
+
         self.set_scale(scale)
 
     # --- lifecycle -------------------------------------------------------
 
     def open(self) -> None:
         self.set_visible(True)
+        # Always from the top. The cursor is stored as (row, column) and
+        # the column count depends on the viewport, so a position kept
+        # across a close and reopen can be reinterpreted against a
+        # different width and land on a different app than it left.
+        self._focus.jump_to(0, 0)
         self._set_hint("Loading the application list…")
         # Scanning every .desktop file on the system is far too slow for the
         # frame clock (§10), so the grid opens empty and fills a moment
@@ -165,6 +198,11 @@ class AppsGrid(Gtk.Box):
         self._title.set_margin_end(margin)
         self._hint.set_margin_start(margin)
         self._hint.set_margin_end(margin)
+        self._legend.set_margin_start(margin)
+        self._legend.set_margin_end(margin)
+        self._rail.set_margin_start(margin)
+        self._rail.set_margin_end(margin)
+        self._rail.set_spacing(scale.px(4.0))
         self._content.set_margin_top(margin)
         self._content.set_margin_bottom(margin)
         self._content.set_spacing(scale.px(8.0))
@@ -246,7 +284,11 @@ class AppsGrid(Gtk.Box):
         for index, tile in enumerate(self._tiles):
             row, col = divmod(index, self._columns)
             artwork = self._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
-            widget = TileWidget(tile, artwork, metrics, self._scale)
+            # Without the subtitle: at this card width every description
+            # truncates to noise ("Access and m…", "Perform arith…"), and
+            # the space it costs is what makes the title truncate too. The
+            # description is shown in full for the focused app instead.
+            widget = TileWidget(replace(tile, subtitle=None), artwork, metrics, self._scale)
             click = Gtk.GestureClick()
             click.connect("released", lambda *_, i=index: self._click(i))
             widget.add_controller(click)
@@ -275,13 +317,88 @@ class AppsGrid(Gtk.Box):
             # bottom edge and its bloom cut off there instead.
             max(1, round(top + len(lengths) * self._row_pitch(metrics) + metrics.bleed)),
         )
-        self._set_hint(
+        self._legend.set_label(
             f"{len(self._tiles)} apps · OK opens · {Action.OPTIONS.value.upper()} "
-            "pins one to Favourites · BACK returns"
+            "pins one to Favourites · L1/R1 jumps a letter · BACK returns"
             if self._tiles
-            else "No applications were found on this machine."
+            else ""
         )
+        if not self._tiles:
+            self._set_hint("No applications were found on this machine.")
+        self._rebuild_rail()
         self._update_selection(animate=False)
+
+    # --- the A-Z rail ----------------------------------------------------
+
+    @staticmethod
+    def _initial(tile: Tile) -> str:
+        """The letter a tile files under. Everything that isn't A-Z shares
+        one bucket rather than getting a rail entry each — a rail with `0`,
+        `2`, `4`, `7` and `Ø` in it is not a rail."""
+        first = (tile.title or "?").strip()[:1].upper()
+        return first if "A" <= first <= "Z" else "#"
+
+    def _letters(self) -> list[tuple[str, int]]:
+        """Each present letter and the index of its first tile, in order."""
+        found: list[tuple[str, int]] = []
+        seen: set[str] = set()
+        for index, tile in enumerate(self._tiles):
+            letter = self._initial(tile)
+            if letter not in seen:
+                seen.add(letter)
+                found.append((letter, index))
+        return found
+
+    def _rebuild_rail(self) -> None:
+        child = self._rail.get_first_child()
+        while child is not None:
+            following = child.get_next_sibling()
+            self._rail.remove(child)
+            child = following
+        self._rail_labels = {}
+        for letter, index in self._letters():
+            label = Gtk.Label(label=letter)
+            label.add_css_class("salon-letter")
+            click = Gtk.GestureClick()
+            click.connect("released", lambda *_, i=index: self._jump_to_index(i))
+            label.add_controller(click)
+            self._rail.append(label)
+            self._rail_labels[letter] = label
+
+    def _update_rail(self) -> None:
+        tile = self.focused_tile
+        current = self._initial(tile) if tile is not None else ""
+        for letter, label in self._rail_labels.items():
+            if letter == current:
+                label.add_css_class("current")
+            else:
+                label.remove_css_class("current")
+
+    def _jump_letter(self, delta: int) -> None:
+        letters = self._letters()
+        if not letters:
+            return
+        index = self._focused_index()
+        # Which letter block the cursor is in right now.
+        position = 0
+        for i, (_letter, start) in enumerate(letters):
+            if start <= index:
+                position = i
+            else:
+                break
+        # Going back from anywhere but the top of a block means "the top of
+        # this block" — the same rule a music player's previous-track button
+        # follows, and for the same reason: it is what a second press of the
+        # button is for.
+        if delta < 0 and letters[position][1] != index:
+            target = position
+        else:
+            target = position + delta
+        if not (0 <= target < len(letters)):
+            distance = self._scale.du(_BUMP_DISTANCE_DU)
+            self._scroll.bump(distance if delta < 0 else -distance)
+            return
+        self._jump_to_index(letters[target][1])
 
     def _row_pitch(self, metrics: TileMetrics) -> float:
         # Enough vertical room for the label under each card plus the gap.
@@ -294,6 +411,12 @@ class AppsGrid(Gtk.Box):
         index = self._focused_index()
         for i, widget in enumerate(self._widgets):
             widget.set_focused(i == index)
+        tile = self.focused_tile
+        if tile is not None:
+            self._set_hint(
+                f"{tile.title} · {tile.subtitle}" if tile.subtitle else tile.title
+            )
+        self._update_rail()
         if 0 <= index < len(self._widgets):
             # Same aria-activedescendant pattern as the home screen: the
             # tiles never take GTK focus, so the container has to say which
@@ -333,6 +456,9 @@ class AppsGrid(Gtk.Box):
             tile = self.focused_tile
             if tile is not None:
                 self._on_launch(tile)
+            return
+        if action in (Action.PREV_GROUP, Action.NEXT_GROUP):
+            self._jump_letter(-1 if action is Action.PREV_GROUP else 1)
             return
         change = self._focus.handle(action)
         if change.moved:

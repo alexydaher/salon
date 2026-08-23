@@ -28,6 +28,11 @@ class Panel:
     title: str
     build: Callable[[], list[SettingsRow]]
     subtitle: str = ""
+    # Stable across renames and reordering, so something outside Settings
+    # can ask to be dropped straight into a section by name. Titles are
+    # user-facing copy and the section list is positional; neither is a
+    # safe thing for a caller to hold on to.
+    panel_id: str = ""
     # Shown beside the section name in the left-hand list. A settings screen
     # that is eight identical lines of text gives the eye nothing to aim at
     # from a sofa; the icon is what makes "Audio" findable without reading.
@@ -49,6 +54,22 @@ class SettingsContext:
     close: Callable[[], None]
     installed_apps: Callable[[Callable[[list[Tile]], None]], None]
     open_control_center: Callable[[str], None]
+    # The phone remote (services/pairing.py). Three callables rather than a
+    # reference to the server, because Settings has no business starting or
+    # stopping it on its own — the home screen owns the one hold that
+    # belongs to the remote and reference-counts it against open text
+    # fields.
+    phone_remote_running: Callable[[], bool]
+    set_phone_remote: Callable[[bool], bool]
+    phone_remote_hint: Callable[[], str]
+    # Rebinding (core/bindings.py). `capture` waits for the next physical
+    # button from any source and calls back with (source, code); the panel
+    # never sees an input device.
+    bindings: Callable[[], object]
+    capture_binding: Callable[[Callable[[str, int], None]], None]
+    cancel_capture: Callable[[], None]
+    rebind: Callable[[str, int, str], None]
+    reset_bindings: Callable[[], None]
     version: str
     config_path: str
     notes: list[str] = field(default_factory=list)

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Gamepad-driven pointer/click injection via the RemoteDesktop portal.
+"""Pointer, click and keyboard injection via the RemoteDesktop portal.
 
 Wayland forbids one app from injecting input into another app's window
 directly (unlike X11's XTestFakeInput), so this goes through
@@ -13,6 +13,13 @@ tools use so they don't re-prompt every call). Salon asks for
 passes it to `SelectDevices` next time; the portal then restores the grant
 silently. Without this the dialog appears on *every* browser launch, landing
 on top of whatever the user just opened.
+
+The same session carries a keyboard, which is what lets the phone type into
+a *launched* application (`type_text`). Salon's own on-screen keyboard fills
+in Salon's own fields; the one text box that genuinely cannot be avoided on
+a television is a search box inside a browser tile, and that belongs to
+another process. The devices were always both requested in `SelectDevices`;
+until now only the pointer half was used.
 
 The token is deliberately stored by the caller (GSettings) rather than here:
 this class holds no policy, and clearing that key is how the grant is given
@@ -29,8 +36,9 @@ import gi
 
 gi.require_version("Gio", "2.0")
 gi.require_version("GLib", "2.0")
+gi.require_version("Gdk", "4.0")
 
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gdk, Gio, GLib  # noqa: E402
 
 _BUS_NAME = "org.freedesktop.portal.Desktop"
 _OBJECT_PATH = "/org/freedesktop/portal/desktop"
@@ -55,6 +63,41 @@ BTN_LEFT = 0x110
 _PRESSED = 1
 _RELEASED = 0
 
+# X11 keysyms for the keys a phone keyboard sends that are not characters.
+# Everything else goes through Gdk rather than a rule written out here.
+# The rule looks simple — codepoint below U+0100, `0x01000000 + codepoint`
+# above — and is wrong in the middle: plenty of characters above Latin-1
+# have *legacy named* keysyms that the keymap is indexed by, so the arrow
+# in a URL would have been typed as something else. Gdk owns that table and
+# xkb agrees with it; restating it here would be a second copy to be wrong.
+_KEYSYMS = {
+    "\n": 0xFF0D,  # Return
+    "\r": 0xFF0D,
+    "\t": 0xFF09,  # Tab
+    "\b": 0xFF08,  # BackSpace
+    "\x7f": 0xFFFF,  # Delete
+}
+
+# Between the press and the release of one key, and between one key and the
+# next. Zero works against a toolkit reading an event stream and does not
+# work against a web page doing its own key handling with a debounce — and
+# a search box in a browser is the whole reason this path exists.
+_KEY_GAP_MS = 12
+
+
+def keysym_for(character: str) -> int | None:
+    """The X11 keysym for one character, or None if there isn't one."""
+    if character in _KEYSYMS:
+        return _KEYSYMS[character]
+    codepoint = ord(character)
+    if codepoint < 0x20:
+        # A control character with no named key in the table above. Sending
+        # it as a Unicode keysym would type an invisible glyph rather than
+        # do nothing, which is worse.
+        return None
+    keyval = int(Gdk.unicode_to_keyval(codepoint))
+    return keyval or None
+
 
 class PointerInjector:
     """Lazily negotiates a RemoteDesktop portal session, then injects
@@ -73,6 +116,7 @@ class PointerInjector:
     ) -> None:
         self._connection: Gio.DBusConnection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self._session_handle: str | None = None
+        self._started = False
         self._parent_window = ""
         self._starting = False
         self._timeout_id: int | None = None
@@ -83,7 +127,18 @@ class PointerInjector:
 
     @property
     def ready(self) -> bool:
-        return self._session_handle is not None
+        """Whether input can actually be injected *right now*.
+
+        Deliberately not "is there a session handle": the portal hands one
+        back at CreateSession, which is three round trips and possibly a
+        consent dialog before Start says yes. Taking the handle as the
+        answer meant `ready` was True through that whole window — so the
+        phone's keyboard tab said "typing goes to whatever is open on the
+        television", `/type` answered 200, and mutter dropped every keysym
+        on the floor because the session had never been started. A grant
+        that is still being asked for is not a grant.
+        """
+        return self._session_handle is not None and self._started
 
     def start(self, parent_window: str = "") -> None:
         """Begin the portal handshake. parent_window should be a handle from
@@ -114,7 +169,7 @@ class PointerInjector:
             self._timeout_id = None
 
     def move(self, dx: float, dy: float) -> None:
-        if self._session_handle is None:
+        if not self.ready:
             return
         self._connection.call(
             _BUS_NAME,
@@ -129,8 +184,58 @@ class PointerInjector:
             None,
         )
 
+    def type_text(self, text: str) -> bool:
+        """Type `text` into whatever currently has keyboard focus.
+
+        Not into Salon — into the *session*. This is how the phone keyboard
+        reaches a search box inside a launched browser, which is the one
+        place text entry on a television is genuinely unavoidable and the
+        one place Salon's own on-screen keyboard cannot help.
+
+        Returns whether there was a session to type into at all. What it
+        cannot promise is that every character arrives: the compositor maps
+        each keysym onto the *current* keyboard layout, so a character that
+        layout cannot produce is dropped by mutter rather than by us. For a
+        search box that is nearly always fine and occasionally is not.
+
+        The keys are spaced out over the main loop rather than blasted in
+        one go — see `_KEY_GAP_MS`.
+        """
+        if not self.ready:
+            return False
+        keysyms = [k for k in (keysym_for(c) for c in text) if k is not None]
+        if not keysyms:
+            # Nothing to send. An empty string is a success (there was
+            # nowhere for it to fail); a string of characters that produced
+            # no keysym at all is not, and the phone should be told.
+            return not text
+        for index, keysym in enumerate(keysyms):
+            GLib.timeout_add(index * _KEY_GAP_MS * 2, self._tap_keysym, keysym)
+        return True
+
+    def _tap_keysym(self, keysym: int) -> bool:
+        self._notify_keysym(keysym, _PRESSED)
+        GLib.timeout_add(_KEY_GAP_MS, self._notify_keysym, keysym, _RELEASED)
+        return GLib.SOURCE_REMOVE
+
+    def _notify_keysym(self, keysym: int, state: int) -> bool:
+        if self._session_handle is not None:
+            self._connection.call(
+                _BUS_NAME,
+                _OBJECT_PATH,
+                _RD_IFACE,
+                "NotifyKeyboardKeysym",
+                GLib.Variant("(oa{sv}iu)", (self._session_handle, {}, keysym, state)),
+                None,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+                None,
+            )
+        return GLib.SOURCE_REMOVE
+
     def click(self, button: int = BTN_LEFT) -> None:
-        if self._session_handle is None:
+        if not self.ready:
             return
         self._notify_button(button, _PRESSED)
         GLib.timeout_add(50, self._notify_button, button, _RELEASED)
@@ -322,6 +427,7 @@ class PointerInjector:
             self._forget_restore_token()
             self._fail()
             return
+        self._started = True
         self._store_restore_token(results.get("restore_token"))
         if self._on_ready is not None:
             self._on_ready(True)
@@ -343,6 +449,7 @@ class PointerInjector:
     def _fail(self) -> None:
         self._clear_timeout()
         self._starting = False
+        self._started = False
         self._session_handle = None
         if self._on_ready is not None:
             self._on_ready(False)

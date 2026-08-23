@@ -38,7 +38,24 @@ def providers_panel(
 ) -> Panel:
     def build() -> list[SettingsRow]:
         by_id = {outcome.provider_id: outcome for outcome in outcomes()}
-        rows: list[SettingsRow] = []
+        # The two rows a provider can be *enabled* and still not produce.
+        # Both were reachable only by editing dconf by hand, which for a
+        # setting whose entire purpose is "put my games on the home screen"
+        # is the same as not existing.
+        rows: list[SettingsRow] = [
+            ToggleRow(
+                "Show installed games",
+                lambda: settings.get_boolean("show-games-row"),
+                lambda value: _set_row(context, reload_catalog, settings, "show-games-row", value),
+                detail="Steam, Heroic, Lutris and RetroArch, with the cover art they downloaded",
+            ),
+            ToggleRow(
+                "Show every application",
+                lambda: settings.get_boolean("show-apps-row"),
+                lambda value: _set_row(context, reload_catalog, settings, "show-apps-row", value),
+                detail="One row of everything installed. Long — the all-apps grid is easier.",
+            ),
+        ]
         for provider in registry.all_providers():
             outcome = by_id.get(provider.id)
             rows.append(
@@ -78,7 +95,24 @@ def providers_panel(
         )
         return rows
 
-    return Panel(title="Providers", build=build, icon_name="application-x-addon-symbolic")
+    return Panel(
+        title="Providers",
+        build=build,
+        panel_id="providers",
+        icon_name="application-x-addon-symbolic",
+    )
+
+
+def _set_row(
+    context: SettingsContext,
+    reload_catalog: Callable[[], None],
+    settings: Gio.Settings,
+    key: str,
+    enabled: bool,
+) -> None:
+    settings.set_boolean(key, enabled)
+    reload_catalog()
+    context.rebuild()
 
 
 def _describe(outcome: ProviderOutcome | None) -> str:

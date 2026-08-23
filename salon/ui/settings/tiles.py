@@ -68,7 +68,7 @@ def rows_panel(context: SettingsContext) -> Panel:
             rows.insert(0, InfoRow("Nothing here yet", "Add a row to get started"))
         return rows
 
-    return Panel(title="Tiles", build=build, icon_name="view-grid-symbolic")
+    return Panel(title="Tiles", build=build, panel_id="tiles", icon_name="view-grid-symbolic")
 
 
 def _add_row(context: SettingsContext) -> None:

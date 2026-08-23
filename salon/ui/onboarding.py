@@ -82,8 +82,10 @@ PAGES: tuple[Page, ...] = (
         title="One more thing",
         body=(
             "Salon never asks for a password and never plays anything itself. "
-            "It starts the apps and sites you already have. Nothing is sent "
-            "anywhere."
+            "It starts the apps and sites you already have. The only thing it "
+            "ever fetches is the icon belonging to a site you added, from that "
+            "site — nothing is sent to anyone else, and Settings can turn even "
+            "that off."
         ),
         hint="Press OK to start",
     ),

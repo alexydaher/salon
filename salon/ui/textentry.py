@@ -25,12 +25,13 @@ from gi.repository import Gtk, Pango  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
+from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui.keyboardpane import KeyboardPane  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 
 class TextEntryOverlay(Gtk.Box):
-    def __init__(self, scale: Scale) -> None:
+    def __init__(self, scale: Scale, pairing: PairingServer) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("salon-search")  # same full-bleed field as search
         self.set_visible(False)
@@ -54,11 +55,25 @@ class TextEntryOverlay(Gtk.Box):
         self._title_label.set_halign(Gtk.Align.START)
         self._content.append(self._title_label)
 
+        # The field is a box around the label, not the label itself: a
+        # bare caret floating in the middle of a black screen with no
+        # chrome around it reads as a rendering fault until you type into
+        # it. It also fixes where the text starts — a Gtk.Label with
+        # ellipsize set fills its allocation and centres the text inside it
+        # (xalign defaults to 0.5), so this label's caret sat in the middle
+        # of the screen while its own prompt was at the left margin.
+        self._field = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._field.add_css_class("salon-text-field")
+        self._field.set_halign(Gtk.Align.START)
+        self._content.append(self._field)
+
         self._value_label = Gtk.Label()
         self._value_label.add_css_class("salon-search-query")
         self._value_label.set_halign(Gtk.Align.START)
+        self._value_label.set_xalign(0.0)
+        self._value_label.set_hexpand(True)
         self._value_label.set_ellipsize(Pango.EllipsizeMode.START)
-        self._content.append(self._value_label)
+        self._field.append(self._value_label)
 
         self._hint_label = Gtk.Label()
         self._hint_label.add_css_class("salon-search-hint")
@@ -68,6 +83,7 @@ class TextEntryOverlay(Gtk.Box):
 
         self._keyboard = KeyboardPane(
             scale,
+            pairing,
             on_key_pressed=self._press_key,
             on_text_changed=self._refresh,
         )
@@ -82,7 +98,7 @@ class TextEntryOverlay(Gtk.Box):
         self._content.set_spacing(scale.px(12.0))
         self._content.set_margin_start(margin)
         self._content.set_margin_end(margin)
-        self._value_label.set_size_request(scale.px(760.0), -1)
+        self._field.set_size_request(scale.px(760.0), -1)
         self._keyboard.set_scale(scale)
 
     def set_pointer_active(self, active: bool) -> None:
@@ -109,7 +125,6 @@ class TextEntryOverlay(Gtk.Box):
     def _finish(self, value: str | None) -> None:
         callback = self._on_done
         self._on_done = None
-        self._keyboard.stop_pairing()
         self.set_visible(False)
         if callback is not None:
             callback(value)

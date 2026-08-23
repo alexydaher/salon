@@ -89,6 +89,14 @@ class SettingsScreen(Gtk.Box):
         reload_catalog: Callable[[], None],
         quit_app: Callable[[], None],
         on_close: Callable[[], None],
+        phone_remote_running: Callable[[], bool],
+        set_phone_remote: Callable[[bool], bool],
+        phone_remote_hint: Callable[[], str],
+        bindings: Callable[[], object],
+        capture_binding: Callable[[Callable[[str, int], None]], None],
+        cancel_capture: Callable[[], None],
+        rebind: Callable[[str, int, str], None],
+        reset_bindings: Callable[[], None],
         version: str,
         config_path: str,
     ) -> None:
@@ -121,6 +129,14 @@ class SettingsScreen(Gtk.Box):
             close=self.close,
             installed_apps=installed_apps,
             open_control_center=self._open_control_center,
+            phone_remote_running=phone_remote_running,
+            set_phone_remote=set_phone_remote,
+            phone_remote_hint=phone_remote_hint,
+            bindings=bindings,
+            capture_binding=capture_binding,
+            cancel_capture=cancel_capture,
+            rebind=rebind,
+            reset_bindings=reset_bindings,
             version=version,
             config_path=config_path,
         )
@@ -259,6 +275,39 @@ class SettingsScreen(Gtk.Box):
         self._leave_preview()
         self.set_visible(True)
         self._rebuild_panel()
+
+    def open_at(self, panel_id: str, deeper: list[Panel] | None = None) -> None:
+        """Open Settings already inside a section, optionally deeper still.
+
+        Exists because a menu item named "About Salon" that lands on the
+        section list is indistinguishable from one named "Settings", and
+        "Edit tiles…" pressed over Netflix should arrive at *Netflix* — not
+        four navigations away from it.
+        """
+        index = next(
+            (i for i, panel in enumerate(self._section_panels) if panel.panel_id == panel_id),
+            None,
+        )
+        if index is None:
+            self.open()
+            return
+        self._panel_list.set_adjusting(False)
+        self._sections.select(index)
+        self._stack = [self._section_panels[index], *(deeper or [])]
+        self._pane = Pane.PANEL
+        self._leave_preview()
+        self.set_visible(True)
+        self._rebuild_panel()
+
+    def open_tile(self, row_id: str, tile_id: str) -> None:
+        """Straight to one tile's editor, three panels deep."""
+        self.open_at(
+            "tiles",
+            [
+                tile_panels.row_panel(self._context, row_id),
+                tile_panels.tile_panel(self._context, row_id, tile_id),
+            ],
+        )
 
     def close(self) -> None:
         self._panel_list.set_adjusting(False)

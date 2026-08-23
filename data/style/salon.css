@@ -390,3 +390,58 @@ toast > label {
   font-weight: var(--weight-menu-item);
   font-feature-settings: "tnum" 1;
 }
+
+/* The top bar's buttons name themselves once the cursor is on them. A
+   tooltip is a mouse affordance and this bar's primary user is holding a
+   remote: four unlabelled glyphs in a corner are unguessable at three
+   metres. Only the selected one expands, so the bar stays quiet at rest. */
+.salon-status-button-label {
+  color: @surface-0;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-menu-item);
+  padding-right: var(--pad-s);
+}
+
+/* The text-entry field. A caret alone on a black screen is not a field. */
+.salon-text-field {
+  background-color: @surface-1;
+  border-radius: var(--radius);
+  padding: var(--pad-s) var(--pad-m);
+  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@accent, 0.55);
+}
+
+/* The all-apps A–Z rail. Quiet by default and lit at the current letter:
+   its job is to answer "where am I in the alphabet" at a glance, not to be
+   read letter by letter. */
+.salon-letter-rail {
+  font-feature-settings: "tnum" 1;
+}
+
+.salon-letter {
+  color: @text-secondary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-menu-item);
+  opacity: 0.40;
+  padding: 0 var(--pad-s);
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.salon-letter.current {
+  color: @accent;
+  opacity: 1;
+}
+
+/* The bottom strip (ui/detailbar.py): what the cursor is on, and what OK
+   does to it. Quieter than a row heading — it is there to be glanced at
+   after the eye has already landed on a tile, not to compete with one. */
+.salon-detail-title {
+  color: @text-primary;
+  font-size: var(--font-row-heading);
+  font-weight: var(--weight-row-heading);
+}
+
+.salon-detail-body {
+  color: @text-secondary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-settings-body);
+}

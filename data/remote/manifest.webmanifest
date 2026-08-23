@@ -1,0 +1,19 @@
+{
+  "name": "Salon remote",
+  "short_name": "Salon",
+  "description": "The remote for a Salon television, on the phone already in your hand.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E1116",
+  "theme_color": "#0E1116",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

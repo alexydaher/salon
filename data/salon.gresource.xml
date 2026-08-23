@@ -3,5 +3,20 @@
   <gresource prefix="/io/github/alexydaher/Salon">
     <file compressed="true">style/tokens.css</file>
     <file compressed="true">style/salon.css</file>
+    <!-- The phone remote's page (§6.12), served by services/pairing.py. In
+         the bundle rather than beside the module so an installed Salon and
+         a Flatpak one both find it by the same path, and so it cannot go
+         missing the way a loose data file can. -->
+    <file compressed="true">remote/index.html</file>
+    <file compressed="true">remote/manifest.webmanifest</file>
+    <file alias="remote/icon.svg" compressed="true">icons/hicolor/scalable/apps/io.github.alexydaher.Salon.svg</file>
+    <!-- A one-second black loop, played muted to hold the phone's screen
+         on. The Screen Wake Lock API needs a secure context and the remote
+         is HTTP on a LAN address, so on a phone it is absent rather than
+         merely refused. Two containers because Safari wants H.264 and
+         Android has shipped VP8 for longer. Not compressed: they already
+         are, and gzipping them again only costs time at both ends. -->
+    <file>remote/awake.webm</file>
+    <file>remote/awake.mp4</file>
   </gresource>
 </gresources>

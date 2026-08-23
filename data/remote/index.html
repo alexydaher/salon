@@ -1,0 +1,1188 @@
+<!doctype html>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  Salon's phone remote (§6.12). Served by salon/services/pairing.py, which
+  is on the LAN only while something on the television is asking for it.
+
+  This is a real file rather than a string inside the service because it
+  stopped being a form with one field: it is four panes, a poller and a
+  gesture surface, and none of that is reviewable as an escaped Python
+  literal — the connect regex needed \\d, one backslash away from a bug no
+  editor would have highlighted.
+
+  It stays one file with no build step. A launcher that needs npm to change
+  a button is a launcher nobody will change a button in, and the whole page
+  is smaller than the artwork of a single tile.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1,
+               user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0E1116">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>Salon</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0E1116;
+    --s1: #161B22;
+    --s2: #1F2630;
+    --fg: #F2EDE4;
+    --dim: #9AA3AE;
+    --danger: #D9584B;
+    /* Overwritten from /state with whatever the television is themed to. */
+    --accent: #E8A33D;
+    --pad: 4vw;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  /* The header and the tab strip are `display: flex` below, and a display
+     rule beats the user agent's `[hidden] { display: none }`. Without this
+     the chrome of a connected remote shows through the code screen. */
+  [hidden] { display: none !important; }
+
+  /* Deliberately not `display: none`, `visibility: hidden` or `opacity: 0`
+     — all three are ways of telling the browser the video does not need to
+     be played, which is the one thing being asked of it. */
+  #awake {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0.01;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* dvh, not vh: on a phone the address bar collapses as you scroll and a
+     tab strip pinned with vh spends the first gesture sliding off-screen. */
+  body { height: 100dvh; display: flex; flex-direction: column; }
+
+  button { font: inherit; color: inherit; border: 0; background: none; }
+
+  /* --- connect ---------------------------------------------------------- */
+
+  #connect {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1rem;
+    padding: var(--pad);
+    padding-top: calc(var(--pad) + var(--safe-t));
+  }
+  #connect h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
+  #connect p { margin: 0; color: var(--dim); }
+  #code {
+    width: 100%;
+    padding: 1rem;
+    font-size: 2rem;
+    text-align: center;
+    letter-spacing: 0.5em;
+    text-indent: 0.5em;
+    border-radius: 14px;
+    border: 2px solid var(--s2);
+    background: var(--s1);
+    color: var(--fg);
+  }
+  #code:focus { outline: none; border-color: var(--accent); }
+  #connect-status { min-height: 1.4rem; color: var(--danger); }
+  .primary {
+    padding: 1rem;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #12151A;
+    font-weight: 600;
+  }
+  .primary:disabled { opacity: 0.4; }
+
+  /* --- chrome ----------------------------------------------------------- */
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: calc(0.6rem + var(--safe-t)) var(--pad) 0.6rem;
+    font-size: 0.85rem;
+    color: var(--dim);
+  }
+  #dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    transition: background 200ms;
+    flex: none;
+  }
+  #dot.stale { background: var(--danger); }
+  #screen { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* "Could not reach Salon" used to be a red dot and a toast, which is the
+     same signal for "your phone was asleep" and "the television is off".
+     This says which, and says that it is still trying. */
+  #offline {
+    display: none;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 0 var(--pad) 0.4rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 12px;
+    background: rgba(217, 88, 75, 0.14);
+    border: 1px solid rgba(217, 88, 75, 0.4);
+    font-size: 0.82rem;
+  }
+  #offline.on { display: flex; }
+  #offline span { flex: 1; }
+  #offline button {
+    padding: 0.35rem 0.7rem;
+    border-radius: 9px;
+    background: var(--s2);
+    font-size: 0.8rem;
+  }
+
+  main { flex: 1; overflow: hidden; position: relative; }
+  .pane {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 0 var(--pad);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pane.on { display: flex; }
+
+  /* --- apps ------------------------------------------------------------- */
+
+  #pane-apps { gap: 0.4rem; padding-bottom: 1rem; }
+  .row-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0.8rem 0 0.4rem;
+    padding: 0.2rem 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    background: linear-gradient(var(--bg) 70%, transparent);
+  }
+  .row-tiles { display: grid; gap: 0.6rem; }
+  .row-tiles.wide   { grid-template-columns: repeat(2, 1fr); }
+  .row-tiles.square { grid-template-columns: repeat(3, 1fr); }
+  .row-tiles.poster { grid-template-columns: repeat(3, 1fr); }
+
+  .tile {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--s1);
+    text-align: left;
+    position: relative;
+    transition: transform 90ms ease-out;
+  }
+  .tile:active { transform: scale(0.96); }
+  /* The cursor on the television, mirrored here — the point of showing the
+     catalogue on the phone is to stop having to look up to know where you
+     are. */
+  .tile.focused { box-shadow: 0 0 0 2px var(--accent); }
+  .tile .art {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background-size: cover;
+    background-position: center;
+  }
+  /* An application icon is not a still from a film. The television draws it
+     small and centred on a gradient built from its own colour rather than
+     cropping it to fill the card, and a 64px icon stretched across 16:9 is
+     the difference between a launcher and a list of blurry rectangles. */
+  .tile .art.icon {
+    object-fit: contain;
+    padding: 12%;
+  }
+  .square .art { aspect-ratio: 1; }
+  .poster .art { aspect-ratio: 2 / 3; }
+  /* No artwork: the accent as a flat card, which is what the television
+     draws too. A broken-image glyph would be strictly worse than a colour. */
+  .tile .art.blank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .tile .caption { padding: 0.45rem 0.55rem 0.6rem; }
+  .tile .name {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile .sub {
+    font-size: 0.72rem;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #apps-empty { color: var(--dim); padding: 2rem 0; text-align: center; }
+
+  /* --- remote ----------------------------------------------------------- */
+
+  /* Bottom-aligned, not centred: a phone held one-handed has its thumb at
+     the bottom of the screen, and the D-pad is what the hand looks for
+     without looking. */
+  #pane-remote { justify-content: flex-end; gap: 0.6rem; padding-bottom: 0.6rem; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .keys button, .bar button {
+    padding: 1rem 0.3rem;
+    border-radius: 14px;
+    background: var(--s1);
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.2rem;
+  }
+  .keys button.pressed, .bar button.pressed { background: var(--accent); color: #12151A; }
+  .keys .blank { visibility: hidden; }
+  .bar { display: flex; gap: 0.6rem; }
+  .bar button { flex: 1; }
+  /* The D-pad: bigger than everything around it, and on a plate of its own
+     so the four keys read as one control rather than as four buttons with
+     holes between them. */
+  .dpad {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 22px;
+    padding: 0.5rem;
+    margin: 0.2rem 0;
+  }
+  .dpad button { min-height: 4.6rem; font-size: 1.4rem; }
+  .dpad .ok { background: var(--s2); font-size: 1.05rem; font-weight: 600; }
+  .bar button small { font-size: 0.78rem; color: var(--dim); }
+  .subtle { color: var(--dim); font-size: 0.85rem; }
+
+  /* --- trackpad --------------------------------------------------------- */
+
+  #pane-pad { padding-bottom: 1rem; }
+  #pad {
+    flex: 1;
+    margin: 0.4rem 0 0.6rem;
+    border-radius: 18px;
+    background: var(--s1);
+    border: 2px dashed var(--s2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem;
+    color: var(--dim);
+    touch-action: none;
+  }
+  #pad.live { border-style: solid; border-color: var(--accent); }
+
+  /* --- keyboard --------------------------------------------------------- */
+
+  #pane-type { gap: 0.6rem; padding-top: 0.6rem; padding-bottom: 1rem; }
+  #text {
+    width: 100%;
+    padding: 0.9rem;
+    font-size: 1.15rem;
+    border-radius: 14px;
+    border: 2px solid var(--s2);
+    background: var(--s1);
+    color: var(--fg);
+  }
+  #text:focus { outline: none; border-color: var(--accent); }
+
+  /* --- now playing ------------------------------------------------------ */
+
+  #playing {
+    display: none;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 var(--pad);
+    padding: 0.55rem 0.7rem;
+    border-radius: 14px;
+    background: var(--s1);
+    border: 1px solid var(--s2);
+  }
+  #playing.on { display: flex; }
+  #playing .what { flex: 1; min-width: 0; }
+  #playing .np-title {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #playing .np-detail {
+    font-size: 0.75rem;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #playing button {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 50%;
+    background: var(--s2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+  #playing button:disabled { opacity: 0.3; }
+  #playing button.pressed { background: var(--accent); color: #12151A; }
+
+  /* --- tabs ------------------------------------------------------------- */
+
+  nav {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.5rem var(--pad) calc(0.5rem + var(--safe-b));
+    border-top: 1px solid var(--s2);
+    background: var(--bg);
+  }
+  nav button {
+    flex: 1;
+    padding: 0.55rem 0.2rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: var(--dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+  }
+  nav button .glyph { font-size: 1.15rem; line-height: 1; }
+  nav button.on { color: var(--accent); background: var(--s1); }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(5.5rem + var(--safe-b));
+    transform: translateX(-50%);
+    max-width: 90vw;
+    padding: 0.6rem 0.9rem;
+    border-radius: 12px;
+    background: var(--s2);
+    font-size: 0.85rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms;
+    z-index: 10;
+  }
+  #toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+
+<section id="connect">
+  <h1>Salon</h1>
+  <p>Enter the four-digit code on the television, or scan the code there
+     with your camera to skip this.</p>
+  <input id="code" inputmode="numeric" autocomplete="one-time-code"
+         maxlength="4" pattern="[0-9]*" aria-label="Pairing code">
+  <button id="connect-go" class="primary">Connect</button>
+  <div id="connect-status" role="status"></div>
+</section>
+
+<header hidden id="chrome">
+  <span id="dot"></span>
+  <span id="screen">Home</span>
+</header>
+
+<div id="offline" role="status">
+  <span id="offline-text">Salon isn't answering.</span>
+  <button id="retry">Retry</button>
+</div>
+
+<main hidden id="body">
+  <section id="pane-apps" class="pane on">
+    <div id="apps"></div>
+    <div id="apps-empty">Nothing on the television yet.</div>
+  </section>
+
+  <section id="pane-remote" class="pane">
+    <div class="bar">
+      <button data-action="back">Back</button>
+      <button data-action="menu">Menu</button>
+      <button data-action="options">Options</button>
+    </div>
+    <div class="keys dpad">
+      <button class="blank"></button>
+      <button data-action="up" data-repeat aria-label="Up">&#9650;</button>
+      <button class="blank"></button>
+      <button data-action="left" data-repeat aria-label="Left">&#9664;</button>
+      <button data-action="ok" class="ok">OK</button>
+      <button data-action="right" data-repeat aria-label="Right">&#9654;</button>
+      <button class="blank"></button>
+      <button data-action="down" data-repeat aria-label="Down">&#9660;</button>
+      <button class="blank"></button>
+    </div>
+    <div class="bar">
+      <button data-action="search">Search</button>
+      <button data-action="prev_group" aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
+      <button data-action="next_group" aria-label="Next group"><small>Group</small>&#8202;&#8677;</button>
+    </div>
+    <div class="bar">
+      <button data-action="volume_down" data-repeat aria-label="Volume down">Vol &minus;</button>
+      <button data-action="mute">Mute</button>
+      <button data-action="volume_up" data-repeat aria-label="Volume up">Vol +</button>
+    </div>
+    <div class="bar">
+      <button data-action="play_pause">Play / Pause</button>
+    </div>
+  </section>
+
+  <section id="pane-pad" class="pane">
+    <div id="pad">Drag to move the pointer&#8202;&middot;&#8202;tap to click</div>
+    <div class="bar">
+      <button data-action="back">Back</button>
+      <button data-action="menu">Menu</button>
+    </div>
+  </section>
+
+  <section id="pane-type" class="pane">
+    <input id="text" autocomplete="off" autocapitalize="none"
+           autocorrect="off" spellcheck="false" enterkeyhint="send"
+           placeholder="Type for the television" aria-label="Text">
+    <button id="send" class="primary">Send</button>
+    <!-- Backspace and Enter matter once this can type into a launched
+         browser: a search box you can fill but not submit, and a typo you
+         cannot take back, are both worse than no keyboard. They are sent
+         as characters so the whole path is the one /type already takes. -->
+    <div class="bar">
+      <button id="key-back" aria-label="Backspace">&#9003;</button>
+      <button id="key-enter" aria-label="Enter">&#9166; Enter</button>
+    </div>
+    <p class="subtle" id="type-hint">Nothing on the television is asking for
+       text right now.</p>
+  </section>
+</main>
+
+<div id="playing">
+  <div class="what">
+    <div class="np-title" id="np-title"></div>
+    <div class="np-detail" id="np-detail"></div>
+  </div>
+  <!-- data-transport, not data-action: skipping a track is the one thing
+       the phone can do that a controller cannot, because it is only
+       meaningful when you can see what is playing. The Action vocabulary
+       stays what it is — how you drive Salon — rather than growing two
+       buttons no physical remote here has. -->
+  <button id="np-prev" data-transport="previous" aria-label="Previous">&#9198;</button>
+  <button id="np-play" data-transport="play_pause" aria-label="Play or pause">&#9199;</button>
+  <button id="np-next" data-transport="next" aria-label="Next">&#9197;</button>
+</div>
+
+<nav hidden id="tabs">
+  <button data-tab="apps" class="on"><span class="glyph">&#9638;</span>Apps</button>
+  <button data-tab="remote"><span class="glyph">&#9678;</span>Remote</button>
+  <button data-tab="pad"><span class="glyph">&#9633;</span>Pad</button>
+  <button data-tab="type"><span class="glyph">&#9000;</span>Type</button>
+</nav>
+
+<div id="toast" role="status"></div>
+
+<!-- What holds the phone's screen on. Not the Screen Wake Lock API: that
+     is gated on a secure context, and this page is HTTP on a LAN address,
+     so on a real phone `navigator.wakeLock` is not refused — it is absent.
+     A muted looping video is the fallback every phone honours. One second
+     of black, one pixel square, kept on-screen because a video a browser
+     considers invisible is a video it feels free to stop crediting. -->
+<video id="awake" muted playsinline loop preload="auto"
+       disableremoteplayback aria-hidden="true" tabindex="-1">
+  <source src="/awake.webm" type="video/webm">
+  <source src="/awake.mp4" type="video/mp4">
+</video>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+
+// The session credential. Either it arrived in the URL fragment (the QR
+// path) or /connect hands one back in exchange for the four-digit code.
+// A fragment never reaches the server, so scanning the code off the
+// television does not put the secret in an access log or a Referer header.
+const params = new URLSearchParams(location.hash.slice(1));
+
+// Where the credential lives between page loads. It has to survive one:
+// Android discards backgrounded tabs, "Add to Home Screen" relaunches from
+// scratch, and pull-to-refresh is one thumb away — and the token is
+// stripped from the address bar a few lines below, so without this every
+// one of those dropped you back to the code screen. Storing it is not a
+// weakening: it is the phone's own remote, and anyone who can read this
+// phone's storage can already read the screen it is displayed on.
+const KEY_STORE = "salon.key";
+
+function rememberKey(value) {
+  try {
+    if (value) localStorage.setItem(KEY_STORE, value);
+    else localStorage.removeItem(KEY_STORE);
+  } catch (error) { /* private mode; the session just won't survive a reload */ }
+}
+
+function rememberedKey() {
+  try { return localStorage.getItem(KEY_STORE) || ""; } catch (error) { return ""; }
+}
+
+// The fragment wins: scanning a fresh QR is how you replace a stale token.
+let key = params.get("k") || rememberedKey();
+
+// Which pane to open on. The remembered one, because whoever uses this as a
+// trackpad uses it as a trackpad every time and should not have to say so
+// again; overridable from the fragment so a home-screen shortcut can point
+// straight at one.
+let tab = params.get("tab")
+  || (() => { try { return localStorage.getItem("salon.tab"); } catch (e) { return null; } })()
+  || "apps";
+if (!["apps", "remote", "pad", "type"].includes(tab)) tab = "apps";
+
+// Off the address bar immediately: the credential should not survive in
+// history, in a screenshot of the phone, or in whatever the browser syncs.
+if (location.hash) {
+  history.replaceState(null, "", location.pathname);
+}
+
+let version = 0;
+let state = null;
+let live = false;
+let pollTimer = null;
+let wakeLock = null;
+
+/* --- talking to the television ------------------------------------------ */
+
+// How long to wait before the next poll while the television is not
+// answering. Backs off so a phone left on the remote with Salon shut down
+// is not making a request a second all night, and resets the moment it
+// answers again.
+const BACKOFF_MS = [1000, 2000, 4000, 8000, 15000, 30000];
+let misses = 0;
+
+function setLive(value) {
+  if (value) misses = 0;
+  if (live === value) return;
+  live = value;
+  $("dot").classList.toggle("stale", !value);
+  $("offline").classList.toggle("on", !value);
+  if (!value) {
+    $("offline-text").textContent =
+      "Salon isn't answering. Still on the same Wi-Fi? Still switched on?";
+  }
+}
+
+function backoff() {
+  misses = Math.min(misses + 1, BACKOFF_MS.length - 1);
+  return BACKOFF_MS[misses];
+}
+
+async function post(path, extra) {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ key: key }, extra)),
+    });
+    if (response.ok) {
+      setLive(true);
+      return await response.json().catch(() => ({}));
+    }
+    const text = await response.text();
+    if (response.status === 401 || response.status === 403 || response.status === 429) {
+      // The session is gone rather than unreachable: a new code has been
+      // minted on the television, or this one was burned.
+      dropSession(text);
+    } else {
+      toast(text);
+    }
+    setLive(true);
+    return null;
+  } catch (error) {
+    setLive(false);
+    return null;
+  }
+}
+
+function dropSession(message) {
+  key = "";
+  rememberKey("");
+  stopPolling();
+  $("chrome").hidden = true;
+  $("body").hidden = true;
+  $("tabs").hidden = true;
+  $("playing").classList.remove("on");
+  $("connect").style.display = "";
+  $("connect-status").textContent = message || "";
+  $("code").value = "";
+}
+
+let toastTimer = null;
+function toast(message) {
+  if (!message) return;
+  const node = $("toast");
+  node.textContent = message;
+  node.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => node.classList.remove("on"), 2600);
+}
+
+function buzz(ms) {
+  if (navigator.vibrate) navigator.vibrate(ms);
+}
+
+/* --- connecting --------------------------------------------------------- */
+
+async function connect(credential) {
+  const body = credential.length === 4 && /^[0-9]{4}$/.test(credential)
+    ? { code: credential }
+    : { key: credential };
+  let response;
+  try {
+    response = await fetch("/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    $("connect-status").textContent = "Could not reach Salon. Same Wi-Fi?";
+    return false;
+  }
+  if (!response.ok) {
+    $("connect-status").textContent = await response.text();
+    return false;
+  }
+  const data = await response.json();
+  // The four-digit code is a bootstrap credential and nothing else: it is
+  // accepted at this one endpoint, and what comes back is what every later
+  // request carries.
+  key = data.key;
+  rememberKey(key);
+  $("connect").style.display = "none";
+  $("chrome").hidden = false;
+  $("body").hidden = false;
+  $("tabs").hidden = false;
+  $("connect-status").textContent = "";
+  showTab(tab);
+  setLive(true);
+  startPolling();
+  keepAwake();
+  return true;
+}
+
+$("connect-go").addEventListener("click", () => {
+  const code = $("code").value.trim();
+  if (!/^[0-9]{4}$/.test(code)) {
+    $("connect-status").textContent = "Four digits, as shown on the television.";
+    return;
+  }
+  connect(code);
+});
+
+// Four digits is the whole form; making someone reach for a button after
+// the last one is a step that exists for no reason.
+$("code").addEventListener("input", () => {
+  if (/^[0-9]{4}$/.test($("code").value.trim())) $("connect-go").click();
+});
+$("code").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") $("connect-go").click();
+});
+
+/* --- the state poll ----------------------------------------------------- */
+
+// One second. The things that change — the cursor, what is playing, which
+// screen is in front — are all things a person glances at, not things they
+// track frame by frame, and an unchanged poll costs a 204 with no body.
+const POLL_MS = 1000;
+
+async function poll() {
+  try {
+    const response = await fetch(`/state?k=${encodeURIComponent(key)}&v=${version}`);
+    if (response.status === 204) {
+      setLive(true);
+      return;
+    }
+    if (response.status === 401 || response.status === 403 || response.status === 429) {
+      dropSession(await response.text());
+      return;
+    }
+    if (!response.ok) return;
+    const data = await response.json();
+    version = data.v;
+    state = data;
+    render(data);
+    setLive(true);
+  } catch (error) {
+    setLive(false);
+  }
+}
+
+// A self-scheduling loop rather than setInterval: the gap has to change
+// when the television stops answering, and an interval cannot do that
+// without being torn down and rebuilt anyway.
+function startPolling() {
+  stopPolling();
+  const tick = async () => {
+    await poll();
+    if (!key) return;
+    pollTimer = setTimeout(tick, live ? POLL_MS : backoff());
+  };
+  tick();
+}
+
+function stopPolling() {
+  if (pollTimer !== null) clearTimeout(pollTimer);
+  pollTimer = null;
+}
+
+// A press changes what is on the television; waiting up to a second to
+// find out makes the cursor mirror feel broken even though it is correct.
+function pollSoon() {
+  setTimeout(poll, 90);
+}
+
+$("retry").addEventListener("click", () => {
+  misses = 0;
+  $("offline-text").textContent = "Trying…";
+  startPolling();
+});
+
+// Polling while the phone is in a pocket is a request a second for nothing.
+document.addEventListener("visibilitychange", () => {
+  if (!key) return;
+  if (document.hidden) {
+    stopPolling();
+    releaseAwake();
+  } else {
+    startPolling();
+    keepAwake();
+  }
+});
+
+/* --- rendering ---------------------------------------------------------- */
+
+const SCREEN_NAMES = {
+  home: "Home",
+  search: "Search",
+  apps: "All apps",
+  settings: "Settings",
+  menu: "Menu",
+  keyboard: "Text entry",
+};
+
+let renderedSignature = "";
+
+function render(data) {
+  document.documentElement.style.setProperty("--accent", data.accent || "#E8A33D");
+  $("screen").textContent = SCREEN_NAMES[data.screen] || data.screen;
+
+  // The grid is rebuilt only when the catalogue itself changed. Redrawing
+  // two hundred tiles once a second because the cursor moved would drop
+  // every image back to its placeholder and make scrolling impossible.
+  const signature = JSON.stringify(data.rows);
+  if (signature !== renderedSignature) {
+    renderedSignature = signature;
+    renderRows(data.rows);
+  }
+  renderFocus(data.focus);
+  renderPlaying(data.playing);
+
+  const hint = $("type-hint");
+  if (data.wantsText) {
+    hint.textContent = "The television is waiting for text.";
+  } else if (data.remoteInput) {
+    // Said exactly, because the failure it prevents is silent: the keys go
+    // to whatever the app has focused, and an app that has just opened has
+    // focused nothing. Typing then works perfectly and shows nothing.
+    hint.textContent =
+      "Typing goes to the app on the television. Tap its search box with "
+      + "the Pad first \u2014 the keys land wherever that app is focused.";
+  } else {
+    hint.textContent =
+      "Nothing on the television is asking for text, and Salon isn't "
+      + "allowed to type into other apps yet.";
+  }
+  hint.style.color = data.wantsText ? "var(--accent)" : "";
+
+  $("pad").textContent = data.remoteInput
+    ? "Drag to move the pointer\u200a\u00b7\u200atap to click"
+    : "Salon isn't allowed to move the pointer. Settings \u2192 Input \u2192 "
+      + "Gamepad cursor.";
+}
+
+function renderRows(rows) {
+  const host = $("apps");
+  host.textContent = "";
+  let count = 0;
+
+  for (const row of rows) {
+    if (!row.tiles.length) continue;
+    if (row.title) {
+      const heading = document.createElement("h2");
+      heading.className = "row-title";
+      heading.textContent = row.title;
+      host.append(heading);
+    }
+    const grid = document.createElement("div");
+    grid.className = `row-tiles ${row.aspect}`;
+    for (const tile of row.tiles) {
+      grid.append(tileNode(tile, row.aspect));
+      count += 1;
+    }
+    host.append(grid);
+  }
+  $("apps-empty").style.display = count ? "none" : "";
+}
+
+function tileNode(tile, aspect) {
+  const node = document.createElement("button");
+  node.className = "tile";
+  node.dataset.id = tile.id;
+
+  if (tile.art) {
+    const art = document.createElement("img");
+    art.className = tile.fit === "contain" ? "art icon" : "art";
+    if (tile.fit === "contain") {
+      art.style.background =
+        `linear-gradient(150deg, ${tile.accent}, ${tile.accent}55)`;
+    }
+    art.loading = "lazy";
+    art.alt = "";
+    art.src = `/art/${encodeURIComponent(tile.id)}?k=${encodeURIComponent(key)}`;
+    // A tile whose art fails to load falls back to the same coloured card
+    // an artless tile gets, rather than to the browser's broken glyph.
+    art.addEventListener("error", () => art.replaceWith(blankArt(tile)));
+    node.append(art);
+  } else {
+    node.append(blankArt(tile));
+  }
+
+  const caption = document.createElement("div");
+  caption.className = "caption";
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = tile.title;
+  caption.append(name);
+  if (tile.subtitle) {
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    sub.textContent = tile.subtitle;
+    caption.append(sub);
+  }
+  node.append(caption);
+
+  node.addEventListener("click", () => {
+    buzz(12);
+    node.classList.add("pressed");
+    post("/launch", { id: tile.id }).then((result) => {
+      node.classList.remove("pressed");
+      if (result) toast(`Opening ${tile.title}`);
+      pollSoon();
+    });
+  });
+  return node;
+}
+
+function blankArt(tile) {
+  const blank = document.createElement("div");
+  blank.className = "art blank";
+  blank.style.background =
+    `linear-gradient(150deg, ${tile.accent}, ${tile.accent}55)`;
+  blank.textContent = (tile.title || "?").trim().charAt(0).toUpperCase();
+  return blank;
+}
+
+let focusedNode = null;
+
+function renderFocus(focus) {
+  if (focusedNode) focusedNode.classList.remove("focused");
+  focusedNode = null;
+  if (!focus || !state) return;
+  const row = state.rows[focus[0]];
+  const tile = row && row.tiles[focus[1]];
+  if (!tile) return;
+  const node = $("apps").querySelector(`[data-id="${CSS.escape(tile.id)}"]`);
+  if (!node) return;
+  node.classList.add("focused");
+  focusedNode = node;
+}
+
+function renderPlaying(playing) {
+  const card = $("playing");
+  card.classList.toggle("on", Boolean(playing));
+  if (!playing) return;
+  $("np-title").textContent = playing.title;
+  $("np-detail").textContent = playing.detail;
+  $("np-play").textContent = playing.playing ? "⏸" : "▶";
+  $("np-prev").disabled = !playing.previous;
+  $("np-next").disabled = !playing.next;
+}
+
+/* --- buttons ------------------------------------------------------------ */
+
+// Press-and-hold, at the cadence the user chose in Settings → Input, so a
+// held direction on the phone accelerates exactly like a held direction on
+// a controller. §6.2: six repeats at the chosen interval, then half it.
+function bindRepeat(button) {
+  const action = button.dataset.action;
+  const repeats = "repeat" in button.dataset;
+  let delayTimer = null;
+  let tickTimer = null;
+  let fired = 0;
+
+  const send = () => {
+    post("/action", { action: action });
+    pollSoon();
+  };
+
+  const stop = () => {
+    clearTimeout(delayTimer);
+    clearTimeout(tickTimer);
+    delayTimer = tickTimer = null;
+    fired = 0;
+    button.classList.remove("pressed");
+  };
+
+  const tick = () => {
+    send();
+    fired += 1;
+    const timing = (state && state.repeat) || { delay: 400, interval: 120 };
+    const interval = fired >= 6 ? timing.interval / 2 : timing.interval;
+    tickTimer = setTimeout(tick, interval);
+  };
+
+  // pointerdown, not click: a remote button has to answer on the way down.
+  // Waiting for the browser to decide a tap was not a double-tap puts a
+  // visible pause between the thumb and the television.
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    if (button.disabled) return;
+    button.classList.add("pressed");
+    buzz(8);
+    send();
+    if (!repeats) return;
+    const timing = (state && state.repeat) || { delay: 400, interval: 120 };
+    delayTimer = setTimeout(tick, timing.delay);
+  });
+
+  for (const name of ["pointerup", "pointercancel", "pointerleave"]) {
+    button.addEventListener(name, stop);
+  }
+  // A press that survives the page losing focus would repeat forever.
+  window.addEventListener("blur", stop);
+}
+
+for (const button of document.querySelectorAll("[data-action]")) {
+  bindRepeat(button);
+}
+
+for (const button of document.querySelectorAll("[data-transport]")) {
+  button.addEventListener("click", () => {
+    if (button.disabled) return;
+    buzz(8);
+    post("/transport", { what: button.dataset.transport });
+    pollSoon();
+  });
+}
+
+/* --- tabs --------------------------------------------------------------- */
+
+function showTab(name) {
+  tab = name;
+  try { localStorage.setItem("salon.tab", name); } catch (error) { /* private mode */ }
+  for (const button of document.querySelectorAll("[data-tab]")) {
+    button.classList.toggle("on", button.dataset.tab === name);
+  }
+  for (const pane of document.querySelectorAll(".pane")) {
+    pane.classList.toggle("on", pane.id === `pane-${name}`);
+  }
+  if (name === "type") $("text").focus();
+}
+
+for (const button of document.querySelectorAll("[data-tab]")) {
+  button.addEventListener("click", () => {
+    buzz(6);
+    showTab(button.dataset.tab);
+  });
+}
+
+/* --- typing ------------------------------------------------------------- */
+
+async function send() {
+  const field = $("text");
+  if (!field.value) return;
+  const result = await post("/type", { text: field.value });
+  if (result) {
+    field.value = "";
+    buzz(10);
+  }
+}
+
+$("send").addEventListener("click", send);
+$("text").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    send();
+  }
+});
+
+// Sent as the control characters the injector maps to BackSpace and Return.
+for (const [id, character] of [["key-back", "\b"], ["key-enter", "\n"]]) {
+  $(id).addEventListener("click", async () => {
+    buzz(8);
+    // Anything typed but not yet sent goes first, so Enter submits what you
+    // can see rather than whatever was sent before it.
+    const field = $("text");
+    if (id === "key-enter" && field.value) await send();
+    post("/type", { text: character });
+  });
+}
+
+/* --- trackpad ----------------------------------------------------------- */
+
+// Motion is batched to one post per animation frame. A touchmove stream is
+// far faster than the network, and posting every event turns a flick into a
+// queue of requests that arrive after the finger has stopped.
+const pad = $("pad");
+let last = null;
+let dx = 0;
+let dy = 0;
+let queued = false;
+let travelled = 0;
+
+function flush() {
+  queued = false;
+  if (dx || dy) {
+    post("/pointer", { dx: dx, dy: dy });
+    dx = 0;
+    dy = 0;
+  }
+}
+
+pad.addEventListener("touchstart", (event) => {
+  last = event.touches[0];
+  travelled = 0;
+  pad.classList.add("live");
+  event.preventDefault();
+}, { passive: false });
+
+pad.addEventListener("touchmove", (event) => {
+  const touch = event.touches[0];
+  if (last) {
+    dx += touch.clientX - last.clientX;
+    dy += touch.clientY - last.clientY;
+    travelled += Math.abs(touch.clientX - last.clientX)
+      + Math.abs(touch.clientY - last.clientY);
+    if (!queued) {
+      queued = true;
+      requestAnimationFrame(flush);
+    }
+  }
+  last = touch;
+  event.preventDefault();
+}, { passive: false });
+
+pad.addEventListener("touchend", (event) => {
+  last = null;
+  pad.classList.remove("live");
+  // A tap is a touch that never really moved. 10px of slop, because a
+  // finger on glass always moves a little.
+  if (travelled < 10) {
+    buzz(8);
+    post("/pointer", { click: true });
+  }
+  event.preventDefault();
+}, { passive: false });
+
+/* --- keeping the screen on ---------------------------------------------- */
+
+// A remote whose screen sleeps between the pause button and the play button
+// is a remote you unlock twice per film.
+async function keepAwake() {
+  if (document.hidden) return;
+  // The real API first. It is present on localhost and would be present if
+  // this were ever served over HTTPS, and it is the only one of the two
+  // that the operating system actually knows about.
+  if ("wakeLock" in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      return;
+    } catch (error) {
+      wakeLock = null;
+    }
+  }
+  playAwake();
+}
+
+// Autoplay of a muted video is normally allowed, but "normally" is doing
+// work there: a page opened from a scanned QR has had no gesture at all,
+// and some browsers still refuse. The next tap tries again, and on a
+// remote control there is always a next tap.
+function playAwake() {
+  const video = $("awake");
+  if (!video) return;
+  const attempt = video.play();
+  if (attempt) {
+    attempt.catch(() => {
+      document.addEventListener("pointerdown", playAwake, { once: true });
+    });
+  }
+}
+
+function releaseAwake() {
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+  const video = $("awake");
+  if (video) video.pause();
+}
+
+/* --- start -------------------------------------------------------------- */
+
+if (key) {
+  // Scanned, not typed. Validate before showing the remote, so a stale QR
+  // from a previous session lands on the code screen rather than on a page
+  // whose every button fails.
+  connect(key).then((ok) => {
+    if (!ok) {
+      key = "";
+      $("connect").style.display = "";
+    }
+  });
+  $("connect").style.display = "none";
+}
+</script>
+</body>
+</html>

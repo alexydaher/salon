@@ -31,7 +31,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
 from salon.core import sandbox, tokens  # noqa: E402
-from salon.services import audio, launcher, netinfo  # noqa: E402
+from salon.input.actions import Action  # noqa: E402
+from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
@@ -52,6 +53,14 @@ _ACCENTS = [
 ]
 
 
+_THEMES: tuple[tuple[str, str], ...] = (
+    ("midnight", "Midnight"),
+    ("graphite", "Graphite"),
+    ("ember", "Ember"),
+    ("contrast", "High contrast"),
+)
+
+
 def _percent(value: float) -> str:
     return f"{value * 100:.0f}%"
 
@@ -62,6 +71,14 @@ def _percent(value: float) -> str:
 def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     def build() -> list[SettingsRow]:
         return [
+            ChoiceRow(
+                "Theme",
+                _THEMES,
+                lambda: settings.get_string("theme"),
+                lambda value: settings.set_string("theme", value),
+                detail="What colour the surfaces and text are. The accent is separate.",
+                preview=True,
+            ),
             ChoiceRow(
                 "Accent colour",
                 _ACCENTS,
@@ -112,18 +129,95 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 step=0.25,
                 fmt=lambda v: "Off" if v == 0 else _percent(v),
             ),
+            RangeRow(
+                "Idle screen",
+                lambda: float(settings.get_int("screensaver-minutes")),
+                lambda value: settings.set_int("screensaver-minutes", int(value)),
+                minimum=0,
+                maximum=60,
+                step=5,
+                fmt=lambda v: "Never" if v == 0 else f"After {v:.0f} min",
+                detail="Fades to a drifting clock. Salon's session has no screen lock to do it.",
+            ),
             ToggleRow(
                 "Reduced motion",
                 lambda: settings.get_boolean("reduced-motion"),
                 lambda value: settings.set_boolean("reduced-motion", value),
                 detail="Focus changes instantly; the highlight stays unmistakable",
             ),
+            TextRow(
+                "Background image",
+                lambda: settings.get_string("wallpaper-path") or "None",
+                lambda: _edit_wallpaper(context, settings),
+                detail="A picture, or a folder of them to rotate. Leave empty for none.",
+            ),
+            RangeRow(
+                "Background dimming",
+                lambda: settings.get_double("wallpaper-dim"),
+                lambda value: settings.set_double("wallpaper-dim", value),
+                minimum=0.0,
+                maximum=1.0,
+                step=0.04,
+                fmt=lambda v: "Hidden" if v >= 0.999 else _percent(v),
+                detail="How far the background image is pushed behind the tiles",
+                preview=True,
+            ),
+            ToggleRow(
+                "Use each site's own icon",
+                lambda: settings.get_boolean("fetch-site-icons"),
+                lambda value: settings.set_boolean("fetch-site-icons", value),
+                detail="Web tiles ask their own site for its icon, once. Off makes them all alike.",
+            ),
+            ActionRow(
+                "Forget fetched site icons",
+                lambda: _forget_site_icons(context),
+                detail="Ask every site again the next time its tile is drawn",
+            ),
         ]
 
-    return Panel(title="Appearance", build=build, icon_name="applications-graphics-symbolic")
+    return Panel(
+        title="Appearance",
+        build=build,
+        panel_id="appearance",
+        icon_name="applications-graphics-symbolic",
+    )
 
 
 # --- network -------------------------------------------------------------
+
+
+def _edit_wallpaper(context: SettingsContext, settings: Gio.Settings) -> None:
+    def done(value: str | None) -> None:
+        if value is None:
+            return
+        settings.set_string("wallpaper-path", value.strip())
+        context.rebuild()
+
+    context.edit_text(
+        "Path to an image, or a folder of images",
+        settings.get_string("wallpaper-path"),
+        done,
+    )
+
+
+def _forget_site_icons(context: SettingsContext) -> None:
+    """Drop the guessed icons without touching artwork the user chose.
+
+    They live in their own directory precisely so this can be one removal:
+    a site that has since changed its logo, or one that was asked before it
+    had an icon at all, is otherwise cached for good.
+    """
+    directory = artwork.site_icon_cache_dir()
+    try:
+        shutil.rmtree(directory)
+    except FileNotFoundError:
+        context.toast("There were no fetched icons to forget.")
+        return
+    except OSError as error:
+        context.toast(f"Couldn't clear the icon cache: {error.strerror or error}")
+        return
+    context.toast("Fetched site icons cleared. They'll be asked for again.")
+    context.rebuild()
 
 
 def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
@@ -156,9 +250,15 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 icon_name=(current.icon_name if current else "") or "network-wireless-symbolic",
             ),
             ActionRow(
-                "Wi-Fi",
+                "Choose a network",
+                lambda: context.push(_wifi_panel(context)),
+                detail="Every network in range, and its password if it needs one",
+                value="›",
+            ),
+            ActionRow(
+                "Wi-Fi, in detail",
                 lambda: context.open_control_center("wifi"),
-                detail="Choose a network and enter its password, in GNOME Settings",
+                detail="Enterprise logins, hidden networks and static addresses",
             ),
             ActionRow(
                 "Wired and VPN",
@@ -167,7 +267,90 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
         ]
 
-    return Panel(title="Network", build=build, icon_name="network-wireless-symbolic")
+    return Panel(
+        title="Network", build=build, panel_id="network", icon_name="network-wireless-symbolic"
+    )
+
+
+def _wifi_panel(context: SettingsContext) -> Panel:
+    """The list of networks in range.
+
+    Rebuilt from a cached scan rather than rescanning on every rebuild: the
+    panel rebuilds whenever anything changes, a scan takes seconds, and a
+    list that reshuffles itself under the cursor as signal strengths drift
+    is unusable with a D-pad.
+    """
+    service = wifi.WifiService()
+    state: dict[str, object] = {"points": [], "error": "", "scanned": False, "asking": False}
+
+    def on_scanned(points: list[wifi.AccessPoint], error: str) -> None:
+        state.update(points=points, error=error, scanned=True, asking=False)
+        context.rebuild()
+
+    def request() -> None:
+        # Guarded: `build` runs on every rebuild, and a rebuild that starts
+        # another scan which finishes and rebuilds again is a loop.
+        if state["asking"]:
+            return
+        state["asking"] = True
+        service.list_networks(on_scanned)
+
+    def rescan() -> None:
+        state["scanned"] = False
+        request()
+        context.rebuild()
+
+    def build() -> list[SettingsRow]:
+        if not state["scanned"]:
+            request()
+            return [InfoRow("Looking for networks…", "", detail="This takes a few seconds")]
+        error = str(state["error"])
+        if error:
+            return [
+                InfoRow("Couldn't look for networks", "", detail=error),
+                ActionRow("Try again", rescan),
+            ]
+        points = list(state["points"])  # type: ignore[arg-type]
+        if not points:
+            return [
+                InfoRow("Nothing in range", "", detail="No wireless networks were found"),
+                ActionRow("Look again", rescan),
+            ]
+        rows: list[SettingsRow] = [
+            ActionRow(
+                point.ssid,
+                lambda p=point: _join(context, service, p),
+                value=point.summary,
+                icon_name=point.icon_name,
+            )
+            for point in points
+        ]
+        rows.append(ActionRow("Look again", rescan, detail="Scan for networks once more"))
+        return rows
+
+    return Panel(title="Wi-Fi", build=build)
+
+
+def _join(context: SettingsContext, service: wifi.WifiService, point: wifi.AccessPoint) -> None:
+    """Join one network, asking for the password only if it wants one."""
+
+    def attempt(password: str) -> None:
+        context.toast(f"Connecting to {point.ssid}…")
+        service.connect(point, password, on_result)
+
+    def on_result(ok: bool, message: str) -> None:
+        context.toast(message if ok else f"Couldn't join {point.ssid}: {message}")
+
+    if not point.secured:
+        attempt("")
+        return
+
+    def got_password(value: str | None) -> None:
+        if value is None:
+            return
+        attempt(value)
+
+    context.edit_text(f"Password for {point.ssid}", "", got_password)
 
 
 # --- input ---------------------------------------------------------------
@@ -176,10 +359,28 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
 def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     def build() -> list[SettingsRow]:
         return [
+            ToggleRow(
+                "Use a phone as the remote",
+                context.phone_remote_running,
+                lambda value: _set_phone_remote(context, value),
+                detail=context.phone_remote_hint(),
+            ),
             ActionRow(
                 "Pair a remote or controller",
+                lambda: context.push(_bluetooth_panel(context)),
+                detail="Bluetooth, without needing a mouse to do it",
+                value="›",
+            ),
+            ActionRow(
+                "Bluetooth, in detail",
                 lambda: context.open_control_center("bluetooth"),
-                detail="Bluetooth pairing, in GNOME Settings",
+                detail="Devices needing a typed PIN, and everything else",
+            ),
+            ActionRow(
+                "Change buttons",
+                lambda: context.push(_bindings_panel(context)),
+                detail="Bind any button on a controller, keyboard or TV remote",
+                value="›",
             ),
             ActionRow(
                 "Test a controller",
@@ -236,7 +437,19 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
         ]
 
-    return Panel(title="Input", build=build, icon_name="input-gaming-symbolic")
+    return Panel(title="Input", build=build, panel_id="input", icon_name="input-gaming-symbolic")
+
+
+def _set_phone_remote(context: SettingsContext, enabled: bool) -> None:
+    """Turn the phone remote on or off, and say what happened.
+
+    The failure worth naming is the port being taken — by another copy of
+    Salon, or by something else on 8437. A toggle that flips back with no
+    explanation is indistinguishable from a broken toggle.
+    """
+    if not context.set_phone_remote(enabled):
+        context.toast("Couldn't start the phone remote — port 8437 is already in use.")
+    context.rebuild()
 
 
 def _forget_remote_desktop(context: SettingsContext, settings: Gio.Settings) -> None:
@@ -252,6 +465,199 @@ def _forget_remote_desktop(context: SettingsContext, settings: Gio.Settings) -> 
         return
     settings.set_string("remote-desktop-restore-token", "")
     context.toast("Forgotten. You'll be asked again the next time it's needed.")
+    context.rebuild()
+
+
+def _bluetooth_panel(context: SettingsContext) -> Panel:
+    """Scan, list, pair.
+
+    The chicken-and-egg screen: a wireless controller is how you drive
+    Salon, and until this existed the only way to pair the first one was a
+    mouse. Discovery starts when the panel opens and stops when it closes,
+    because an adapter left scanning costs power and floods the list.
+    """
+    service = bluetooth.BluetoothService()
+    state: dict[str, object] = {"devices": [], "error": "", "scanned": False, "asking": False}
+
+    def on_listed(devices: list[bluetooth.Device], error: str) -> None:
+        state.update(devices=devices, error=error, scanned=True, asking=False)
+        context.rebuild()
+
+    def request() -> None:
+        # Guarded, and deliberately not calling context.rebuild(): `build`
+        # runs on every rebuild, so a request that rebuilt would call build
+        # again, which would request again. That recursion is not
+        # theoretical — it was this panel's first version.
+        if state["asking"]:
+            return
+        state["asking"] = True
+
+        def listed(devices: list[bluetooth.Device], error: str) -> None:
+            on_listed(devices, error)
+            # Discovery can only start once an adapter has been found, so
+            # it is chained behind the listing rather than run beside it.
+            if not error:
+                service.start_discovery(lambda ok, message: None)
+
+        service.list_devices(listed)
+
+    def rescan() -> None:
+        state["scanned"] = False
+        request()
+        context.rebuild()
+
+    def pair(device: bluetooth.Device) -> None:
+        context.toast(f"Pairing {device.name}…")
+
+        def paired(ok: bool, message: str) -> None:
+            context.toast(message)
+            state["scanned"] = False
+            request()
+
+        service.pair(device, paired)
+
+    def build() -> list[SettingsRow]:
+        if not state["scanned"]:
+            request()
+            return [
+                InfoRow(
+                    "Looking for devices…",
+                    "",
+                    detail="Put the controller or remote into pairing mode now",
+                )
+            ]
+        error = str(state["error"])
+        if error:
+            return [
+                InfoRow("Couldn't look for devices", "", detail=error),
+                ActionRow("Try again", rescan),
+            ]
+        devices = list(state["devices"])  # type: ignore[arg-type]
+        rows: list[SettingsRow] = [
+            ActionRow(
+                device.name,
+                lambda d=device: pair(d),
+                value=device.summary,
+                detail=device.kind,
+            )
+            for device in devices
+        ]
+        if not rows:
+            rows.append(
+                InfoRow(
+                    "Nothing found yet",
+                    "",
+                    detail="Hold the controller's pairing button until its light flashes",
+                )
+            )
+        rows.append(ActionRow("Look again", rescan, detail="Scan for another few seconds"))
+        return rows
+
+    return Panel(title="Pair a device", build=build)
+
+
+# The actions worth putting on a settings screen. Deliberately not every
+# member of the enum: nobody needs to rebind "up", and offering to would
+# make the list twice as long and half as useful. The directions come from
+# a D-pad, a stick, arrow keys and a CEC pad, all of which agree.
+_BINDABLE: tuple[tuple[Action, str], ...] = (
+    (Action.OK, "Choose the highlighted thing"),
+    (Action.BACK, "Go back one step"),
+    (Action.MENU, "System menu, and the way out of an app"),
+    (Action.OPTIONS, "The menu for the thing under the cursor"),
+    (Action.SEARCH, "Open search"),
+    (Action.PLAY_PAUSE, "Pause or resume whatever is playing"),
+    (Action.PREV_GROUP, "Jump back a letter or a group"),
+    (Action.NEXT_GROUP, "Jump on a letter or a group"),
+    (Action.VOLUME_UP, "Louder"),
+    (Action.VOLUME_DOWN, "Quieter"),
+    (Action.MUTE, "Silence"),
+)
+
+_SOURCE_NAMES = {"pad": "Controller", "key": "Keyboard", "cec": "TV remote"}
+
+
+def _bindings_panel(context: SettingsContext) -> Panel:
+    """One row per action, showing what the user has bound to it.
+
+    Shows overrides only, and says so: listing the defaults as well would
+    mean printing "Cross / A / the bottom face button" for OK and inviting
+    the reader to work out which of those their controller has. What this
+    screen answers is "what have I changed", and the row for an action
+    nobody has rebound says "Default".
+    """
+
+    def described(action: Action) -> str:
+        bindings = context.bindings()
+        keys = bindings.keys_for(action.value)  # type: ignore[attr-defined]
+        if not keys:
+            return "Default"
+        labels = []
+        for key in keys:
+            source, _, code = key.partition(":")
+            labels.append(f"{_SOURCE_NAMES.get(source, source)} 0x{int(code):X}")
+        return ", ".join(labels)
+
+    def build() -> list[SettingsRow]:
+        rows: list[SettingsRow] = [
+            InfoRow(
+                "Press the button you want",
+                "",
+                detail="Choose an action, then press any button on any remote or controller",
+            )
+        ]
+        rows.extend(
+            ActionRow(
+                action.value.replace("_", " ").upper(),
+                lambda a=action: context.push(_capture_panel(context, a)),
+                detail=f"{note} · {described(action)}",
+                value="›",
+            )
+            for action, note in _BINDABLE
+        )
+        rows.append(
+            ActionRow(
+                "Use Salon's defaults again",
+                lambda: _reset_bindings(context),
+                detail="Forgets every button you have changed",
+            )
+        )
+        return rows
+
+    return Panel(title="Change buttons", build=build)
+
+
+def _capture_panel(context: SettingsContext, action: Action) -> Panel:
+    """Waits for one press, binds it, and pops itself.
+
+    A panel rather than a dialog because BACK has to be able to get out of
+    it — and BACK is itself a bindable button, so the capture is armed only
+    while this panel is on screen and is cancelled on the way out.
+    """
+    captured: list[str] = []
+
+    def on_captured(source: str, code: int) -> None:
+        context.rebind(source, code, action.value)
+        captured.append(f"{_SOURCE_NAMES.get(source, source)} 0x{code:X}")
+        context.toast(f"{action.value.replace('_', ' ').upper()} is now {captured[-1]}.")
+        context.pop()
+
+    def build() -> list[SettingsRow]:
+        context.capture_binding(on_captured)
+        return [
+            InfoRow(
+                f"Press the button for {action.value.replace('_', ' ').upper()}",
+                "Waiting…",
+                detail="Any controller, keyboard or TV remote. LEFT cancels.",
+            )
+        ]
+
+    return Panel(title="Waiting for a button", build=build)
+
+
+def _reset_bindings(context: SettingsContext) -> None:
+    context.reset_bindings()
+    context.toast("Every button is back to Salon's default.")
     context.rebuild()
 
 
@@ -320,7 +726,9 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
         ]
 
-    return Panel(title="Browser", build=build, icon_name="web-browser-symbolic")
+    return Panel(
+        title="Browser", build=build, panel_id="browser", icon_name="web-browser-symbolic"
+    )
 
 
 def _edit_browser(context: SettingsContext, settings: Gio.Settings) -> None:
@@ -398,7 +806,9 @@ def audio_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         sinks[:] = found
         context.rebuild()
 
-    return Panel(title="Audio", build=build, icon_name="audio-speakers-symbolic")
+    return Panel(
+        title="Audio", build=build, panel_id="audio", icon_name="audio-speakers-symbolic"
+    )
 
 
 def _select_sink(context: SettingsContext, settings: Gio.Settings, sink: audio.Sink) -> None:
@@ -483,7 +893,9 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         rows.append(ActionRow("Exit to desktop", context.quit_app, danger=True))
         return rows
 
-    return Panel(title="System", build=build, icon_name="preferences-system-symbolic")
+    return Panel(
+        title="System", build=build, panel_id="system", icon_name="preferences-system-symbolic"
+    )
 
 
 def _open_updates(context: SettingsContext) -> None:
@@ -561,7 +973,7 @@ def about_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
         ]
 
-    return Panel(title="About", build=build, icon_name="help-about-symbolic")
+    return Panel(title="About", build=build, panel_id="about", icon_name="help-about-symbolic")
 
 
 def _artwork_dir() -> str:

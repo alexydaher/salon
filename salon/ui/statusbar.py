@@ -59,6 +59,7 @@ class StatusBar(Gtk.Box):
         *,
         on_search: Callable[[], None],
         on_apps: Callable[[], None],
+        on_phone: Callable[[], None],
         on_settings: Callable[[], None],
         on_power: Callable[[], None],
     ) -> None:
@@ -90,10 +91,18 @@ class StatusBar(Gtk.Box):
         self.append(self._clock_label)
 
         self._buttons: list[Gtk.Button] = []
+        self._button_labels: list[Gtk.Label] = []
+        self._button_boxes: list[Gtk.Box] = []
         self._actions: list[Callable[[], None]] = []
         for icon_name, tooltip, handler in (
             ("system-search-symbolic", "Search", on_search),
             ("view-grid-symbolic", "All apps", on_apps),
+            # Before Settings, not inside it: connecting a phone is the
+            # best input this television has, and burying the way to do it
+            # under a settings panel is how it stayed unused. Power keeps
+            # the end of the row — it is the one nobody should land on by
+            # overshooting.
+            ("phone-symbolic", "Connect a phone", on_phone),
             ("emblem-system-symbolic", "Settings", on_settings),
             ("system-shutdown-symbolic", "Power", on_power),
         ):
@@ -129,7 +138,21 @@ class StatusBar(Gtk.Box):
         # Icon-only, so there is no child text for GTK to derive a name
         # from: without this a screen reader announces four "button"s.
         button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
-        button.set_child(Gtk.Image.new_from_icon_name(icon_name))
+        # ...and a tooltip is a mouse-only affordance. Someone holding a
+        # remote three metres away sees four grey glyphs and has to guess.
+        # The label appears beside the icon when the cursor reaches it and
+        # the button grows to a pill, so the bar stays quiet at rest.
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        box.set_halign(Gtk.Align.CENTER)
+        image = Gtk.Image.new_from_icon_name(icon_name)
+        box.append(image)
+        label = Gtk.Label(label=tooltip)
+        label.add_css_class("salon-status-button-label")
+        label.set_visible(False)
+        box.append(label)
+        button.set_child(box)
+        self._button_labels.append(label)
+        self._button_boxes.append(box)
         index = len(self._buttons)
         button.connect("clicked", lambda _b: on_click())
         motion = Gtk.EventControllerMotion()
@@ -181,11 +204,16 @@ class StatusBar(Gtk.Box):
         for glyph in (self._network_glyph, self._battery_glyph):
             glyph.set_pixel_size(scale.px(30.0))
         size = scale.px(52.0)
+        self._button_height = size
         for button in self._buttons:
-            button.set_size_request(size, size)
-            child = button.get_child()
+            button.set_size_request(-1, size)
+        for box in self._button_boxes:
+            box.set_spacing(scale.px(10.0))
+            box.set_size_request(size, -1)
+            child = box.get_first_child()
             if isinstance(child, Gtk.Image):
                 child.set_pixel_size(scale.px(30.0))
+        self._update_selection()
 
     # --- focus ------------------------------------------------------------
 
@@ -226,10 +254,12 @@ class StatusBar(Gtk.Box):
 
     def _update_selection(self) -> None:
         for index, button in enumerate(self._buttons):
-            if self._nav_focused and index == self._selected:
+            selected = self._nav_focused and index == self._selected
+            if selected:
                 button.add_css_class("selected")
             else:
                 button.remove_css_class("selected")
+            self._button_labels[index].set_visible(selected)
 
     def _tick(self) -> bool:
         now = datetime.now()
