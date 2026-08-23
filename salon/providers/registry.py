@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Assembles the provider list and turns it into a catalogue.
 
-One place decides what runs: the three built-ins, plus whatever the user
+One place decides what runs: the built-ins, plus whatever the user
 dropped in `$XDG_DATA_HOME/salon/providers/`. `HomeView` asks for a
 catalogue and gets one back with a list of what each provider did, which is
 what Settings → Providers renders — a row that silently didn't appear is the
@@ -34,6 +34,7 @@ from salon.core.provider import (  # noqa: E402
 from salon.providers.apps import InstalledAppsProvider  # noqa: E402
 from salon.providers.external import LoadError, load_all  # noqa: E402
 from salon.providers.favourites import FavouritesProvider  # noqa: E402
+from salon.providers.games import GamesProvider  # noqa: E402
 from salon.providers.recents import RecentsProvider  # noqa: E402
 from salon.providers.static import StaticProvider  # noqa: E402
 
@@ -47,6 +48,7 @@ class ProviderRegistry:
             FavouritesProvider(settings),
             RecentsProvider(settings),
             StaticProvider(),
+            GamesProvider(settings),
             InstalledAppsProvider(settings),
         ]
         self._external: list[Provider] = []
