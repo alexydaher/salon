@@ -19,6 +19,43 @@
 # packaging Salon as a distro package or a Meson install is the more honest
 # option, and this exists because §6.11 asks for it and because Flatpak is
 # still the easiest way to hand someone a build.
+#
+# ---------------------------------------------------------------------
+# For a Flathub submission: four linter errors survive here on purpose.
+# `flatpak-builder-lint manifest` reports them; each is answered below,
+# and these are the paragraphs to paste into the submission PR.
+#
+# finish-args-flatpak-spawn-access
+#   Salon is a launcher. Starting host applications is not a feature it
+#   has, it is the entire program, and `flatpak-spawn --host` is the only
+#   route to it. Precedent: Bottles and other launchers ship with the same
+#   grant. The trade-off is stated plainly above rather than buried.
+#
+# finish-args-only-wayland
+#   No --socket=x11 or fallback-x11 because Salon is Wayland-only by
+#   design (§2). It takes a RemoteDesktop portal grant to inject pointer
+#   and keyboard events and relies on Wayland focus semantics throughout;
+#   a silent X11 fallback would start, look right, and then behave wrongly
+#   in ways a user could not diagnose. Refusing to run is the honest
+#   outcome, and adding the socket to quiet a linter would be a lie.
+#
+# finish-args-direct-dconf-path / finish-args-dconf-talk-name
+#   Two host GSettings keys, both *written*, both named in the finish-args
+#   comment below. `org.freedesktop.portal.Settings` serves reads only, so
+#   there is no portal that can replace a write. One of the two is
+#   appliance-critical: a television that locks to a password prompt is a
+#   television nobody on a sofa can unlock. Dropping the grant does not
+#   fail loudly, it makes both features no-ops against the sandbox's own
+#   dconf database, which is worse than asking for the permission.
+#
+# finish-args-login1-system-talk-name
+#   Suspend, restart and shut down. `org.gnome.SessionManager` was the
+#   obvious alternative and does not work here: it has no Suspend method
+#   at all, it collapses CanReboot and CanPowerOff into a single
+#   CanShutdown, and its Shutdown()/Reboot() raise GNOME's confirmation
+#   dialog — a prompt rendered underneath a fullscreen kiosk, which is the
+#   exact failure services/power.py's error reporting was written to fix.
+# ---------------------------------------------------------------------
 app-id: io.github.alexydaher.Salon
 runtime: org.gnome.Platform
 runtime-version: '50'
@@ -45,31 +82,56 @@ finish-args:
   # never shells out to systemctl.
   - --system-talk-name=org.freedesktop.login1
 
-  # Gamepad pointer control over the RemoteDesktop portal (§6.5), and the
-  # screensaver inhibit taken around a launch (§6.4).
-  - --talk-name=org.freedesktop.portal.Desktop
+  # The screensaver inhibit taken around a launch (§6.4). No talk-name for
+  # org.freedesktop.portal.Desktop: a sandboxed app can always reach the
+  # portals, so asking for it is noise that a reviewer has to rule out.
+  # Gamepad pointer control (§6.5) goes over the RemoteDesktop portal and
+  # needs nothing here either.
   - --talk-name=org.gnome.SessionManager
   - --talk-name=org.freedesktop.ScreenSaver
 
-  # Volume via wpctl, which talks to the PipeWire session manager.
-  - --talk-name=org.freedesktop.portal.Flatpak
-
   # The one that matters: launching host applications through
-  # `flatpak-spawn --host`. See the note at the top of this file.
+  # `flatpak-spawn --host`. See the note at the top of this file. This is
+  # also what carries `wpctl` for volume (§6.8), which is a host binary
+  # rather than a bus call — org.freedesktop.portal.Flatpak used to be
+  # listed here for it, which was wrong twice over: that is the spawn
+  # portal, not PipeWire, and portals need no talk-name.
   - --talk-name=org.freedesktop.Flatpak
 
-  # Reading GNOME's own settings, so Salon can honour the system's
-  # reduced-motion preference and toggle the on-screen keyboard (§6.5).
+  # Two host GSettings keys, and both are *written*, which is why the
+  # Settings portal cannot replace this and Flathub's linter complaint
+  # about direct dconf has to be answered with a justification instead:
+  #
+  #   org.gnome.desktop.screensaver lock-enabled      services/screenlock.py
+  #   org.gnome.desktop.a11y.applications
+  #                     screen-keyboard-enabled       services/pointer_injector.py
+  #
+  # The first is the appliance one. A television that locks to a password
+  # prompt is a television nobody on a sofa can unlock, so Salon clears
+  # `lock-enabled` while it owns the session and puts it back on shutdown.
+  # The second is the "Y = keyboard" affordance in gamepad pointer mode:
+  # Salon cannot draw an OSK above another app's Wayland surface, so it
+  # borrows GNOME's shell-level one and clicks it with the injected cursor.
+  #
+  # `org.freedesktop.portal.Settings` serves reads and only reads, so
+  # without these four lines both features become silent no-ops against
+  # the sandbox's own dconf database. Reduced motion, which this comment
+  # used to claim as the reason, needs nothing here: it comes from Salon's
+  # own schema plus `Gtk.Settings:gtk-enable-animations`, which GTK already
+  # feeds from the Settings portal inside a sandbox.
   - --filesystem=xdg-run/dconf
   - --filesystem=~/.config/dconf:ro
   - --talk-name=ca.desrt.dconf
   - --env=DCONF_USER_CONFIG_DIR=.config/dconf
 
-  # Artwork the user drops in by hand, and the browser profiles Salon keeps
-  # per URL tile (§6.3).
-  - --filesystem=xdg-config/salon:create
-  - --filesystem=xdg-data/salon:create
-  - --filesystem=xdg-cache/salon:create
+  # Nothing for xdg-config/salon, xdg-data/salon or xdg-cache/salon. A
+  # sandboxed app already owns its own XDG dirs, so those three grants only
+  # bought one thing: writing to the *host's* ~/.config/salon and sharing
+  # tiles.json with an unsandboxed Salon. That is not what a Flatpak is for,
+  # and Flathub's linter says so. Inside the sandbox the catalogue, the
+  # artwork drop folder and the per-tile browser profiles all live under
+  # ~/.var/app/io.github.alexydaher.Salon/, which the host browser launched
+  # by flatpak-spawn can still read by path.
 
 modules:
   - name: libmanette
@@ -82,6 +144,12 @@ modules:
       - type: git
         url: https://gitlab.gnome.org/GNOME/libmanette.git
         tag: '0.2.9'
+        # Flathub wants every git source pinned to a hash as well as a tag,
+        # because a tag can be moved and a hash cannot. This one is an
+        # external repository, so unlike the salon module below there is
+        # nothing self-referential about naming it. 0.2.9 is an annotated
+        # tag; this is the commit it points at, not the tag object.
+        commit: 508df238f9c25a20c0d06da8c9bf83138759d40f
 
   - name: salon
     buildsystem: meson

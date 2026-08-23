@@ -1408,3 +1408,69 @@ not *measured* is how long a phone screen actually stays lit — nobody timed
 it against a film, and a report that the remote "worked" does not
 distinguish a wake fallback that holds for two hours from one that holds
 for two minutes. Left open deliberately rather than rounded up.
+
+## 2026-08-23 (later still) — what Flathub's linter is right about, and what it isn't
+
+`flatpak-builder-lint manifest` reported nine errors against the manifest.
+Four were real mistakes, and the five that remain are staying, each with a
+paragraph in the manifest header written for the submission PR to quote.
+
+**The four that were simply wrong.** Three `--filesystem=xdg-*/salon:create`
+grants: a sandboxed app already owns its own XDG directories, so those only
+bought the ability to write to the *host's* `~/.config/salon` and share
+`tiles.json` with an unsandboxed Salon — which is not what a Flatpak is
+for. And `--talk-name=org.freedesktop.portal.Desktop` plus
+`--talk-name=org.freedesktop.portal.Flatpak`: portals are always reachable
+from inside a sandbox and never need a talk-name. The second of those
+carried the comment "Volume via wpctl", which was wrong twice over — that
+bus name is the spawn portal, not PipeWire, and `wpctl` is a host binary
+reached through `flatpak-spawn`, which the `org.freedesktop.Flatpak` grant
+already covers. libmanette is now pinned to the commit behind tag 0.2.9
+(`508df23`, the commit the annotated tag points at, not the tag object).
+
+**The dconf complaint is right in general and wrong here, and it took
+reading the code to find out why.** The manifest claimed the grant was for
+"the system's reduced-motion preference and the on-screen keyboard". The
+first half is false: reduced motion comes from Salon's own schema plus
+`Gtk.Settings:gtk-enable-animations`, which GTK already feeds from the
+Settings portal inside a sandbox. Nothing reads a host reduced-motion key.
+
+What actually needs it is two keys, and *both are writes*:
+
+    org.gnome.desktop.screensaver  lock-enabled            screenlock.py
+    org.gnome.desktop.a11y.applications
+                                   screen-keyboard-enabled pointer_injector.py
+
+`org.freedesktop.portal.Settings` serves reads and only reads. There is no
+portal that writes a host setting, by design. So dropping the grant does
+not fail loudly — both features become silent no-ops against the sandbox's
+own dconf database. The screen lock one is the appliance-breaking one, and
+it was not even mentioned in the old comment: a television that locks to a
+password prompt is a television nobody on a sofa can unlock. Keeping a
+permission and justifying it beats shipping a Flatpak that looks like a
+television and locks like a laptop.
+
+**`org.gnome.SessionManager` cannot replace logind.** This looked like the
+easy win and is not available at all. It has no `Suspend` method, so that
+grant would have to stay regardless and the linter would still fire — all
+cost, no benefit. It collapses `CanReboot` and `CanPowerOff` into a single
+`CanShutdown`. And its `Shutdown()` and `Reboot()` raise GNOME's own
+confirmation dialog, which under a fullscreen kiosk is a prompt nobody can
+see — precisely the failure `power.py`'s error reporting was written to fix
+("a polkit prompt the user can't see because Salon is fullscreen over it").
+
+**Wayland-only stays.** Adding `--socket=fallback-x11` to quiet
+`finish-args-only-wayland` would produce something that starts, looks
+right, and then behaves wrongly wherever the RemoteDesktop grant and
+Wayland focus semantics are load-bearing. Refusing to run is the honest
+outcome.
+
+**One crash found on the way past.** `set_onscreen_keyboard_enabled` called
+`Gio.Settings.new` on `org.gnome.desktop.a11y.applications` with no guard,
+and that is not an exception — a missing schema is a `g_error`, which
+aborts the process. On a desktop without gsettings-desktop-schemas, Salon
+died on the first press of Y in pointer mode. It now looks the schema up
+first and says so, the way `screenlock.py` already did for its own host
+key. Inside the Flatpak the schema always exists, so this was only ever
+reachable from a Meson install on a non-GNOME desktop — which is exactly
+the configuration nobody here runs.

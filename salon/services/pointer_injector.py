@@ -455,6 +455,25 @@ class PointerInjector:
             self._on_ready(False)
 
 
+_A11Y_SCHEMA = "org.gnome.desktop.a11y.applications"
+_OSK_KEY = "screen-keyboard-enabled"
+
+
+def _a11y_settings() -> Gio.Settings | None:
+    """GNOME's accessibility settings, or None where they aren't installed.
+
+    Worth the detour, because `Gio.Settings.new` on a schema that is not
+    there does not raise — it is a `g_error`, which aborts the process. So
+    on a desktop without gsettings-desktop-schemas, Salon died on the first
+    press of Y in pointer mode instead of doing nothing. `screenlock.py`
+    guards its own host key the same way, for the same reason.
+    """
+    source = Gio.SettingsSchemaSource.get_default()
+    if source is None or source.lookup(_A11Y_SCHEMA, True) is None:
+        return None
+    return Gio.Settings.new(_A11Y_SCHEMA)
+
+
 def set_onscreen_keyboard_enabled(enabled: bool) -> None:
     """Toggle GNOME's built-in accessibility on-screen keyboard.
 
@@ -464,11 +483,17 @@ def set_onscreen_keyboard_enabled(enabled: bool) -> None:
     keyboard is a shell-level surface and isn't bound by that limit — the
     gamepad-driven cursor from PointerInjector can then click its keys
     like a real mouse.
+
+    This is one of the two host keys the Flatpak needs direct dconf access
+    for; see the finish-args note in the manifest.
     """
-    settings = Gio.Settings.new("org.gnome.desktop.a11y.applications")
-    settings.set_boolean("screen-keyboard-enabled", enabled)
+    settings = _a11y_settings()
+    if settings is None:
+        print("[pointer] No GNOME a11y schema here; leaving the on-screen keyboard alone.")
+        return
+    settings.set_boolean(_OSK_KEY, enabled)
 
 
 def onscreen_keyboard_enabled() -> bool:
-    settings = Gio.Settings.new("org.gnome.desktop.a11y.applications")
-    return bool(settings.get_boolean("screen-keyboard-enabled"))
+    settings = _a11y_settings()
+    return bool(settings.get_boolean(_OSK_KEY)) if settings is not None else False
