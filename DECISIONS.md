@@ -1371,3 +1371,40 @@ untested here, because that needs a phone.
 of a page to give it a standalone icon. Nobody knew, because it was
 nowhere in the README. It is now, along with why Android will not offer the
 same thing.
+
+## 2026-08-23 (later still) — the hardware pass, and what it could not reach
+
+The human tested the session, the power actions, the phone remote and the
+controller against the build at `22141c6`, and reports all of them working.
+CEC is now the only thing on the list that has never met a device.
+
+That is worth writing down carefully, because it is a *report* and most of
+this file is measurement. Where the report is coarser than the claim, the
+claim stays narrow:
+
+**The session comes up.** Picking Salon at the login screen starts the
+Shell and Salon. This was the highest-value untested item in the project
+and it is closed. What nobody watched is `Restart=always` doing its job
+after a crash, or the bounded start limit tripping — those need a
+deliberate kill, not a login.
+
+**The power actions work, and that is exactly why the interesting half is
+still untested.** `Suspend`/`Reboot`/`PowerOff` reach logind and do what
+they say. The path this file has flagged for weeks — a polkit denial
+arriving back as a message on screen rather than vanishing silently — is
+*unreachable from an account permitted to power the machine off*. Testing
+it needs a deliberately unprivileged user, and until then the branch is
+written but unexercised. Success here did not close the item; it explained
+why the item cannot close.
+
+**The controller mapping is confirmed in use** rather than only reasoned
+about: Cross→OK, Circle→BACK, Square→OPTIONS, Triangle→SEARCH,
+Options→MENU. Still one pad, still a DualSense.
+
+**The phone remote met a real phone**, on a build that already carried the
+muted-video screen-awake fallback written earlier the same day. So touch,
+haptics and Add to Home Screen have all had a thumb on them. What is still
+not *measured* is how long a phone screen actually stays lit — nobody timed
+it against a film, and a report that the remote "worked" does not
+distinguish a wake fallback that holds for two hours from one that holds
+for two minutes. Left open deliberately rather than rounded up.

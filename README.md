@@ -197,18 +197,15 @@ that wasn't attached to the machine it was written on.
 * **HDMI-CEC has never touched a CEC adapter.** The keycode table and the
   `cec-client` line parsing are covered by tests; nothing else about it has
   run against a television.
-* **One controller, once.** A DualSense over USB enumerates and works. The
-  button *mapping* has not been confirmed press by press against a log, and
-  no other pad has been tried. If yours is wrong, that's a bug worth
-  filing — the mapping is in `salon/input/gamepad.py`.
-* **Suspend, restart and shut down have never been invoked.** Only logind's
-  read-only `CanSuspend`/`CanReboot`/`CanPowerOff` queries have been made.
-  The calls themselves, and the refusal path that reports a polkit denial
-  back to the screen, are unexercised.
-* **The session has not been logged into.** Its systemd units install and
-  pass `systemd-analyze verify`, which is more than the previous
-  arrangement could say, but nobody has yet picked *Salon* at the login
-  screen and watched it come up.
+* **One controller.** A DualSense over USB enumerates, and the mapping has
+  now been used rather than only reasoned about. No other pad has been
+  tried. If yours is wrong, that's a bug worth filing — the mapping is in
+  `salon/input/gamepad.py`.
+* **A polkit refusal has never been seen.** Suspend, restart and shut down
+  have now been invoked and they work. What that cannot exercise is the
+  path where logind *says no* and the denial has to arrive back as a
+  message on screen rather than vanishing: an account permitted to power
+  the machine off never takes it. That path remains untested.
 * **No screen reader.** Roles, names and the selected/active-descendant
   relationships are published and were checked by walking the live AT-SPI
   tree, but Orca has never been run against Salon, so whether each tile is

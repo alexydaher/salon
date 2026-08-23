@@ -309,8 +309,8 @@ verified.** What remains is hardware that isn't attached to this machine
   and checked *before* every other mode in `_handle_action`, including
   `pointer_mode`/`child_active`, so it survives a stuck launch. The status
   bar carries visible Settings and power buttons, because MENU is invisible
-  to a mouse. The power actions themselves have never been invoked against
-  the real machine; only the read-only `Can*` queries have.
+  to a mouse. The power actions have been invoked against the real machine
+  and work; the polkit *refusal* path has never been reached.
 - **Gamepad pointer control is on by default and prompts once, ever.**
   `services/pointer_injector.py` asks the RemoteDesktop portal for
   `persist_mode=2` and keeps the returned `restore_token` in
@@ -418,36 +418,42 @@ start limit, plus a drop-in on `gnome-session@salon.target`. See DECISIONS.
 
 ## What is still missing
 
-What's left is hardware verification and a short list of documented gaps.
+**2026-08-23: the human tested everything except CEC**, against the build at
+`22141c6` — so the session, the power actions, the phone remote on a real
+phone and the controller are all reported working. That is a *report*, not
+a measurement taken here, and the distinction is kept below wherever the
+sub-item is finer than the report was.
 
-- **The Salon session has never been logged into.** Its systemd units
-  install to the right place and pass `systemd-analyze verify` against a
-  staged `DESTDIR` install, which is strictly more than the old
-  `RequiredComponents=` arrangement could claim — but nobody has picked
-  *Salon* at the login screen and watched the Shell and Salon come up. This
-  is a two-minute test on real hardware and it is the highest-value one
-  left.
-- **The power actions have never been invoked.** `services/power.py` calls
-  `Suspend`/`Reboot`/`PowerOff` on logind, and only the read-only
-  `Can*` queries have ever run. The refusal path — a polkit denial arriving
-  back as a message on screen rather than vanishing — is the part most
-  likely to be wrong, and it is untested.
-- **CEC has never touched hardware.** `input/cec_in.py` and
-  `services/cec_out.py` are written and the keycode table is tested, but
-  there is no CEC adapter here and `cec-client` isn't installed.
-- **The gamepad has met one controller.** A DualSense over USB, 2026-08-19:
-  libmanette enumerates it as "Sony Interactive Entertainment DualSense
-  Wireless Controller", and the human reports the buttons working in Salon.
-  What was measured rather than reported: **a stick at rest is not at
-  zero.** Hands off the pad, both Y axes report +0.11..+0.15 continuously,
-  about sixty events a second, so the old 0.15 right-stick dead zone had a
-  margin of 0.016 against a cursor that slides down the screen by itself.
-  It's 0.25 now, with `actions.stick_deflection` rescaling what's left so
-  the wider dead zone costs no slow-speed control. The button *mapping*
-  (Cross→OK, Circle→BACK, Square→OPTIONS, Triangle→SEARCH, Options→MENU) has
-  not been confirmed press by press against a log. The DualSense's touchpad
-  also enumerates as a mouse, which is worth knowing: brushing it moves
-  Salon's pointer and wakes hover-to-focus.
+- **CEC has never touched hardware, and is now the only one.**
+  `input/cec_in.py` and `services/cec_out.py` are written and the keycode
+  table is tested, but there is no CEC adapter here and `cec-client` isn't
+  installed. Everything else on this list that needed hardware has now had
+  it.
+- **The Salon session has been logged into.** Picking *Salon* at the login
+  screen brings the Shell and Salon up. The systemd units under
+  `data/systemd/` are what makes that work; `RequiredComponents=` never
+  did. What has not been separately watched is the `Restart=always`
+  behaviour after a crash, or the bounded start limit tripping.
+- **The power actions work; a refusal has never been seen.**
+  `services/power.py` calls `Suspend`/`Reboot`/`PowerOff` on logind and
+  they do what they say. The part flagged as most likely to be wrong is
+  still untested and structurally hard to reach: an account permitted to
+  power the machine off never triggers the polkit denial, so whether that
+  denial arrives back as a message on screen rather than vanishing is
+  unknown. Testing it means a deliberately unprivileged account.
+- **The gamepad has met one controller, and the mapping is confirmed.** A
+  DualSense over USB: libmanette enumerates it as "Sony Interactive
+  Entertainment DualSense Wireless Controller", and the mapping
+  (Cross→OK, Circle→BACK, Square→OPTIONS, Triangle→SEARCH, Options→MENU) is
+  reported correct in use — it had previously only been reasoned about. No
+  second pad has been tried. What was measured here rather than reported:
+  **a stick at rest is not at zero.** Hands off the pad, both Y axes report
+  +0.11..+0.15 continuously, about sixty events a second, so the old 0.15
+  right-stick dead zone had a margin of 0.016 against a cursor that slides
+  down the screen by itself. It's 0.25 now, with
+  `actions.stick_deflection` rescaling what's left so the wider dead zone
+  costs no slow-speed control. The DualSense's touchpad also enumerates as
+  a mouse: brushing it moves Salon's pointer and wakes hover-to-focus.
 - **Only web tiles can be launched fullscreen.** URL tiles pass
   `--start-fullscreen` (per-tile toggle in the editor); native apps decide
   their own window state and no Wayland client may override another's.
@@ -486,14 +492,16 @@ What's left is hardware verification and a short list of documented gaps.
   workaround (measured: 11 → 64 tiles, via an "All applications" row), but
   it adds that row to the television too. A phone-only all-apps list is the
   real fix.
-- **The phone remote has met no real phone.** Every endpoint, the QR (read
-  back off a screen capture with libzbar), and each of the page's four
-  panes were verified — the panes by rendering the real page in headless
-  Chrome at a phone viewport against a running server. What has not
-  happened is a thumb on glass: touch events, `navigator.vibrate`, the wake
-  lock, "Add to Home Screen", and whether the trackpad's feel is right are
-  all unexercised. The scripts are in this session's scratchpad pattern:
-  drive `HomeView` directly, then talk HTTP to it from a worker thread.
+- **The phone remote has now met a real phone** (2026-08-23, against the
+  build carrying the muted-video screen-awake fallback). Before that, every
+  endpoint, the QR (read back off a screen capture with libzbar) and each
+  of the page's four panes had been verified — the panes by rendering the
+  real page in headless Chrome at a phone viewport against a running
+  server. The harness pattern is worth keeping: drive `HomeView` directly,
+  then talk HTTP to it from a worker thread. What a browser could not tell
+  us — touch events, `navigator.vibrate`, the wake fallback, Add to Home
+  Screen, the trackpad's feel — is reported working rather than measured
+  here, and no one timed how long a phone screen actually stays lit.
 - **Accessibility is published but has never met a screen reader.** Tiles,
   rows, the top bar and the settings rows all carry roles and names, and the
   cursor is published as SELECTED plus ACTIVE_DESCENDANT on the container
@@ -508,17 +516,13 @@ What's left is hardware verification and a short list of documented gaps.
 - **Needs the real TV, not this monitor:** whether 320×180du tiles and the
   38% row anchor read correctly at three metres, and whether the bloom is
   too strong or too weak on a panel with a different black level.
-- **Needs hardware:** the gamepad source and HDMI-CEC, neither of which has
-  ever run against a real device. The RemoteDesktop pointer path *has* been
-  re-verified live; what's untested there is whether the right stick reads
-  well as a cursor on a real controller.
-- **Needs a real phone:** open the remote on one and use it. See the gap
-  note above for exactly what a browser at a phone viewport could not tell
-  us (touch, haptics, and whether the muted-video trick genuinely holds a
-  phone's screen on — the clip is verified playing and looping at the LAN
-  origin, but a browser cannot report what the display does next).
-  Installability is settled and needs no phone: iOS yes, Android no, and
-  the reason is a secure context Salon cannot have.
+- **Needs hardware, and it is only CEC now.** `input/cec_in.py` and
+  `services/cec_out.py` have never run against a real device; there is no
+  adapter here and `cec-client` isn't installed. The gamepad and the phone
+  both got their hardware pass on 2026-08-23.
+- **Needs an unprivileged account:** the polkit refusal path in
+  `services/power.py`. The power actions work, which is precisely why that
+  branch is unreachable from the machine they were tested on.
 - **Worth doing next if anything:** pre-blurred backdrop artwork, and an
   A–Z rail in the all-apps grid — 200 apps at five columns is 40 rows of
   D-pad. On the phone: the all-apps list (it shows the *catalogue*, not
