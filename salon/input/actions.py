@@ -27,6 +27,13 @@ class Action(StrEnum):
     # has to stay the one button that always means the same thing.
     OPTIONS = "options"
     SEARCH = "search"
+    # Coarse navigation: one press crosses a whole group rather than one
+    # item. The all-apps grid reads it as "next letter", which is the
+    # difference between reaching W in one press and reaching it in forty.
+    # Shoulder buttons on a pad, Page Up/Down on a keyboard, the channel
+    # keys on a television remote — all three are the same gesture.
+    PREV_GROUP = "prev_group"
+    NEXT_GROUP = "next_group"
     PLAY_PAUSE = "play_pause"
     VOLUME_UP = "volume_up"
     VOLUME_DOWN = "volume_down"

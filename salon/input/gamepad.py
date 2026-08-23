@@ -26,6 +26,7 @@ gi.require_version("GLib", "2.0")
 
 from gi.repository import GLib, Manette  # noqa: E402
 
+from salon.core.bindings import GAMEPAD, Bindings  # noqa: E402
 from salon.input.actions import Action, stick_deflection  # noqa: E402
 
 # Linux evdev codes (linux/input-event-codes.h) — stable across vendors.
@@ -34,6 +35,8 @@ _BTN_SOUTH = 0x130  # A / Cross
 _BTN_EAST = 0x131  # B / Circle
 _BTN_WEST = 0x134  # X / Square
 _BTN_NORTH = 0x133  # Y / Triangle
+_BTN_TL = 0x136  # L1 / L / LB
+_BTN_TR = 0x137  # R1 / R / RB
 _BTN_START = 0x13B
 _BTN_DPAD_UP = 0x220
 _BTN_DPAD_DOWN = 0x221
@@ -45,6 +48,8 @@ _BUTTON_ACTIONS: dict[int, Action] = {
     _BTN_EAST: Action.BACK,
     _BTN_NORTH: Action.SEARCH,
     _BTN_WEST: Action.OPTIONS,
+    _BTN_TL: Action.PREV_GROUP,
+    _BTN_TR: Action.NEXT_GROUP,
     _BTN_START: Action.MENU,
     _BTN_DPAD_UP: Action.UP,
     _BTN_DPAD_DOWN: Action.DOWN,
@@ -89,10 +94,35 @@ class GamepadSource:
         on_action: Callable[[Action], None],
         on_right_stick: Callable[[float, float], None] | None = None,
         on_action_release: Callable[[Action], None] | None = None,
+        bindings: Bindings | None = None,
+        on_raw: Callable[[int], None] | None = None,
     ) -> None:
         self._on_action = on_action
         self._on_right_stick = on_right_stick
         self._on_action_release = on_action_release
+        # The user's overrides, consulted ahead of the table below. None of
+        # the defaults are wrong; they are just not right for every pad —
+        # Nintendo-layout controllers put the south and east buttons in the
+        # other order, so "the bottom one is OK" and "A is OK" disagree.
+        self._bindings = bindings or Bindings()
+        # Raw codes, for the settings screen's "press the button you want"
+        # capture. Delivered whether or not the code maps to anything, which
+        # is the point: an unmapped button is exactly what needs binding.
+        self._on_raw = on_raw
+
+    def set_bindings(self, bindings: Bindings) -> None:
+        self._bindings = bindings
+
+    def _resolve(self, button: int) -> Action | None:
+        override = self._bindings.action_for(GAMEPAD, button)
+        if override is not None:
+            # Including the empty string, which means the user silenced this
+            # button and must beat the default rather than fall through it.
+            try:
+                return Action(override) if override else None
+            except ValueError:
+                return None
+        return _BUTTON_ACTIONS.get(button)
         self._axis_state: dict[tuple[Manette.Device, int], int] = {}
         self._right_stick_raw: dict[tuple[Manette.Device, int], float] = {}
         self._monitor = Manette.Monitor.new()
@@ -125,7 +155,9 @@ class GamepadSource:
         # but distinct get_button() values matching BTN_DPAD_*).
         ok, button = event.get_button()
         if ok:
-            action = _BUTTON_ACTIONS.get(button)
+            if self._on_raw is not None:
+                self._on_raw(button)
+            action = self._resolve(button)
             if action is not None:
                 self._on_action(action)
 
@@ -133,7 +165,7 @@ class GamepadSource:
         ok, button = event.get_button()
         if not ok:
             return
-        action = _BUTTON_ACTIONS.get(button)
+        action = self._resolve(button)
         if action is not None and self._on_action_release is not None:
             self._on_action_release(action)
 

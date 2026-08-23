@@ -13,6 +13,7 @@ gi.require_version("Gdk", "4.0")
 
 from gi.repository import Gdk  # noqa: E402
 
+from salon.core.bindings import KEYBOARD, Bindings  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 
 _KEYVAL_ACTIONS: dict[int, Action] = {
@@ -30,12 +31,30 @@ _KEYVAL_ACTIONS: dict[int, Action] = {
     Gdk.KEY_F10: Action.OPTIONS,
     Gdk.KEY_o: Action.OPTIONS,
     Gdk.KEY_slash: Action.SEARCH,
+    Gdk.KEY_Page_Up: Action.PREV_GROUP,
+    Gdk.KEY_Page_Down: Action.NEXT_GROUP,
     Gdk.KEY_AudioPlay: Action.PLAY_PAUSE,
     Gdk.KEY_AudioRaiseVolume: Action.VOLUME_UP,
     Gdk.KEY_AudioLowerVolume: Action.VOLUME_DOWN,
     Gdk.KEY_AudioMute: Action.MUTE,
+    Gdk.KEY_AudioPause: Action.PLAY_PAUSE,
+    Gdk.KEY_AudioStop: Action.PLAY_PAUSE,
+    Gdk.KEY_PowerOff: Action.POWER,
 }
 
 
-def action_for_keyval(keyval: int) -> Action | None:
+def action_for_keyval(keyval: int, bindings: Bindings | None = None) -> Action | None:
+    """The action a key produces, with any user override applied first.
+
+    A programmable IR remote behind a Flirc receiver is a keyboard whose
+    keys the owner chose, so this is the source where rebinding matters
+    most — the default map can only guess what they taught it.
+    """
+    if bindings is not None:
+        override = bindings.action_for(KEYBOARD, keyval)
+        if override is not None:
+            try:
+                return Action(override) if override else None
+            except ValueError:
+                return None
     return _KEYVAL_ACTIONS.get(keyval)

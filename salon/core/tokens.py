@@ -40,11 +40,71 @@ COLORS: tuple[ColorToken, ...] = (
 
 def color(name: str) -> str:
     """The raw hex/rgba string for a colour token, for code that draws
-    outside CSS (the tile and backdrop render themselves in do_snapshot)."""
+    outside CSS (the tile and backdrop render themselves in do_snapshot).
+
+    This is the *design default*. At runtime `ui/theme.py` may be showing a
+    different palette; anything drawing on screen should ask that instead.
+    """
     for token in COLORS:
         if token.name == name:
             return token.value
     raise KeyError(name)
+
+
+# The surfaces a theme may repaint. The accent is not among them: it is a
+# separate choice the user makes and every palette has to work with any of
+# them, which is the discipline that keeps this from becoming a skin format.
+THEMED_TOKENS = ("surface-0", "surface-1", "surface-2", "text-primary", "text-secondary")
+
+# Four palettes, not forty. Flex Launcher's themability is a real advantage
+# and the answer to it is not an unbounded skin system — it is a small set
+# of palettes that were each checked against the same artwork, the same
+# focus ring and the same text sizes. Anything more becomes a surface for
+# unreadable combinations nobody tested.
+PALETTES: dict[str, dict[str, str]] = {
+    # The design default: a blue-black that keeps artwork looking neutral.
+    "midnight": {
+        "surface-0": "#0E1116",
+        "surface-1": "#161B22",
+        "surface-2": "#1F2630",
+        "text-primary": "#F2EDE4",
+        "text-secondary": "#9AA3AE",
+    },
+    # Hueless. For anyone whose panel makes the blue-black read as blue.
+    "graphite": {
+        "surface-0": "#121212",
+        "surface-1": "#1C1C1C",
+        "surface-2": "#282828",
+        "text-primary": "#F0F0F0",
+        "text-secondary": "#A0A0A0",
+    },
+    # Warm, for a room with warm lighting, where a cool grey looks grey.
+    "ember": {
+        "surface-0": "#14100D",
+        "surface-1": "#1E1815",
+        "surface-2": "#2B2320",
+        "text-primary": "#F6EEE4",
+        "text-secondary": "#B0A398",
+    },
+    # True black and brighter text: OLED panels draw no power for black
+    # pixels and show no glow around them, and the higher contrast is the
+    # one that survives a lit room.
+    "contrast": {
+        "surface-0": "#000000",
+        "surface-1": "#101010",
+        "surface-2": "#1E1E1E",
+        "text-primary": "#FFFFFF",
+        "text-secondary": "#C4C4C4",
+    },
+}
+
+DEFAULT_PALETTE = "midnight"
+
+
+def palette(name: str) -> dict[str, str]:
+    """A named palette, falling back to the default for anything unknown —
+    a hand-edited GSetting must not leave the interface unpainted."""
+    return PALETTES.get(name, PALETTES[DEFAULT_PALETTE])
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +199,12 @@ BROWSER_SCALE_MIN: float = 1.0
 BROWSER_SCALE_MAX: float = 3.0
 
 REFERENCE_VIEWPORT_HEIGHT_PX: float = 1080.0
+
+
+# Two lines of type plus the space around them: the bottom strip that says
+# what the cursor is on. Reserved in the home screen's bottom inset so the
+# rows never scroll underneath it.
+DETAIL_BAR_HEIGHT_DU = 78.0
 
 
 def design_units_to_px(du: float, viewport_height_px: int) -> float:

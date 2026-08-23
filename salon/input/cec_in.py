@@ -27,6 +27,7 @@ gi.require_version("Gio", "2.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from salon.core.bindings import CEC, Bindings  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 
 _CLIENT = "cec-client"
@@ -48,9 +49,22 @@ _CODE_TO_ACTION = {
     # remote is most likely to have spare for a per-item options menu.
     0x0B: Action.OPTIONS,
     0x71: Action.OPTIONS,
+    # Channel up/down: the pair of keys a television remote always has
+    # and Salon has nothing else to do with. They jump a whole group.
+    0x30: Action.NEXT_GROUP,
+    0x31: Action.PREV_GROUP,
     0x41: Action.VOLUME_UP,
     0x42: Action.VOLUME_DOWN,
     0x43: Action.MUTE,
+    # Transport keys. A television remote has these whether or not it has
+    # anything else, and until now Salon answered none of them.
+    0x44: Action.PLAY_PAUSE,
+    0x46: Action.PLAY_PAUSE,
+    0x45: Action.PLAY_PAUSE,
+    # Power. Handled as "open the system menu" rather than as an immediate
+    # suspend — see ui/home.py.
+    0x40: Action.POWER,
+    0x6B: Action.POWER,
 }
 
 
@@ -58,16 +72,35 @@ def available() -> bool:
     return shutil.which(_CLIENT) is not None
 
 
-def action_for_code(code: int) -> Action | None:
+def action_for_code(code: int, bindings: Bindings | None = None) -> Action | None:
+    """The action a user-control code produces, user override first.
+
+    The table below is the CEC 1.4 list, which is what the specification
+    says. Which key on a given television's remote sends which code, or
+    whether it sends one at all, is between that manufacturer and nobody —
+    so the override layer is not a nicety here, it is the only way a remote
+    the default does not fit can be made to work.
+    """
+    if bindings is not None:
+        override = bindings.action_for(CEC, code)
+        if override is not None:
+            try:
+                return Action(override) if override else None
+            except ValueError:
+                return None
     return _CODE_TO_ACTION.get(code)
 
 
-def parse_line(line: str) -> Action | None:
-    """Pure, so the keycode mapping is testable without an adapter."""
+def code_in_line(line: str) -> int | None:
+    """The raw user-control code, for the settings screen's capture."""
     match = _KEY_RE.search(line)
-    if match is None:
-        return None
-    return action_for_code(int(match.group("code"), 16))
+    return int(match.group("code"), 16) if match else None
+
+
+def parse_line(line: str, bindings: Bindings | None = None) -> Action | None:
+    """Pure, so the keycode mapping is testable without an adapter."""
+    code = code_in_line(line)
+    return None if code is None else action_for_code(code, bindings)
 
 
 class CecSource:
@@ -77,10 +110,20 @@ class CecSource:
     reference or the pipe is closed and the reader stops.
     """
 
-    def __init__(self, on_action: Callable[[Action], None]) -> None:
+    def __init__(
+        self,
+        on_action: Callable[[Action], None],
+        bindings: Bindings | None = None,
+        on_raw: Callable[[int], None] | None = None,
+    ) -> None:
         self._on_action = on_action
+        self._bindings = bindings
+        self._on_raw = on_raw
         self._process: Gio.Subprocess | None = None
         self._reader: Gio.DataInputStream | None = None
+
+    def set_bindings(self, bindings: Bindings) -> None:
+        self._bindings = bindings
 
     @property
     def running(self) -> bool:
@@ -125,7 +168,10 @@ class CecSource:
         if raw is None:  # EOF: cec-client exited
             self.stop()
             return
-        action = parse_line(raw)
+        code = code_in_line(raw)
+        if code is not None and self._on_raw is not None:
+            self._on_raw(code)
+        action = parse_line(raw, self._bindings)
         if action is not None:
             self._on_action(action)
         self._read_next()
