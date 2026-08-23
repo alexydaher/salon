@@ -114,7 +114,7 @@ every mode, so a stuck launch can never swallow it.
 Long-press means firing OK on release, and a CEC remote produces presses
 with no release — the TV remote would stop launching anything.
 
-## Current state (as of 2026-08-19)
+## Current state (as of 2026-08-22)
 
 The project jumped from M0 straight to a working POC — real launching,
 gamepad input, and gamepad-driven mouse control over browser-hosted DRM
@@ -192,18 +192,87 @@ verified.** What remains is hardware that isn't attached to this machine
   keyboard layout and cursor (pure, tested — including that vertical
   movement is *spatial*, not by index); `ui/osk.py` renders it as real
   buttons so a mouse works too. `services/appinfo.py` scans desktop entries
-  on a worker thread. `services/pairing.py` is the §6.12 phone keyboard: a
-  `SoupServer` started only while search is open, one page, a four-digit
-  code checked with `compare_digest` on every POST, five-minute expiry —
-  verified end to end (page served, wrong code rejected 403, right code
-  delivered, clean shutdown).
-- **`core/qr.py` exists, is tested, and is deliberately not wired up.**
-  A dependency-free QR encoder (byte mode, EC level M, versions 1-6),
-  verified by decoding its output with libzbar. It was written to replace
-  the pairing screen's printed URL with a scannable code, and then
-  explicitly deferred by the human before the widget was built. The pairing
-  hint still shows the URL and code as text. To finish it: render the
-  matrix and place it in `SearchOverlay`'s hint area. Do not delete it.
+  on a worker thread. `services/pairing.py` began as the §6.12 phone
+  keyboard and is now the whole second screen — see below.
+- **The phone is a second screen, not just a keyboard (2026-08-22).**
+  `services/pairing.py` serves `data/remote/index.html` (in the GResource
+  bundle, *not* a Python string any more) — four panes: the catalogue with
+  real artwork, a D-pad, a trackpad, a keyboard, plus a now-playing card.
+  Read DECISIONS.md 2026-08-22 before changing any of it. The shape:
+  - **Two credentials.** A 128-bit token is the session credential and is
+    what the QR carries, **in the URL fragment** (`#k=…`) so it never
+    reaches a server log. The four-digit code is a bootstrap credential
+    accepted at `/connect` *only*, and that one endpoint owns the lockout.
+    Wrong *tokens* are deliberately not counted — counting them would be a
+    denial-of-service on the paired phone.
+  - **`core/remote.py` is the boundary.** Pure, `mypy --strict`,
+    `tests/test_remote.py`. `RemoteState` is the snapshot; `StateFeed`
+    holds it with a version that only moves on a real change and serialises
+    lazily; `is_local_address` refuses off-LAN sources. Nothing about the
+    phone lives in `home.py` except filling the snapshot in.
+  - **`GET /state` is a 1 Hz poll**, 204 when the phone is current. It runs
+    on the main loop, so keep it that cheap. `_handle_action` wraps
+    `_dispatch_action` purely so the snapshot is republished after every
+    press, whichever of the two dozen early returns fired.
+  - **`/launch` and `/art` check ids against the published state**, never
+    the catalogue and never the filesystem. That is also why traversal is
+    structurally impossible.
+  - **The top bar's phone button** (and MENU → Connect a phone) opens
+    `ui/phonepairing.py`; the screen closes itself ~1.6s after a phone
+    authenticates, and closing it leaves the remote running. `core/qr.py`
+    is wired here via `ui/qrcode.py`. `KeyboardPane` no longer starts
+    anything — it claims the text sink on map, and gives it back through
+    `release_text_sink` (which only clears the slot if it still holds it,
+    because GTK maps the incoming screen before unmapping the outgoing).
+  - **QR trap:** flooring the module size is not enough — the *origin* must
+    be whole-pixel too, or every module edge antialiases and libzbar
+    refuses the symbol outright. It looked perfect and read as nothing.
+  - **Page trap:** `header`/`nav` are `display: flex`, which beats the user
+    agent's `[hidden] { display: none }`. The page carries an explicit
+    `[hidden] { display: none !important }`.
+  - **Typing goes to Salon first, the session second.** `/type` prefers the
+    `_text_sink`; with none, `PointerInjector.type_text` taps keysyms
+    through the *same* RemoteDesktop grant the trackpad uses, so a search
+    box inside a launched browser is reachable. Character→keysym
+    **delegates to `Gdk.unicode_to_keyval`** — `0x01000000 + codepoint` is
+    wrong for characters with legacy named keysyms (`tests/test_keysyms.py`
+    keeps the evidence).
+  - **A capability test is not a working-feature test.** `_pointer.ready`
+    was True and the pointer really moved while the whole feature looked
+    dead, because the cursor was hidden. Anything that injects input needs
+    `_set_pointer_visible(True)` alongside it.
+  - **A press on the phone hides the mouse** (`_on_phone_action`,
+    `_on_phone_launch`), like every other input source — the same flag gates
+    hover-to-focus, so a parked mouse used to yank the selection back from
+    under the phone. The trackpad reveals it again.
+  - **`PointerInjector.ready` means `Start` succeeded, not "there is a
+    session handle".** The portal returns the handle at CreateSession, well
+    before the grant exists; taking that as ready made `/type` and
+    `/pointer` answer 200 into a session mutter had never started. See
+    DECISIONS 2026-08-23.
+  - **The Type tab does reach a launched app** — measured against both a GTK
+    child and a Chrome URL tile. What it cannot do is focus a text field:
+    the keys go wherever that app's cursor is, and a freshly opened app has
+    none, so you tap the search box with the Pad first.
+  - **The phone holds its own screen on by playing a video, not with
+    `navigator.wakeLock`.** That API is gated on a secure context and the
+    remote is HTTP on a LAN address, so on a phone it is *absent* — the
+    `"wakeLock" in navigator` guard made the feature dead code. `#awake` in
+    the page plays `data/remote/awake.{webm,mp4}` from the bundle. Same
+    constraint rules out a service worker, so Android will never offer to
+    install the page; iOS Add to Home Screen works and always did. This is
+    why the remote is not becoming a PWA or a native app — DECISIONS
+    2026-08-23 (later) has the measurements and the version-skew argument.
+  - **A held session never idles out.** `stop()` clears `_holders`, so
+    letting the idle timer fire on a remote the user switched on turned it
+    off mid-film. Only unheld sessions expire.
+  - **Menu on the phone closes a launched app**, same `_return_from_child`
+    path as START on a controller, and for the same structural reason: the
+    press arrives over HTTP into Salon's own process, so it does not need
+    keyboard focus. Verified against a real child. The launcher's four
+    lifecycle callbacks must all `_publish_remote_state()` — they arrive
+    asynchronously, and without that the phone's header is one event behind
+    and reads exactly inverted.
 - **Mouse is a first-class input.** Tiles take clicks and hover-to-focus,
   the scroll wheel navigates, the power menu's selection follows the
   pointer, and the cursor hides until the mouse actually moves. Hover is
@@ -394,8 +463,37 @@ What's left is hardware verification and a short list of documented gaps.
 - **Smaller gaps:** the backdrop is a pool of accent light, not blurred
   artwork (§7.4) — pre-blurring at fetch time is the missing piece;
   `data/fonts/` is empty, so Archivo/Inter are requested but fall back to
-  the system UI font; `core/qr.py` is finished and tested but deliberately
-  unwired (see above).
+  the system UI font.
+- **Three actions fire from behind a launched app (found 2026-08-22, not
+  fixed).** `SEARCH`, `POWER` and `PLAY_PAUSE` are each handled in
+  `_dispatch_action` *above* the `if self._child_active: return` guard, so
+  while an application is covering Salon they act on a window nobody can
+  see. Measured, from the phone, with a real child in front:
+  - `PLAY_PAUSE` "falls through to launching the focused tile when nothing
+    is playing" — so with a paused player it **launched GeForce NOW**
+    behind the app that was already running. The worst of the three.
+  - `SEARCH` opened the search overlay behind the app (`get_visible()`
+    True), and because the search branch is *also* above the guard, the
+    phone's D-pad then drove an invisible screen.
+  - `POWER` is the same shape (system menu); read off the dispatch order
+    rather than measured.
+  The MENU handler's own comment already states the rule these break: "a
+  menu drawn in Salon's own window would appear underneath Netflix where
+  nobody can see it". Not the RemoteDesktop consent dialog — all three
+  reproduced with the grant already held and no dialog shown.
+- **The phone lists the catalogue, not every installed app.** 11 tiles
+  against 53 installed here. Settings → Providers → `show-apps-row` is the
+  workaround (measured: 11 → 64 tiles, via an "All applications" row), but
+  it adds that row to the television too. A phone-only all-apps list is the
+  real fix.
+- **The phone remote has met no real phone.** Every endpoint, the QR (read
+  back off a screen capture with libzbar), and each of the page's four
+  panes were verified — the panes by rendering the real page in headless
+  Chrome at a phone viewport against a running server. What has not
+  happened is a thumb on glass: touch events, `navigator.vibrate`, the wake
+  lock, "Add to Home Screen", and whether the trackpad's feel is right are
+  all unexercised. The scripts are in this session's scratchpad pattern:
+  drive `HomeView` directly, then talk HTTP to it from a worker thread.
 - **Accessibility is published but has never met a screen reader.** Tiles,
   rows, the top bar and the settings rows all carry roles and names, and the
   cursor is published as SELECTED plus ACTIVE_DESCENDANT on the container
@@ -414,9 +512,17 @@ What's left is hardware verification and a short list of documented gaps.
   ever run against a real device. The RemoteDesktop pointer path *has* been
   re-verified live; what's untested there is whether the right stick reads
   well as a cursor on a real controller.
-- **Worth doing next if anything:** wire `core/qr.py` into the pairing hint,
-  pre-blurred backdrop artwork, idle/screensaver behaviour (Salon sits at
-  full brightness indefinitely today), and an A–Z rail in the all-apps grid
-  — 200 apps at five columns is 40 rows of D-pad.
+- **Needs a real phone:** open the remote on one and use it. See the gap
+  note above for exactly what a browser at a phone viewport could not tell
+  us (touch, haptics, and whether the muted-video trick genuinely holds a
+  phone's screen on — the clip is verified playing and looping at the LAN
+  origin, but a browser cannot report what the display does next).
+  Installability is settled and needs no phone: iOS yes, Android no, and
+  the reason is a secure context Salon cannot have.
+- **Worth doing next if anything:** pre-blurred backdrop artwork, and an
+  A–Z rail in the all-apps grid — 200 apps at five columns is 40 rows of
+  D-pad. On the phone: the all-apps list (it shows the *catalogue*, not
+  every installed application), and search from the phone rather than
+  through the television's search screen.
 - `DECISIONS.md` has the dated reasoning for every judgement call made
   without an explicit spec answer.

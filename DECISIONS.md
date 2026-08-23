@@ -1050,3 +1050,324 @@ source pinned to a hash as well as a tag, but this manifest lives inside the
 repository it builds and no commit can contain its own hash. That is what the
 separate `flathub/<app-id>` repository is for; the in-tree manifest stays
 tag-only, for building from a clean checkout.
+
+## 2026-08-22 — the phone becomes a second screen
+
+**The QR code carries a 128-bit session token in the URL *fragment*, and
+the four-digit code is demoted to a bootstrap credential.** Scanning the
+code on the television used to open the page and then ask for four digits,
+which made the camera a shortcut for typing an IP address and nothing more.
+Now `services/pairing.py` mints a token alongside the code; `pair_url`
+appends it as `#k=…`; the page reads it out of `location.hash`, posts it to
+`/connect`, and strips it from the address bar. A fragment is never sent to
+a server, so the secret lands in no access log, no `Referer`, and no
+proxy's history — which makes scanning not merely more convenient than
+typing but the *stronger* of the two paths. The code is now accepted at
+`/connect` and nowhere else, so the brute-force lockout guards exactly one
+endpoint. Rejected: keeping the code as the only credential (ten thousand
+possibilities is why the lockout had to exist at all), and putting the
+token in the query string (same secret, but in every log that sees the
+request line). **Wrong tokens are deliberately not counted toward the
+lockout.** Counting them would trade an attack that cannot succeed — 128
+bits is not guessable — for one that trivially can: anyone who can reach
+the port could lock out the phone that is legitimately paired.
+
+**`GET /state` is a 1 Hz poll with a version counter, not Server-Sent
+Events.** The phone needs to *see* the television — the catalogue, the
+cursor, what is playing — and something has to push that across. libsoup3
+can stream a response by pausing the message and appending to the body by
+hand, but it is fiddly, and at the rate a human glances at a remote a
+one-second poll is indistinguishable from a live feed. The cost that
+actually mattered was different: `Soup.Server` dispatches on the main loop,
+so every byte serialised for the phone is serialised on the thread
+animating the tiles. `core/remote.StateFeed` answers that — publishing
+compares a frozen dataclass and does nothing when it matches, the JSON is
+built lazily on first request and cached, and a phone that is already
+current gets a 204 with no body. A state that is superseded before anyone
+asks is never serialised at all.
+
+**`_handle_action` is a wrapper around `_dispatch_action`.** The phone's
+snapshot has to be refreshed after anything that could change what is on
+screen, and `_dispatch_action` has two dozen early returns. Adding a
+publish to each would have meant forgetting one, and the symptom — a phone
+showing the wrong screen with no clue why — is invisible from the
+television. One wrapper, one call site.
+
+**`/launch` and `/art` resolve ids against the *published state*, not the
+catalogue.** The phone is a second remote, not a second way in: it can
+reach what it was shown and nothing else. That also means there is no path
+to traverse — the id is a set membership test, never joined onto a
+filename.
+
+**The remote refuses requests from outside the local network.** It is
+plaintext HTTP by design (TLS means a self-signed certificate, which means
+a browser interstitial, which destroys the one-scan path the whole thing is
+built around). That trade is only defensible while "on the same network"
+means something, so `core/remote.is_local_address` checks the source before
+the credential is read. The ranges are written out rather than deferred to
+`ipaddress.is_private`, which does not mean what its name suggests: it
+counts the documentation ranges as private and leaves out RFC 6598
+carrier-grade NAT, which some ISP-supplied routers really do hand to
+devices on their own LAN.
+
+**"Connect a phone" is in the system menu, and the pairing screen closes
+itself when a phone arrives.** The remote was reachable from Settings →
+Input and from the search keyboard — both places you go for a reason, which
+made the best input Salon has something you had to already know about. MENU
+is the one button that works from anywhere. Closing the screen does *not*
+stop the remote (you connect a phone once and then use it), and it gets out
+of the way ~1.6s after the first authenticated request, because a card
+still sitting there would swallow the phone's first press at the exact
+moment the phone started working.
+
+**Track skip is `/transport`, not an `Action`.** `Action` is how you drive
+Salon, and every source normalises to it. Skipping a track is the one thing
+the phone can do that a controller cannot, because it is only meaningful
+when you can see what is playing — so it is its own endpoint calling
+`services/mpris.py` directly, rather than two new buttons in a vocabulary
+no physical remote here has.
+
+**The page is a file in the GResource bundle, not a Python string.** It was
+a 200-line `"""` literal, which is why its connect regex needed `\\d` —
+one backslash from a bug no editor would highlight. It is now
+`data/remote/index.html`, four panes, a poller and a gesture surface, and
+it stays one file with no build step: a launcher that needs npm to change a
+button is a launcher nobody will change a button in.
+
+**Two bugs the screenshots found that the reasoning did not.** First, the
+QR code rendered at a *half-pixel* origin: `ui/qrcode.py` floored the
+module size but not the offset, every module edge picked up a grey
+antialiased column, and libzbar refused the symbol outright — a code that
+looked perfect and read as nothing. Second, the page's header and tab strip
+are `display: flex`, which beats the user agent's `[hidden] { display:
+none }`, so the chrome of a connected remote showed through the code
+screen. Both were obvious in the first capture and invisible in the source.
+Per CLAUDE.md: do not guess at layout.
+
+**Application icons are sent with `fit: "contain"`.** The television draws
+a 64px icon small and centred on a gradient built from its own colour
+rather than cropping it to fill a 16:9 card (`Artwork.icon_texture` is
+separate from `texture` for exactly this reason). The first phone capture
+was a wall of blurry stretched rectangles; the distinction is now in the
+payload rather than re-derived on the phone.
+
+**Turning the phone remote on takes the RemoteDesktop pointer session.**
+That session was previously taken only when the catalogue contained a
+browser tile — a test about the *gamepad* stick, which exists to aim at a
+web page. A phone trackpad is useful over anything, including Salon itself.
+Still gated on the same `gamepad-pointer` setting, which is the user saying
+whether Salon may move the system pointer at all, and `/pointer` now
+answers 409 with an explanation when the grant is missing rather than
+returning 200 to a finger sliding on a dead surface.
+
+**"Connect a phone" moved to the top bar, and out of the search keyboard.**
+There were three ways to start the phone remote — Settings → Input, a "Use
+phone to type" button on the search keyboard, and (as of earlier today) the
+system menu. Three switches for one thing, and the two people would find
+were the two that framed it as a keyboard. It is now a button in the status
+bar's focus row, beside Search and All apps and before Power, which is
+where the other whole-screen destinations already are. `KeyboardPane` keeps
+the part that was always the point: while it is on screen it *claims the
+text sink*, on map rather than on a button, so connecting the phone from the
+top bar and then opening search needs nothing else pressed. The release goes
+through the new `PairingServer.release_text_sink`, which only clears the
+slot if that pane still holds it — GTK maps the incoming screen before it
+unmaps the outgoing one, so an unconditional clear would have left the phone
+typing into nothing on the screen that had just arrived.
+
+## 2026-08-22 (later) — four things the phone got wrong
+
+**The trackpad was working; the cursor was not.** Measured before touching
+anything: injecting motion through the portal and reading the pointer
+position back off the surface showed it moving 300px and returning. What
+did not happen was any of it being *visible*. Salon hides the cursor until a
+real mouse moves, and the reveal hangs off GTK motion events — which
+portal-injected motion does not reliably produce over Salon's own window
+(30 injected motions, zero events). So the phone dragged something
+invisible, and hover-to-focus, which is gated on the same flag, was off too.
+`_on_phone_pointer` now says `_set_pointer_visible(True)` explicitly, the
+way the gamepad path always has. The lesson is the general one: a
+capability test (`_pointer.ready`) is not a working-feature test.
+
+**The phone keyboard now types into other applications.** `/type` delivered
+into `_text_sink`, which is always a *Salon* widget, so the moment a browser
+tile was in front the keyboard answered 409 — failing at exactly the point
+where a phone keyboard is the only thing that can help, because a search box
+inside Chrome is the one text field on a television that Salon cannot draw.
+The grant was already there: `SelectDevices` has always asked for
+`POINTER | KEYBOARD` and only the pointer half was used. `type_text` taps
+keysyms through the same session; Salon's own field still wins when one is
+on screen, and the 409 that remains names the setting that would fix it.
+Two things are deliberate. Keys are spaced ~12ms apart rather than blasted,
+because a web page doing its own key handling with a debounce is the target.
+And the character→keysym mapping **delegates to `Gdk.unicode_to_keyval`**
+rather than computing `0x01000000 + codepoint`: that rule is the one
+everybody reaches for and it is wrong in the middle, because several
+characters above Latin-1 have legacy named keysyms the keymap is indexed by.
+The hand-rolled version passed review and failed its first test.
+
+**The token is stored on the phone.** The page strips it from the address
+bar so it stays out of history — and then had nowhere to keep it, so any
+reload dropped to the code screen: a discarded background tab, a
+pull-to-refresh, a relaunch from the home screen. That is the whole of
+"it doesn't stay connected after opening an app". It goes in `localStorage`
+now, which is not a weakening: it is the phone's own remote, and anyone who
+can read that phone's storage can already read the television it was
+scanned from. A fragment still wins over the stored copy, so scanning a
+fresh code is how a stale token is replaced.
+
+**A held session no longer times out.** Five minutes of inactivity stopped
+the server — and `stop()` clears the holders, so a remote the user had
+deliberately switched on switched *itself* off, port closed, Settings
+showing "off". The phone stops polling when its screen is off, so this fired
+reliably about five minutes into anything worth watching. The timeout was
+written when this was a keyboard summoned for one URL; a mode the user turns
+on is a mode the user turns off. Unheld sessions still expire, so the
+protection that rule existed for is intact.
+
+**And the phone can now tell the two failures apart.** "Could not reach
+Salon" was a red dot and a toast for both "your phone was asleep" and "the
+television is off". There is a banner that says which, a Retry button, and
+the poll backs off 1s → 30s while nothing answers rather than making a
+request a second all night.
+
+**The phone's Menu button really is a way back out, and the header that
+said where you were was lying.** Verified by launching a real application
+from Salon, waiting for it to take focus, and pressing Menu on the phone:
+the child was terminated within a second and the compositor handed focus
+back. That path works for the phone for the same structural reason it works
+for a gamepad and not for a keyboard — the press arrives over HTTP into
+Salon's own process, so it does not need Salon to have keyboard focus.
+
+What that test found was that `screen` in the published state was always one
+event behind: the launcher's transitions (`_on_launch_started`,
+`_on_child_focused`, `_on_returned`, `_on_launch_timed_out`) never
+published, and they all arrive asynchronously, long after the button press
+that `_handle_action` publishes for. So the phone said "home" while an
+application was on the television and "Calculator" once you were back on the
+home screen — exactly inverted, on the one line that answers "where am I".
+`_current_screen` was also testing only `_child_active`, which a *browser*
+tile never sets (it sets `_pointer_mode` instead), so a Netflix tile read as
+"home" throughout.
+
+And the toast naming the way out now names the hardware that is actually
+connected: "Press START on the controller, or Menu on your phone," when a
+phone is talking to us. Telling someone holding a phone to press a button on
+a controller they may not own is the difference between a way out and a
+trapped television.
+
+## 2026-08-23 — the phone's cursor, and a grant that said yes too early
+
+**A press on the phone hides the mouse, because every other input source
+already did.** `_on_key_pressed`, `_on_cec_action` and `_on_gamepad_action`
+all call `_set_pointer_visible(False)` before dispatching; `_on_phone_action`
+was the one that never did. The consequence is not cosmetic: the flag also
+gates hover-to-focus, so a mouse left parked anywhere over the grid kept
+stealing the selection back the moment a row scrolled under it — the phone
+would move the cursor down and the stationary mouse would drag it
+somewhere else. Tapping a tile in the phone's Apps pane hides it too, for
+the same reason it already moved the television's cursor: the phone is
+driving, so the mouse is not. The trackpad brings the pointer straight back,
+which was already true and is what makes the pair legible.
+
+Pointer mode is the exception, exactly as it is for the gamepad — there the
+cursor *is* the interface, so both handlers pass `self._pointer_mode` rather
+than a bare `False`.
+
+**`PointerInjector.ready` was answering the wrong question.** It returned
+`self._session_handle is not None`, and the portal hands that handle back at
+*CreateSession* — three round trips and possibly a consent dialog before
+`Start` says yes. So through that entire window Salon believed it could
+inject: `remote_input=True` went out to the phone, whose keyboard tab then
+said "typing goes to whatever is open on the television" and whose trackpad
+said "drag to move the pointer"; `/type` and `/pointer` answered 200; and
+mutter dropped every keysym and every motion, because a session that has not
+been started is not a session. A grant still being asked for is not a grant.
+`ready` is now `handle is not None and started`, `move`/`click`/`type_text`
+gate on it rather than on the handle, and `_fail` clears it. Measured on the
+live session: `ready` is False the instant the remote is switched on and
+True four seconds later, with the published `remoteInput` following it.
+
+**What typing into a launched application actually does.** The question was
+whether the phone's Type tab can reach Spotify or Prime Video. It can, and
+this was measured rather than reasoned about, twice: once against an
+ordinary GTK client launched as a child from Salon (a `Gtk.Entry` reporting
+its own contents — all nineteen characters arrived intact, at key gaps of
+12, 30, 60 and 100 ms, and Enter activated the field), and once against the
+Prime-Video-shaped path, a URL tile opened in Chrome with an autofocused
+input that posted what it received back to the probe. Both received exactly
+what was sent.
+
+So the mechanism is sound and the failure is elsewhere: the keys go to
+whatever *that application* has focused, and an application that has just
+opened has focused nothing. Typing then works perfectly and shows nothing,
+which is indistinguishable from broken. There is no fix available from
+Salon's side — no client may ask another where its text cursor is — so the
+hint under the Type tab now says the actual procedure: tap the app's search
+box with the Pad first, and the keys land wherever that app is focused.
+
+## 2026-08-23 (later) — the phone's screen, and what a LAN address costs
+
+**The remote is not going to become a separate app, and a PWA is not
+available to it.** The page already carries a web manifest, `standalone`
+display, an icon and the Apple meta tags, so "make it installable" looked
+like a small amount of remaining work. It is not work at all — it is
+blocked. Measured in Chrome at this machine's LAN address, which is what
+the QR carries:
+
+| | `http://192.168.1.151` | `http://127.0.0.1` |
+|---|---|---|
+| `isSecureContext` | false | true |
+| `serviceWorker` | absent | present |
+| `wakeLock` | absent | present |
+| `vibrate` | present | present |
+
+No secure context means no service worker, which means Chrome will never
+offer to install it, whatever the manifest says. And there is no
+certificate to be had: no public authority issues for a private address or
+a `.local` name, and a self-signed one puts a full-page warning in front of
+a guest who has just scanned a QR code — strictly worse than what exists.
+
+A *native* app would clear all of that, and would also bring lock-screen
+transport controls, the hardware volume keys, and TLS with a pinned
+certificate (which would close the plaintext-keyboard gap). It was still
+refused, for a reason that has nothing to do with effort: **the current
+design has no version skew.** The phone downloads its whole interface from
+the exact television it is talking to, so Salon 0.2 is always talking to a
+0.2 remote. Ship an installed client and every endpoint becomes a
+compatibility surface, permanently, for one maintainer. The second reason
+is guests: scan and you are holding the remote, with no store, no install
+and no account, and on a television the second user is the main user.
+
+**`keepAwake()` was dead code, and the measurement above is what found
+it.** It guarded on `"wakeLock" in navigator`, which is false at every
+address a phone can reach, so it returned immediately and the phone dimmed
+mid-film. It now falls back to playing a muted one-second black loop
+(`data/remote/awake.webm`, `awake.mp4`, served from the GResource bundle),
+which is what every library that solves this does. The real API is still
+tried first — it is the only one of the two the operating system knows
+about, and it would exist if this were ever served over HTTPS.
+
+Three details that are not incidental. The element is 1px and 1% opaque
+rather than `display: none`, `visibility: hidden` or `opacity: 0`: all
+three are ways of telling the browser the video need not be played, which
+is the one thing being asked of it. Two containers, because Safari wants
+H.264 and VP8 has been on Android longer. And it is paused on
+`visibilitychange`, because a video looping in a pocket is a battery cost
+for nothing.
+
+Verified against the real page loaded from a running Salon at the LAN
+address, in Chrome at an iPhone viewport: `isSecureContext` false,
+`wakeLock` absent, `#awake` playing and looping off `/awake.webm`,
+`readyState` 4, both clips served with the right types. What could *not* be
+exercised is the no-gesture refusal path: muted autoplay is permitted by
+Chrome's policy regardless of the `--autoplay-policy` flag, so the
+retry-on-first-tap handler is belt and braces that has never been reached.
+And whether a playing video genuinely holds a *phone's* screen on is still
+untested here, because that needs a phone.
+
+**Add to Home Screen already works on iOS** and always did —
+`apple-mobile-web-app-capable` is in the page, and Safari asks nothing else
+of a page to give it a standalone icon. Nobody knew, because it was
+nowhere in the README. It is now, along with why Android will not offer the
+same thing.

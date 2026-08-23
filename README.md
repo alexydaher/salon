@@ -28,6 +28,14 @@ skin over one. It launches the applications and web apps you already have.
 * **Search across everything**: your tiles and every application installed
   on the machine, at once. Type on the on-screen keyboard, or open the
   address it shows on your phone and type there instead.
+* **Your phone is the remote.** MENU → Connect a phone puts a QR code on
+  the television; scanning it — nothing to type — opens a page showing your
+  rows and their artwork, with a D-pad, a trackpad, volume, a keyboard, and
+  controls for whatever is playing. Tap a tile to open it. It follows the
+  cursor and the current screen, so you can drive from the phone without
+  looking up. It keeps the phone's screen on while it's open, and on an
+  iPhone you can Add to Home Screen for a fullscreen icon. Runs only while
+  you have it switched on; see the limits below.
 * **Launch anything**: desktop entries, Flatpaks, plain commands, and web
   apps opened fullscreen in a browser with their own profile so one
   sign-in can't disturb another's.
@@ -209,14 +217,56 @@ that wasn't attached to the machine it was written on.
   anchor work at three metres, and whether the focus bloom is right on a
   panel with a television's black level, are both still guesses.
 
-### The phone keyboard is not private
+### The phone remote is not private
 
-The pairing server (search → type on your phone) is plain HTTP on your local
-network. The four-digit code and its lockout stop a stranger *sending* text
-to your television; they do nothing to stop anyone on the same network
-*reading* what you type, because it isn't encrypted. It's a search box, so
-this is usually nothing — but don't type a password into it. The server only
-runs while the search screen is open, and closing search shuts it down.
+MENU → **Connect a phone** shows a QR code. Scanning it opens a page that is
+the whole remote: your rows and their artwork, a D-pad, a trackpad, volume,
+a keyboard, and transport controls for whatever is playing. Tapping a tile
+opens it on the television.
+
+The trackpad and the keyboard reach *other* applications too — the search
+box inside a browser tile is the one text field on a television that Salon
+cannot draw for you. That needs the desktop's input permission (Settings →
+Input → Gamepad cursor); without it the phone says so rather than going
+quiet.
+
+It is plain HTTP on your local network. Two things guard it — a 128-bit
+session token, carried in the QR code's URL *fragment* so it never reaches
+a server log, and a four-digit code for anyone typing the address by hand,
+with a lockout after five wrong guesses. Both stop a stranger *sending*
+something to your television. Neither stops anyone already on the same
+network from *reading* what you type, because it isn't encrypted. It's a
+search box and a remote, so this is usually nothing — but don't type a
+password into it.
+
+TLS would mean a self-signed certificate, which means a browser warning,
+which would take the one-scan path away for a threat model that is "someone
+is already on your Wi-Fi". Instead: requests from outside your own network
+are refused outright, the server runs only while something is asking for it
+(the search screen, or the remote you switched on), and it shuts itself
+down after five idle minutes.
+
+### Keeping the remote on your phone's Home Screen
+
+**On an iPhone**, Share → **Add to Home Screen** gives it its own icon and
+opens it fullscreen, with no browser chrome. That works today, on plain
+HTTP; Safari asks nothing else of a page to do it.
+
+**On Android**, Chrome will not offer to install it, and this is not
+something Salon can fix. Installation requires a service worker, a service
+worker requires a secure context, and a secure context means HTTPS — which
+on a LAN address means a certificate no public authority will issue, for
+the reason in the section above. Chrome's own "Add to Home screen" still
+works from the ⋮ menu; it makes a shortcut rather than an installed app,
+which in practice looks much the same.
+
+The same rule is why the remote does not use the Screen Wake Lock API to
+stop your phone dimming mid-film: `navigator.wakeLock` is gated on a secure
+context too, so on a phone it is not refused, it is simply absent. The page
+plays a muted one-second black video on a loop instead, which is the
+fallback every phone honours. Measured at the LAN address a scanned QR
+actually points at, in Chrome at a phone viewport: `isSecureContext` false,
+`wakeLock` absent, the clip playing and looping.
 
 ### Other known limits
 
