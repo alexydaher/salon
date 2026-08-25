@@ -8,6 +8,16 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.10 — 2026-08-25
+
+### Centred top-bar shortcuts
+
+* The top bar's shortcut buttons are square at rest again, so each
+  icon-only button renders as a circle, and every glyph is centred
+  within it instead of sitting left of centre.
+* The phone connection dot now sits on the phone glyph's corner
+  rather than below it.
+
 ## 0.2.9 — 2026-08-25
 
 ### Reliable release validation

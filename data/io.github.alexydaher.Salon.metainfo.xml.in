@@ -98,32 +98,37 @@
     <color type="primary" scheme_preference="dark">#E8A33D</color>
   </branding>
 
-  <!-- Pinned to the v0.2.9 tag rather than to main: a software centre
+  <!-- Pinned to the v0.2.10 tag rather than to main: a software centre
        showing this release should show the screenshots that release shipped
        with, and a moving branch would let them drift. Bump these with the
        version. -->
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.9/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.10/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.9/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.10/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.9/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.10/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.9/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.10/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.10" date="2026-08-25">
+      <description>
+        <p>The top bar's shortcut buttons are round again and each icon sits in the centre of its button, with the phone connection dot on the glyph rather than below it.</p>
+      </description>
+    </release>
     <release version="0.2.9" date="2026-08-25">
       <description>
         <p>Flatpak release validation now follows the Advanced input panel and initializes D-Bus correctly in minimal build environments.</p>

@@ -93,6 +93,9 @@ class StatusBar(Gtk.Box):
         image = Gtk.Image.new_from_icon_name(icon_name)
         icon = Gtk.Overlay()
         icon.set_child(image)
+        # Height-centred, and only as tall as the glyph: a filled overlay
+        # would put the presence badge below the icon rather than on it.
+        icon.set_valign(Gtk.Align.CENTER)
         badge = Gtk.Box()
         badge.add_css_class("salon-connection-badge")
         badge.set_halign(Gtk.Align.END)
@@ -135,10 +138,14 @@ class StatusBar(Gtk.Box):
         size = scale.px(54.0)
         self._button_height = size
         for button in self._buttons:
-            button.set_size_request(-1, size)
+            # Square at rest, so an icon-only button is a circle. The width
+            # has to be requested on the *button*: asking the child box for
+            # it instead made the box wider than its icon, and a Gtk.Box
+            # packs a non-expanding child at its start rather than centring
+            # it — which is how every glyph ended up left of centre.
+            button.set_size_request(size, size)
         for index, box in enumerate(self._button_boxes):
             box.set_spacing(scale.px(10.0))
-            box.set_size_request(size, -1)
             self._button_images[index].set_pixel_size(scale.px(28.0))
             badge_size = scale.px(10.0)
             self._connection_badges[index].set_size_request(badge_size, badge_size)
