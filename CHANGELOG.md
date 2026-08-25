@@ -8,6 +8,13 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.9 — 2026-08-25
+
+### Reliable release validation
+
+* The Flatpak release smoke test now follows Advanced input to verify its
+  sandbox-only controls and initializes D-Bus correctly in minimal builders.
+
 ## 0.2.8 — 2026-08-25
 
 ### Host apps and a calmer Home screen

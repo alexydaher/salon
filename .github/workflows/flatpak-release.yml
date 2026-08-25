@@ -77,6 +77,7 @@ jobs:
       - name: Smoke-test installed bundle under Wayland
         if: matrix.variant.arch == 'x86_64'
         run: |
+          test -s /etc/machine-id || dbus-uuidgen --ensure=/etc/machine-id
           bundle=$(find . -maxdepth 2 -name 'Salon-*.flatpak' -print -quit)
           test -n "$bundle"
           scripts/flatpak-wayland-smoke.sh "$bundle"
