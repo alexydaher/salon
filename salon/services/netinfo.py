@@ -1,30 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Read-only network status from NetworkManager.
-
-A television's settings screen has to be able to answer "am I online, and
-over what" without sending the user to a desktop control panel to find out.
-Salon deliberately doesn't *configure* networking — §1 says system
-configuration delegates to gnome-control-center, and re-implementing a Wi-Fi
-picker for a D-pad is a project of its own — but it can and should say what
-the current state is before offering that link.
-
-Everything here is asynchronous. NetworkManager lives on the system bus and
-a busy or absent daemon would otherwise block the frame clock (§10). A
-machine with no NetworkManager at all is not an error: the status simply
-reads as unknown, and the link into GNOME Settings still works.
-
-`NetworkWatcher` is the top bar's feed: NetworkManager's own
-`PropertiesChanged` covers connect, disconnect and captive-portal
-transitions, and a slow timer covers signal strength, which the manager
-object doesn't announce — the strength lives on the access point, and
-subscribing to *that* means re-subscribing every time the primary
-connection changes for a number that only has five buckets.
-"""
+"""Asynchronous NetworkManager status queries and change observation."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 import gi
 
@@ -33,6 +13,7 @@ gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 from salon.core import status as status_tokens  # noqa: E402
+from salon.services.network_status import NetworkStatus  # noqa: E402
 
 _BUS_NAME = "org.freedesktop.NetworkManager"
 _OBJECT_PATH = "/org/freedesktop/NetworkManager"
@@ -62,41 +43,6 @@ _TYPE_NAMES = {
     "vpn": "VPN",
     "wireguard": "VPN",
 }
-
-
-@dataclass(frozen=True, slots=True)
-class NetworkStatus:
-    """What the settings row shows and the top bar draws. `name` is empty
-    when nothing is up; `strength` is -1 whenever it doesn't apply or the
-    access point didn't answer, which is not the same as no signal."""
-
-    name: str
-    kind: str
-    connectivity: str
-    available: bool = True
-    state: int = status_tokens.CONNECTIVITY_UNKNOWN
-    strength: int = -1
-
-    @property
-    def summary(self) -> str:
-        if not self.available:
-            return "NetworkManager isn't running"
-        if not self.name:
-            return "Not connected"
-        return f"{self.name} ({self.kind})" if self.kind else self.name
-
-    @property
-    def icon_name(self) -> str:
-        """Empty when there is nothing honest to draw — see core/status."""
-        return status_tokens.network_glyph(
-            self.kind, self.strength, self.state, available=self.available
-        )
-
-    @property
-    def phrase(self) -> str:
-        return status_tokens.network_phrase(
-            self.name, self.kind, self.state, available=self.available
-        )
 
 
 _UNAVAILABLE = NetworkStatus(name="", kind="", connectivity="Unknown", available=False)

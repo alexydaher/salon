@@ -1,0 +1,186 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# ruff: noqa: F403, F405
+"""Focused home-view workflow."""
+
+from salon.services.component import ServiceComponent
+from salon.ui.home_rows import *
+from salon.ui.home_shared import *
+from salon.ui.home_spring import *
+from salon.ui.home_viewport import *
+
+
+class HomeFocusController(ServiceComponent):
+    def _update_focus(self, *, animate: bool = True) -> None:
+        for r, row in enumerate(self._rows):
+            focused_row = r == self._focus.row
+            for c, widget in enumerate(row.tiles):
+                # Nothing in the rows carries the ring while the top bar
+                # holds the cursor: two full-strength highlights on screen
+                # leaves no answer to "what does OK do right now".
+                widget.set_focused(not self._nav_focused and focused_row and c == self._focus.col)
+            if focused_row:
+                row.heading.add_css_class("row-focused")
+            else:
+                row.heading.remove_css_class("row-focused")
+
+        tile = self._catalog.tile_at(self._focus.row, self._focus.col)
+        self._detail_bar.set_tile(tile)
+        if tile is not None:
+            self._settings.set_string("last-focused-tile", tile.id)
+            focused_widget = self._focused_widget()
+            if focused_widget is not None:
+                self._backdrop.set_focus(
+                    focused_widget.artwork_accent, focused_widget.artwork_source
+                )
+                self._publish_active_descendant(focused_widget)
+        self._update_backdrop_position()
+        # Every row, not only the focused one: rows scroll independently and
+        # each has its own remembered column (§6.2), so a row left at column
+        # 4 must still be showing column 4 when the user comes back to it.
+        # Only the focused row animates — the others are off-screen or about
+        # to be, and animating them is motion nobody asked for.
+        for index in range(len(self._rows)):
+            self._update_row_scroll(
+                index,
+                self._focus.column_for(index),
+                animate=animate and index == self._focus.row,
+            )
+        self._update_row_anchor(animate=animate)
+        self._publish_remote_state()
+
+    def _publish_remote_state(self) -> None:
+        """Offer the phone a fresh snapshot of the television.
+
+        Called from every place the phone's view could have changed — the
+        cursor moving, the catalogue rebuilding, a player appearing, a
+        screen opening. That is a lot of call sites, and it is affordable
+        because `StateFeed` compares the snapshot to the last one and does
+        nothing if they match: no JSON is produced until a phone actually
+        polls for a version it has not seen.
+
+        Skipped outright when the server is down, which is most of the time.
+        """
+        if not self._pairing.running:
+            return
+        player = self._current_player
+        playing: RemoteNowPlaying | None = None
+        if player is not None:
+            title, detail = nowplaying.describe(player)
+            playing = RemoteNowPlaying(
+                title=title,
+                detail=detail,
+                playing=player.status == nowplaying.PLAYING,
+                can_next=player.can_go_next,
+                can_previous=player.can_go_previous,
+            )
+        timing = self._repeat_timing()
+        self._pairing.publish(
+            RemoteState(
+                rows=self._remote_rows,
+                now_playing=playing,
+                focus=(self._focus.row, self._focus.col),
+                screen=self._current_screen(),
+                # The phone opens its keyboard by itself when the television
+                # puts a field on screen, rather than making someone find
+                # the tab for it while an empty box blinks at them.
+                wants_text=self._text_entry.get_visible() or self._search.get_visible(),
+                remote_input=self._pointer.ready,
+                repeat_delay_ms=round(timing.initial_delay * 1000),
+                repeat_interval_ms=round(timing.interval * 1000),
+                accent=self._settings.get_string("accent-color") or "#E8A33D",
+                # Named separately from `screen`, which carries the same
+                # string but as one of six reserved words. The page hides
+                # half its own controls on this, so it cannot be guessing.
+                app=self._app_in_front(),
+                volume=self._phone_volume,
+                muted=self._phone_muted,
+            )
+        )
+
+    def _app_in_front(self) -> str:
+        """The title of the application covering the television, or "".
+
+        Same test `_current_screen` makes, named on its own because the
+        phone reshapes itself around the answer: with an app up, the D-pad
+        and Search do nothing at all, and only the trackpad, the volume and
+        Menu still mean something.
+        """
+        if self._child_active or self._pointer_mode or self._launcher.has_child:
+            return self._launcher.child_title or "an app"
+        return ""
+
+    def _current_screen(self) -> str:
+        """Which screen is in front, for the phone's title bar.
+
+        Ordered the way `_handle_action` is: the thing that would take the
+        next press is the thing the phone should be naming.
+        """
+        if self._system_menu.get_visible() or self._tile_menu.get_visible():
+            return "menu"
+        if self._text_entry.get_visible():
+            return "keyboard"
+        if self._settings_screen.get_visible():
+            return "settings"
+        if self._search.get_visible():
+            return "search"
+        if self._apps_grid.get_visible():
+            return "apps"
+        if self._launcher.is_launching:
+            return f"Opening {self._launcher.child_title or 'an app'}…"
+        # pointer_mode as well as child_active: a *browser* tile puts Salon
+        # behind Chrome without ever setting child_active, so testing only
+        # the latter told the phone it was on the home screen while Netflix
+        # was on the television.
+        if self._child_active or self._pointer_mode:
+            return self._launcher.child_title or "app"
+        return "home"
+
+    def _publish_active_descendant(self, widget: Gtk.Widget) -> None:
+        """aria-activedescendant, the standard answer for a composite widget
+        that keeps the keyboard focus and moves a cursor inside itself. The
+        top bar takes it while the cursor is up there, so what is announced
+        and what is drawn with the ring are never two different things."""
+        target = self._status_bar if self._nav_focused else widget
+        self.update_relation([Gtk.AccessibleRelation.ACTIVE_DESCENDANT], [target])
+
+    def _focused_widget(self) -> TileWidget | None:
+        if not (0 <= self._focus.row < len(self._rows)):
+            return None
+        tiles = self._rows[self._focus.row].tiles
+        if not (0 <= self._focus.col < len(tiles)):
+            return None
+        return tiles[self._focus.col]
+
+    def _update_backdrop_position(self) -> None:
+        """Put the ambient pool of light roughly behind the focused tile."""
+        if not self._rows or self._viewport_width <= 0 or self._viewport_height <= 0:
+            return
+        metrics = self._rows[min(self._focus.row, len(self._rows) - 1)].metrics
+        x = (self._safe_margin + metrics.width / 2.0) / self._viewport_width
+        y = tokens.ROW_ANCHOR_FRACTION
+        self._backdrop.set_focus_position(x, y)
+
+    def _row_scroll_x(self, row: _RowWidgets, col: int) -> float:
+        """Left-anchor the focused tile's *card* at the safe-area margin, but
+        never scroll past the end of the row — stranding empty space at the
+        right edge looks broken, and the last screenful of a row reads better
+        flush-right than left-anchored with a void beside it.
+
+        Offsets are in tiles-box coordinates, where a tile's card sits one
+        bleed to the right of the tile widget's own origin.
+        """
+        bleed = row.metrics.bleed
+        max_offset = self._safe_margin - bleed
+        desired = max_offset - col * row.metrics.step
+        min_offset = min(
+            max_offset,
+            self._viewport_width - self._safe_margin - bleed - row.content_width,
+        )
+        return max(min_offset, min(max_offset, desired))
+
+    def _update_row_scroll(self, row_index: int, col: int, *, animate: bool) -> None:
+        if not (0 <= row_index < len(self._rows)):
+            return
+        row = self._rows[row_index]
+        target = self._row_scroll_x(row, col)
+        row.scroller.animate_to(target) if animate else row.scroller.jump_to(target)

@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# ruff: noqa: F403, F405
+"""Focused home-view workflow."""
+
+from salon.services.component import ServiceComponent
+from salon.ui.home_rows import *
+from salon.ui.home_shared import *
+from salon.ui.home_spring import *
+from salon.ui.home_viewport import *
+
+
+class HomeCatalogController(ServiceComponent):
+    def _toast(self, message: str) -> None:
+        self._toast_overlay.add_toast(Adw.Toast(title=message))
+
+    def _load_config(self) -> tile_config.Config:
+        if not self._config_path.exists():
+            tile_config.save(tile_config.Config(rows=_seed_rows()), self._config_path)
+        try:
+            return tile_config.load(self._config_path)
+        except ConfigError as exc:
+            self._toast(f"Your tiles file couldn't be read, so none are shown. {exc}")
+            return tile_config.Config()
+
+    def _save_config(self) -> None:
+        """The tile editor's only write path.
+
+        It writes the same file a hand edit writes and lets the existing
+        directory monitor reload it, so there is exactly one way the
+        catalogue ever comes back in — no second, editor-only reload path
+        that could drift from the one everybody else uses.
+        """
+        try:
+            tile_config.save(self._config, self._config_path)
+        except OSError as exc:
+            self._toast(f"That change couldn't be saved. {exc}")
+
+    def _edit_text(self, title: str, initial: str, on_done: Callable[[str | None], None]) -> None:
+        self._text_entry.open(title=title, initial=initial, on_done=on_done)
+
+    def _show_system_menu(self) -> None:
+        self._rebuild_system_menu()
+        self._system_menu.show()
+
+    def _open_settings(self, panel_id: str = "") -> None:
+        self._clear_for_settings()
+        if panel_id:
+            self._settings_screen.open_at(panel_id)
+        else:
+            self._settings_screen.open()
+
+    def _clear_for_settings(self) -> None:
+        self._system_menu.hide()
+        if self._search.get_visible():
+            self._search.close()
+        if self._apps_grid.get_visible():
+            self._apps_grid.close()
+        # A mouse can click the top bar's buttons without the D-pad ever
+        # having gone up there, and a click that leaves the bar highlighted
+        # behind a full-screen overlay is a cursor in two places at once.
+        self._set_nav_focused(False)
+
+    def _settings_screen_open_tile(self, row_id: str, tile_id: str) -> None:
+        self._clear_for_settings()
+        self._settings_screen.open_tile(row_id, tile_id)
+
+    def _locate_in_config(self, tile_id: str) -> tuple[str, str] | None:
+        """Where a tile lives in tiles.json, if it lives there at all.
+
+        A tile on screen is not necessarily an entry in the catalogue file:
+        Recents, Favourites and the apps grid all produce tiles that no row
+        in tiles.json contains, and offering to edit one of those would open
+        an editor for a row that does not exist.
+        """
+        for row in self._config.rows:
+            for tile in row.tiles:
+                if tile.id == tile_id:
+                    return row.id, tile.id
+        return None
+
+    def _refresh_catalog(self, *, preserve_focus: bool) -> None:
+        """Ask the providers for a fresh catalogue (§6.10).
+
+        Asynchronous, because `collect()` waits up to three seconds and one
+        misbehaving provider must not freeze the interface every time a tile
+        is launched. The tile to land on is captured *now*, before the
+        rebuild, since by the time the answer arrives the focus model may
+        have been reset by something else.
+        """
+        focused_tile = (
+            self._catalog.tile_at(self._focus.row, self._focus.col) if preserve_focus else None
+        )
+        target_id = focused_tile.id if focused_tile is not None else None
+        if target_id is None and not self._catalog.rows:
+            # Nothing focused yet — this is the first build, so honour the
+            # tile the last session left off on.
+            target_id = self._settings.get_string("last-focused-tile") or None
+
+        self._catalog_generation += 1
+        generation = self._catalog_generation
+        self._provider_registry.build_async(
+            self._config,
+            lambda build: self._on_catalog_built(build, generation, target_id),
+        )
+
+    def _on_catalog_built(
+        self, build: CatalogBuild, generation: int, target_id: str | None
+    ) -> None:
+        # Edits can outrun a slow provider; an older build landing after a
+        # newer one would silently undo it.
+        if generation != self._catalog_generation:
+            return
+
+        self._provider_outcomes = build.outcomes
+        # The registry isolated the providers from each other; what's left is
+        # a clash *within* one provider's rows, which Catalog rejects.
+        # Falling back to an empty catalogue there would blank the screen
+        # over one duplicated tile id, so the ambiguous rows are dropped and
+        # everything else is kept.
+        rows, problems = sanitize(build.rows)
+        for message in problems:
+            self._toast(message)
+        for failure in build.failures:
+            self._toast(f"The {failure.provider_id} provider: {failure.reason}")
+
+        # A row with no tiles is a heading with a void under it: there is
+        # nothing to focus, nothing to launch, and (before this) landing on
+        # one swallowed the focus entirely. They still exist in the config
+        # and in the tile editor, which is where an empty row you just
+        # created is supposed to be visible — the home screen just doesn't
+        # draw them.
+        rows = [row for row in rows if row.tiles]
+
+        self._catalog = Catalog(rows)
+        self._focus.set_row_lengths(self._catalog.row_lengths())
+        if target_id is not None:
+            pos = self._catalog.find(target_id)
+            if pos is not None:
+                self._focus.jump_to(*pos)
+        self._rebuild_row_widgets()

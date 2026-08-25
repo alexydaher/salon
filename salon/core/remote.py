@@ -35,10 +35,7 @@ difference between a remote and an open door.
 
 from __future__ import annotations
 
-import ipaddress
-import json
-from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -193,134 +190,15 @@ class RemoteState:
         }
 
 
-@dataclass(slots=True)
-class StateFeed:
-    """The current state, its version, and the JSON for it — computed once.
+from salon.core.network_addresses import is_local_address  # noqa: E402
+from salon.core.remote_feed import OfferedIds, StateFeed  # noqa: E402
 
-    The version starts at 1 so that a phone which has seen nothing can send
-    0 and be certain of getting a body back.
-    """
-
-    state: RemoteState = field(default_factory=RemoteState)
-    version: int = 1
-    _payload: bytes | None = field(default=None, repr=False)
-
-    def publish(self, state: RemoteState) -> bool:
-        """Record `state`. Returns whether it was actually different.
-
-        Callers publish liberally — on every focus move, every catalogue
-        rebuild, every MPRIS property change — and this is what keeps that
-        from costing anything. Nothing is serialised here.
-        """
-        if state == self.state:
-            return False
-        self.state = state
-        self.version += 1
-        self._payload = None
-        return True
-
-    def payload(self) -> bytes:
-        """The JSON body for the current state, built at most once per
-        change no matter how many phones ask for it."""
-        if self._payload is None:
-            body = self.state.to_dict()
-            body["v"] = self.version
-            self._payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
-        return self._payload
-
-    def is_current(self, version: str | int | None) -> bool:
-        """Whether a polling phone is already up to date.
-
-        Tolerant of whatever arrives in a query string, because this is
-        reached from the network: anything unparseable means "I have
-        nothing", which costs one extra body and never a traceback.
-        """
-        try:
-            return int(version) == self.version  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return False
-
-    def tile_ids(self) -> frozenset[str]:
-        """Every tile id the phone has been shown, which is exactly the set
-        it is allowed to launch or ask for artwork for. A launch request
-        naming anything else is refused rather than looked up: the phone
-        cannot be a way to reach something that isn't on the screen."""
-        return frozenset(tile.id for row in self.state.rows for tile in row.tiles)
-
-
-@dataclass(slots=True)
-class OfferedIds:
-    """Every tile id the phone has been handed outside the state snapshot.
-
-    `/launch` and `/art` answer only for things the phone was shown, and
-    until search existed the published state was the whole of that set. It
-    is not any more: a search result is a tile the phone has been given and
-    can reasonably tap, and it is deliberately *not* in the snapshot —
-    putting a transient result list into the state the television publishes
-    would bump the version for every keystroke on somebody's phone.
-
-    So results are recorded here as they are served, and the check becomes
-    "shown to the phone" rather than "currently on the television". The set
-    is bounded because it is fed from a network endpoint: without a cap, a
-    phone typing letters at a large application list is a memory leak with
-    a user interface. Oldest ids fall out first, which is the right end —
-    a result from forty searches ago is not one anybody is still tapping.
-    """
-
-    limit: int = 400
-    _ids: dict[str, None] = field(default_factory=dict, repr=False)
-
-    def offer(self, ids: Iterable[str]) -> None:
-        for item_id in ids:
-            # Re-inserting moves it to the end, so an id that keeps coming
-            # back in results keeps its place instead of ageing out.
-            self._ids.pop(item_id, None)
-            self._ids[item_id] = None
-        while len(self._ids) > self.limit:
-            self._ids.pop(next(iter(self._ids)))
-
-    def __contains__(self, item_id: object) -> bool:
-        return item_id in self._ids
-
-    def clear(self) -> None:
-        self._ids.clear()
-
-
-# Written out rather than deferred to `ipaddress.is_private`, which does not
-# mean what its name suggests: it is "not globally reachable", so it counts
-# the documentation ranges (203.0.113.0/24 and friends) as private while
-# leaving out RFC 6598 carrier-grade NAT — which some ISP-supplied routers
-# really do hand to the devices on their own LAN. An explicit list says what
-# is meant and does not shift under a Python upgrade.
-_LOCAL_NETWORKS = tuple(
-    ipaddress.ip_network(cidr)
-    for cidr in (
-        "127.0.0.0/8",  # loopback
-        "10.0.0.0/8",  # RFC 1918
-        "172.16.0.0/12",  # RFC 1918
-        "192.168.0.0/16",  # RFC 1918
-        "100.64.0.0/10",  # RFC 6598, carrier-grade NAT
-        "169.254.0.0/16",  # link-local
-        "::1/128",  # loopback
-        "fe80::/10",  # link-local
-        "fc00::/7",  # unique local
-    )
-)
-
-
-def is_local_address(text: str) -> bool:
-    """Is this source address one on our own network?
-
-    IPv4-mapped IPv6 sources are unwrapped first, because a dual-stack
-    listener reports a LAN client as `::ffff:192.168.1.4`, and treating that
-    as "some IPv6 address I don't recognise" would refuse the phone on most
-    home routers. A zone index (`fe80::1%wlan0`) is stripped for the same
-    reason: it is how a link-local source always arrives.
-    """
-    try:
-        address = ipaddress.ip_address(text.split("%", 1)[0])
-    except ValueError:
-        return False
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
-        address = address.ipv4_mapped
-    return any(address in network for network in _LOCAL_NETWORKS)
+__all__ = [
+    "OfferedIds",
+    "RemoteNowPlaying",
+    "RemoteRow",
+    "RemoteState",
+    "RemoteTile",
+    "StateFeed",
+    "is_local_address",
+]

@@ -31,6 +31,7 @@ configure_file(
 )
 
 subdir('core')
+subdir('application')
 subdir('input')
 subdir('services')
 subdir('providers')

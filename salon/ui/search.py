@@ -1,27 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Full-screen search (§6.6).
-
-Searches the tile catalogue and every installed application at once, ranked
-catalogue-first, filtered live on each keystroke. Results are ordinary
-`TileWidget`s, so an app found by search gets the same artwork, the same
-focus treatment and the same launch path as one the user put on the home
-screen — it is not a different kind of thing.
-
-The screen is two panes side by side: the keyboard on the left, results on
-the right. RIGHT off the keyboard's last column crosses into the results,
-LEFT off the results' first column crosses back. That's the whole
-interaction model, and it's the reason the keyboard's own edge behaviour
-(`KeyboardModel.move` returning False) is a return value rather than a
-silent clamp.
-
-Text can also arrive from a phone on the LAN (§6.12); the pairing server
-runs only while this overlay is open and is torn down when it closes.
-"""
+"""Search overlay lifecycle, keyboard input, and launch actions."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from enum import Enum, auto
 
 import gi
 
@@ -30,7 +12,7 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core import ranking, tokens  # noqa: E402
+from salon.core import tokens  # noqa: E402
 from salon.core.focus import Bump, FocusModel  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -41,20 +23,15 @@ from salon.ui import motion  # noqa: E402
 from salon.ui.keyboardpane import KeyboardPane  # noqa: E402
 from salon.ui.motion import AxisSpring, SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
-from salon.ui.tile import TileWidget, metrics_for  # noqa: E402
+from salon.ui.search_models import Pane  # noqa: E402
+from salon.ui.search_results import SearchResultsController  # noqa: E402
+from salon.ui.tile import TileWidget  # noqa: E402
 
 RESULT_COLUMNS = 3
-_MAX_RESULTS = 60
 _BUMP_DISTANCE_DU = 26.0
 
-# Smaller than the home screen's key cell so the keyboard leaves room for
-# three columns of results beside it on a 1080p screen.
+# Leaves room for three result columns beside the keyboard.
 _KEY_CELL_DU = 64.0
-
-
-class Pane(Enum):
-    KEYBOARD = auto()
-    RESULTS = auto()
 
 
 class SearchOverlay(Gtk.Box, motion.FadesIn):
@@ -68,6 +45,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         on_close: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._result_controller = SearchResultsController(self)
         self._init_fade()
         self.add_css_class("salon-search")
         self.set_visible(False)
@@ -115,7 +93,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
             scale,
             pairing,
             on_key_pressed=self._press_key,
-            on_text_changed=self._refresh_results,
+            on_text_changed=self._result_controller._refresh_results,
             cell_du=_KEY_CELL_DU,
         )
         self._body.append(self._keyboard)
@@ -132,7 +110,9 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         # row would test as already on screen. Same defect the apps grid
         # had; same fix.
         self._results_host = SizeReporter(
-            self._results_viewport, self._on_results_resized, propagate_minimum=False
+            self._results_viewport,
+            self._result_controller._on_results_resized,
+            propagate_minimum=False,
         )
         self._results_host.set_hexpand(True)
         self._results_host.set_vexpand(True)
@@ -155,11 +135,11 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         self._pane = Pane.KEYBOARD
         self.set_visible(True)
         self._begin_fade()
-        self._refresh_results()
+        self._result_controller._refresh_results()
         # Scanning every .desktop file on the system is far too slow for the
         # frame clock, so results start as catalogue-only and widen when the
         # scan lands (§10: no blocking I/O on the main loop).
-        appinfo.list_installed_async(self._on_installed_scanned)
+        appinfo.list_installed_async(self._result_controller._on_installed_scanned)
 
     def close(self) -> None:
         self.set_visible(False)
@@ -169,7 +149,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         self._scale = scale
         self._keyboard.set_scale(scale)
         self._apply_scale(scale)
-        self._rebuild_result_widgets()
+        self._result_controller._rebuild_result_widgets()
 
     def _apply_scale(self, scale: Scale) -> None:
         margin = scale.px(
@@ -189,154 +169,6 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
 
     # --- results ---------------------------------------------------------
 
-    def _on_installed_scanned(self, tiles: list[Tile]) -> None:
-        self._installed_tiles = tiles
-        if self.get_visible():
-            self._refresh_results()
-
-    def _refresh_results(self) -> None:
-        query = self._keyboard.text
-        self._query_label.set_label(query or "Search")
-
-        if not query.strip():
-            # An empty query shows the catalogue rather than nothing: the
-            # user opened search to go somewhere, and a blank screen makes
-            # them type before it will admit anything exists.
-            self._results = self._catalog_tiles[:_MAX_RESULTS]
-        else:
-            by_id = {tile.id: tile for tile in (*self._catalog_tiles, *self._installed_tiles)}
-            # Catalogue entries first so ranking's stable sort gives them
-            # priority over installed apps at equal score (§6.6).
-            pairs = appinfo.search_pairs(self._catalog_tiles) + appinfo.search_pairs(
-                self._installed_tiles
-            )
-            # The same call the phone's `/search` makes, deliberately: two
-            # search surfaces that ordered or deduplicated results
-            # differently would be two things to learn.
-            self._results = [
-                by_id[tile_id]
-                for tile_id in ranking.rank_best(query, pairs, _MAX_RESULTS)
-            ]
-
-        self._update_hint()
-        self._rebuild_result_widgets()
-
-    def _update_hint(self) -> None:
-        pairing_hint = self._keyboard.pairing_hint()
-        if pairing_hint:
-            self._hint_label.set_label(pairing_hint)
-            return
-        if self._results:
-            self._hint_label.set_label("")
-            return
-        if self._keyboard.text.strip():
-            # §6.11: say what happened and what to do about it.
-            self._hint_label.set_label(
-                "Nothing matched. Try fewer letters."
-            )
-        else:
-            self._hint_label.set_label("Type to search your tiles and installed apps.")
-
-    def _row_lengths(self) -> list[int]:
-        rows, remainder = divmod(len(self._results), RESULT_COLUMNS)
-        lengths = [RESULT_COLUMNS] * rows
-        if remainder:
-            lengths.append(remainder)
-        return lengths
-
-    def _rebuild_result_widgets(self) -> None:
-        child = self._results_content.get_first_child()
-        while child is not None:
-            next_child = child.get_next_sibling()
-            self._results_content.remove(child)
-            child = next_child
-
-        metrics = metrics_for(self._scale)
-        self._result_widgets = []
-        for index, tile in enumerate(self._results):
-            row, col = divmod(index, RESULT_COLUMNS)
-            artwork = self._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
-            widget = TileWidget(tile, artwork, metrics, self._scale)
-            click = Gtk.GestureClick()
-            click.connect("released", lambda *_, i=index: self._click_result(i))
-            widget.add_controller(click)
-            motion = Gtk.EventControllerMotion()
-            motion.connect("motion", lambda *_, i=index: self._hover_result(i))
-            widget.add_controller(motion)
-            # Vertically the first row sits a full bleed down, so its bloom
-            # is inside the clip rather than sheared off along the top edge.
-            # Horizontally it stays at -bleed on purpose: the left edge of
-            # this viewport is the boundary with the keyboard pane, the
-            # three columns already fill the pane's width, and glow spilling
-            # over the keys would be worse than glow that stops at them.
-            self._results_content.put(
-                widget,
-                col * metrics.step - metrics.bleed,
-                metrics.bleed + row * (metrics.height + metrics.gap) - metrics.bleed,
-            )
-            self._result_widgets.append(widget)
-
-        self._results_focus.set_row_lengths(self._row_lengths())
-        self._results_content.set_size_request(
-            max(1, round(RESULT_COLUMNS * metrics.step)),
-            max(
-                1,
-                round(
-                    metrics.bleed
-                    + len(self._row_lengths()) * (metrics.height + metrics.gap)
-                    + metrics.bleed
-                ),
-            ),
-        )
-        if self._pane is Pane.RESULTS and not self._results:
-            self._pane = Pane.KEYBOARD
-        self._update_selection(animate=False)
-
-    def _update_selection(self, *, animate: bool = True) -> None:
-        index = self._focused_index()
-        for i, widget in enumerate(self._result_widgets):
-            widget.set_focused(self._pane is Pane.RESULTS and i == index)
-        if self._pane is Pane.RESULTS and 0 <= index < len(self._result_widgets):
-            self._results_viewport.update_relation(
-                [Gtk.AccessibleRelation.ACTIVE_DESCENDANT], [self._result_widgets[index]]
-            )
-        self._keyboard.refresh()
-        if self._pane is Pane.KEYBOARD:
-            self.add_css_class("keyboard-pane")
-        else:
-            self.remove_css_class("keyboard-pane")
-        self._scroll_to_focused(animate=animate)
-
-    def _focused_index(self) -> int:
-        return self._results_focus.row * RESULT_COLUMNS + self._results_focus.col
-
-    def _on_results_resized(self, width: int, height: int) -> None:
-        self._results_height = height
-        self._scroll_to_focused(animate=False)
-
-    def _scroll_to_focused(self, *, animate: bool) -> None:
-        if self._pane is not Pane.RESULTS or not self._result_widgets:
-            return
-        metrics = metrics_for(self._scale)
-        row_height = metrics.height + metrics.gap
-        # Card positions, not widget positions: the content carries a bleed
-        # of padding at the top and bottom so the first and last rows' bloom
-        # is inside the clip.
-        card_top = metrics.bleed + self._results_focus.row * row_height
-        viewport_height = self._results_height or self._results_viewport.get_height()
-        if viewport_height <= 0:
-            return
-        content_height = 2 * metrics.bleed + len(self._row_lengths()) * row_height
-        # Keep the focused row fully visible, and never scroll past either
-        # end of the grid.
-        lowest = min(0.0, viewport_height - content_height)
-        desired = 0.0
-        if card_top + metrics.height + metrics.bleed > viewport_height:
-            desired = metrics.bleed - card_top
-        target = max(lowest, min(0.0, desired))
-        self._results_scroll.animate_to(target) if animate else self._results_scroll.jump_to(
-            target
-        )
 
     # --- input -----------------------------------------------------------
 
@@ -357,20 +189,20 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
 
     def _handle_keyboard_direction(self, action: Action) -> None:
         if self._keyboard.move(action):
-            self._update_selection()
+            self._result_controller._update_selection()
             return
         if action is Action.RIGHT and self._results:
             self._pane = Pane.RESULTS
-            self._update_selection()
+            self._result_controller._update_selection()
 
     def _handle_results_direction(self, action: Action) -> None:
         change = self._results_focus.handle(action)
         if change.moved:
-            self._update_selection()
+            self._result_controller._update_selection()
             return
         if change.bump is Bump.LEFT:
             self._pane = Pane.KEYBOARD
-            self._update_selection()
+            self._result_controller._update_selection()
             return
         if change.bump is not Bump.NONE:
             distance = self._scale.du(_BUMP_DISTANCE_DU)
@@ -384,16 +216,16 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         if result.done:
             if self._results:
                 self._pane = Pane.RESULTS
-                self._update_selection()
+                self._result_controller._update_selection()
             return
         if result.changed:
             self._results_focus = FocusModel([])
-            self._refresh_results()
+            self._result_controller._refresh_results()
         else:
-            self._update_selection()
+            self._result_controller._update_selection()
 
     def _launch_focused(self) -> None:
-        index = self._focused_index()
+        index = self._result_controller._focused_index()
         if 0 <= index < len(self._results):
             tile = self._results[index]
             self.close()
@@ -404,7 +236,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
             return
         self._pane = Pane.RESULTS
         self._results_focus.jump_to(*divmod(index, RESULT_COLUMNS))
-        self._update_selection()
+        self._result_controller._update_selection()
         self._launch_focused()
 
     def _hover_result(self, index: int) -> None:
@@ -415,5 +247,4 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
             return
         self._pane = Pane.RESULTS
         self._results_focus.jump_to(*position)
-        self._update_selection()
-
+        self._result_controller._update_selection()

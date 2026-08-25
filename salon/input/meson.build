@@ -3,6 +3,7 @@ python_sources = [
   'actions.py',
   'keyboard.py',
   'gamepad.py',
+  'gamepad_mapping.py',
   'cec_in.py',
 ]
 

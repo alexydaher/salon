@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from salon.input.actions import Action
+from salon.core.actions import Action
 
 GRID_COLUMNS = 10
 

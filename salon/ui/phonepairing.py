@@ -30,13 +30,13 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Pango", "1.0")
 
-from gi.repository import GLib, Gtk, Pango  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
 
 from salon.input.actions import Action  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui import motion  # noqa: E402
 from salon.ui.overlays import point_at  # noqa: E402
-from salon.ui.qrcode import QrCode  # noqa: E402
+from salon.ui.phone_pairing_card import PhonePairingCard  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 # How often the "is a phone actually talking to us" line is refreshed. Slow
@@ -86,38 +86,12 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
         self._selected = 0
         self._hover_enabled = False
 
-        self._card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self._card.add_css_class("salon-system-menu-card")
-        self._card.set_halign(Gtk.Align.CENTER)
-        self._card.set_valign(Gtk.Align.CENTER)
-        self._card.set_vexpand(True)
+        self._card = PhonePairingCard(scale)
         self.append(self._card)
-
-        self._title = Gtk.Label(label="Use your phone as the remote")
-        self._title.add_css_class("salon-system-menu-title")
-        self._title.set_ellipsize(Pango.EllipsizeMode.END)
-        self._card.append(self._title)
-
-        self._qr = QrCode()
-        self._qr.set_halign(Gtk.Align.CENTER)
-        self._card.append(self._qr)
-
-        # Scanning the code is the whole of connecting — the token is in the
-        # URL's fragment. The address and the digits below are the fallback
-        # for a camera that won't focus or a phone that isn't a phone.
-        self._address = Gtk.Label()
-        self._address.add_css_class("salon-settings-label")
-        self._address.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
-        self._card.append(self._address)
-
-        self._status = Gtk.Label()
-        self._status.add_css_class("salon-settings-detail")
-        self._status.set_ellipsize(Pango.EllipsizeMode.END)
-        self._card.append(self._status)
-
-        self._buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self._buttons.set_halign(Gtk.Align.CENTER)
-        self._card.append(self._buttons)
+        self._qr = self._card.qr_code
+        self._address = self._card.address
+        self._status = self._card.status
+        self._buttons = self._card.buttons
 
         self._rows: list[Gtk.Button] = []
         for index, (label, handler, danger) in enumerate(
@@ -147,12 +121,7 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
     # --- chrome ----------------------------------------------------------
 
     def set_scale(self, scale: Scale) -> None:
-        self._card.set_spacing(scale.px(16.0))
-        self._card.set_size_request(scale.px(640.0), -1)
-        self._buttons.set_spacing(scale.px(12.0))
-        # Big. A QR read across a living room is the difference between
-        # this working and this being a picture of a thing that works.
-        self._qr.set_size(scale.px(320.0))
+        self._card.set_scale(scale)
 
     # --- opening and closing ---------------------------------------------
 

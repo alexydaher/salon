@@ -25,19 +25,14 @@ because "it looks like a QR code" is not evidence that a phone can read it.
 
 from __future__ import annotations
 
+from salon.core.qr_codewords import QREncodeError, encode_codewords
+from salon.core.qr_penalty import penalty_score
+
+__all__ = ["QREncodeError", "encode"]
+
 # Total data codewords, EC codewords per block, and block count for each
 # version at error-correction level M. Every version here has uniform
 # blocks, which is why the interleaving below needs no second group.
-_VERSIONS: dict[int, tuple[int, int, int]] = {
-    # version: (data codewords, EC codewords per block, blocks)
-    1: (16, 10, 1),
-    2: (28, 16, 1),
-    3: (44, 26, 1),
-    4: (64, 18, 2),
-    5: (86, 24, 2),
-    6: (108, 16, 4),
-}
-
 # Alignment-pattern centre coordinates per version (the row/column values
 # are combined pairwise; combinations that collide with a finder pattern
 # are skipped when the matrix is drawn).
@@ -50,7 +45,6 @@ _ALIGNMENT: dict[int, list[int]] = {
     6: [6, 34],
 }
 
-_MODE_BYTE = 0b0100
 _EC_LEVEL_M = 0b00
 
 # BCH(15,5) generator for format information, and the mask the standard
@@ -58,120 +52,7 @@ _EC_LEVEL_M = 0b00
 _FORMAT_GENERATOR = 0b10100110111
 _FORMAT_MASK = 0b101010000010010
 
-_PAD_BYTES = (0xEC, 0x11)
-
 Matrix = list[list[bool]]
-
-
-# --- GF(256) arithmetic --------------------------------------------------
-
-_EXP: list[int] = [0] * 512
-_LOG: list[int] = [0] * 256
-
-
-def _build_tables() -> None:
-    value = 1
-    for i in range(255):
-        _EXP[i] = value
-        _LOG[value] = i
-        value <<= 1
-        if value & 0x100:  # primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
-            value ^= 0x11D
-    for i in range(255, 512):
-        _EXP[i] = _EXP[i - 255]
-
-
-_build_tables()
-
-
-def _gf_mul(a: int, b: int) -> int:
-    if a == 0 or b == 0:
-        return 0
-    return _EXP[_LOG[a] + _LOG[b]]
-
-
-def _generator_polynomial(degree: int) -> list[int]:
-    poly = [1]
-    for i in range(degree):
-        # Multiply by (x - alpha^i); in GF(256) subtraction is XOR.
-        next_poly = [0] * (len(poly) + 1)
-        for index, coefficient in enumerate(poly):
-            next_poly[index] ^= coefficient
-            next_poly[index + 1] ^= _gf_mul(coefficient, _EXP[i])
-        poly = next_poly
-    return poly
-
-
-def _ec_codewords(data: list[int], count: int) -> list[int]:
-    generator = _generator_polynomial(count)
-    remainder = list(data) + [0] * count
-    for i in range(len(data)):
-        factor = remainder[i]
-        if factor == 0:
-            continue
-        for j, coefficient in enumerate(generator):
-            remainder[i + j] ^= _gf_mul(coefficient, factor)
-    return remainder[len(data) :]
-
-
-# --- encoding ------------------------------------------------------------
-
-
-class QREncodeError(ValueError):
-    """The payload doesn't fit in the versions this encoder supports."""
-
-
-def _choose_version(length: int) -> int:
-    for version, (data_codewords, _, _) in sorted(_VERSIONS.items()):
-        # 4 bits of mode + 8 bits of length = 1.5 codewords of overhead.
-        if length + 2 <= data_codewords:
-            return version
-    raise QREncodeError(
-        f"{length} bytes is too long for this encoder (max "
-        f"{_VERSIONS[max(_VERSIONS)][0] - 2} bytes)."
-    )
-
-
-def _bitstream(payload: bytes, version: int) -> list[int]:
-    capacity_bits = _VERSIONS[version][0] * 8
-    bits: list[int] = []
-
-    def push(value: int, width: int) -> None:
-        for shift in range(width - 1, -1, -1):
-            bits.append((value >> shift) & 1)
-
-    push(_MODE_BYTE, 4)
-    push(len(payload), 8)  # versions 1-9 use an 8-bit byte-mode count
-    for byte in payload:
-        push(byte, 8)
-
-    # Terminator, then pad to a byte boundary, then alternate pad bytes.
-    push(0, min(4, capacity_bits - len(bits)))
-    while len(bits) % 8:
-        bits.append(0)
-    index = 0
-    while len(bits) < capacity_bits:
-        push(_PAD_BYTES[index % 2], 8)
-        index += 1
-    return bits
-
-
-def _codewords(payload: bytes, version: int) -> list[int]:
-    bits = _bitstream(payload, version)
-    data = [int("".join(str(b) for b in bits[i : i + 8]), 2) for i in range(0, len(bits), 8)]
-
-    _, ec_per_block, block_count = _VERSIONS[version]
-    per_block = len(data) // block_count
-    blocks = [data[i * per_block : (i + 1) * per_block] for i in range(block_count)]
-    ec_blocks = [_ec_codewords(block, ec_per_block) for block in blocks]
-
-    # Interleave: one codeword from each block in turn, data first then EC.
-    result: list[int] = []
-    for i in range(per_block):
-        result.extend(block[i] for block in blocks)
-    for i in range(ec_per_block):
-        result.extend(block[i] for block in ec_blocks)
-    return result
 
 
 # --- matrix --------------------------------------------------------------
@@ -321,61 +202,6 @@ def _place_format(matrix: Matrix, mask: int) -> None:
         matrix[row][col] = bool(bit)
 
 
-# --- mask penalty scoring ------------------------------------------------
-
-
-def _penalty(matrix: Matrix) -> int:
-    size = len(matrix)
-    score = 0
-    lines: list[list[bool]] = [list(row) for row in matrix]
-    lines += [list(column) for column in zip(*matrix, strict=True)]
-
-    # Rule 1: runs of five or more same-coloured modules in a line.
-    for line in lines:
-        run_value = line[0]
-        run_length = 1
-        for module in line[1:]:
-            if module == run_value:
-                run_length += 1
-            else:
-                if run_length >= 5:
-                    score += 3 + (run_length - 5)
-                run_value = module
-                run_length = 1
-        if run_length >= 5:
-            score += 3 + (run_length - 5)
-
-    # Rule 2: 2x2 blocks of one colour.
-    for row in range(size - 1):
-        for col in range(size - 1):
-            block = (
-                matrix[row][col],
-                matrix[row][col + 1],
-                matrix[row + 1][col],
-                matrix[row + 1][col + 1],
-            )
-            if all(block) or not any(block):
-                score += 3
-
-    # Rule 3: the finder-like 1:1:3:1:1 pattern with four light modules
-    # beside it, which a decoder can mistake for a real finder.
-    pattern_a = [True, False, True, True, True, False, True, False, False, False, False]
-    pattern_b = list(reversed(pattern_a))
-    for line in lines:
-        for i in range(size - 10):
-            window = line[i : i + 11]
-            if window == pattern_a or window == pattern_b:
-                score += 40
-
-    # Rule 4: deviation from an even balance of dark and light.
-    dark = sum(1 for line in matrix for module in line if module)
-    percent = dark * 100 // (size * size)
-    lower = (percent // 5) * 5
-    upper = lower + 5
-    score += 10 * min(abs(lower - 50) // 5, abs(upper - 50) // 5)
-    return score
-
-
 # --- public API ----------------------------------------------------------
 
 
@@ -386,8 +212,7 @@ def encode(text: str) -> Matrix:
     level M can carry (106 bytes).
     """
     payload = text.encode("utf-8")
-    version = _choose_version(len(payload))
-    codewords = _codewords(payload, version)
+    version, codewords = encode_codewords(payload)
 
     size = _size(version)
     matrix, reserved = _new_matrix(size)
@@ -404,7 +229,7 @@ def encode(text: str) -> Matrix:
     for mask in range(8):
         candidate = _apply_mask(matrix, reserved, mask)
         _place_format(candidate, mask)
-        score = _penalty(candidate)
+        score = penalty_score(candidate)
         if best is None or score < best_score:
             best, best_score = candidate, score
     assert best is not None

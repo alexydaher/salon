@@ -28,46 +28,16 @@ from gi.repository import GLib, Manette  # noqa: E402
 
 from salon.core.bindings import GAMEPAD, Bindings  # noqa: E402
 from salon.input.actions import Action, stick_deflection  # noqa: E402
-
-# Linux evdev codes (linux/input-event-codes.h) — stable across vendors.
-# This is what libmanette hands back via Event.get_hardware_code().
-_BTN_SOUTH = 0x130  # A / Cross
-_BTN_EAST = 0x131  # B / Circle
-_BTN_WEST = 0x134  # X / Square
-_BTN_NORTH = 0x133  # Y / Triangle
-_BTN_TL = 0x136  # L1 / L / LB
-_BTN_TR = 0x137  # R1 / R / RB
-_BTN_START = 0x13B
-_BTN_DPAD_UP = 0x220
-_BTN_DPAD_DOWN = 0x221
-_BTN_DPAD_LEFT = 0x222
-_BTN_DPAD_RIGHT = 0x223
-
-_BUTTON_ACTIONS: dict[int, Action] = {
-    _BTN_SOUTH: Action.OK,
-    _BTN_EAST: Action.BACK,
-    _BTN_NORTH: Action.SEARCH,
-    _BTN_WEST: Action.OPTIONS,
-    _BTN_TL: Action.PREV_GROUP,
-    _BTN_TR: Action.NEXT_GROUP,
-    _BTN_START: Action.MENU,
-    _BTN_DPAD_UP: Action.UP,
-    _BTN_DPAD_DOWN: Action.DOWN,
-    _BTN_DPAD_LEFT: Action.LEFT,
-    _BTN_DPAD_RIGHT: Action.RIGHT,
-}
-
-# evdev ABS_* axis codes.
-_ABS_X = 0  # left stick
-_ABS_Y = 1
-_ABS_Z = 2  # left trigger, on some pads
-_ABS_RX = 3  # right stick, on most pads
-_ABS_RY = 4
-_ABS_RZ = 5  # right trigger, on some pads
-_ABS_HAT0X = 16  # alternate D-pad reporting
-_ABS_HAT0Y = 17
-
-_RIGHT_STICK_AXES = (_ABS_RX, _ABS_RY)
+from salon.input.gamepad_mapping import (  # noqa: E402
+    ABS_HAT_X,
+    ABS_HAT_Y,
+    ABS_RX,
+    ABS_RY,
+    ABS_X,
+    ABS_Y,
+    BUTTON_ACTIONS,
+    RIGHT_STICK_AXES,
+)
 
 _DEAD_ZONE = 0.35
 _RETRIGGER_THRESHOLD = 0.2
@@ -154,7 +124,7 @@ class GamepadSource:
                 return Action(override) if override else None
             except ValueError:
                 return None
-        return _BUTTON_ACTIONS.get(button)
+        return BUTTON_ACTIONS.get(button)
 
     def _on_device_connected(self, monitor: Manette.Monitor, device: Manette.Device) -> None:
         self._connect_device(device)
@@ -207,18 +177,18 @@ class GamepadSource:
         ok, axis, value = event.get_absolute()
         if not ok:
             return
-        if axis in (_ABS_HAT0X, _ABS_X):
+        if axis in (ABS_HAT_X, ABS_X):
             self._quantize(device, axis, value, negative=Action.LEFT, positive=Action.RIGHT)
-        elif axis in (_ABS_HAT0Y, _ABS_Y):
+        elif axis in (ABS_HAT_Y, ABS_Y):
             self._quantize(device, axis, value, negative=Action.UP, positive=Action.DOWN)
-        elif axis in _RIGHT_STICK_AXES:
+        elif axis in RIGHT_STICK_AXES:
             key = (device, axis)
             self._right_stick_raw[key] = stick_deflection(value, _STICK_DEAD_ZONE)
 
     def _poll_right_stick(self) -> bool:
         if self._on_right_stick is not None and self._right_stick_raw:
-            x = sum(v for (d, a), v in self._right_stick_raw.items() if a == _ABS_RX)
-            y = sum(v for (d, a), v in self._right_stick_raw.items() if a == _ABS_RY)
+            x = sum(v for (d, a), v in self._right_stick_raw.items() if a == ABS_RX)
+            y = sum(v for (d, a), v in self._right_stick_raw.items() if a == ABS_RY)
             if x or y:
                 self._on_right_stick(x, y)
         return bool(GLib.SOURCE_CONTINUE)

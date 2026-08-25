@@ -5,6 +5,7 @@ python_sources = [
   'static.py',
   'apps.py',
   'games.py',
+  'game_sources.py',
   'external.py',
   'registry.py',
 ]

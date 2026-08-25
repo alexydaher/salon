@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
-from salon.input.actions import Action
+from salon.core.actions import Action
 
 
 class Bump(StrEnum):

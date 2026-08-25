@@ -1,30 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""What is playing, over MPRIS, and the three buttons that control it.
-
-Salon starts things and then gets out of the way, which leaves one gap a
-television notices: something is playing, the remote has a play/pause key,
-and pressing it does nothing because the keypress goes to Salon rather than
-to whatever is playing. `Action.PLAY_PAUSE` existed in the vocabulary from
-the beginning and was handled nowhere.
-
-MPRIS closes it without Salon knowing anything about media. Every player
-that matters on Linux — Firefox, Chrome, Spotify, VLC, mpv, GNOME's own —
-registers `org.mpris.MediaPlayer2.*` on the session bus, and the remote's
-transport keys become three method calls.
-
-The part worth being careful about is *which* player, which is
-`core/nowplaying.py`'s job and is tested there. This file does D-Bus:
-finding the players, following them, and calling on them.
-
-Everything is asynchronous. A player that has wedged must cost a message
-that never arrives, not a frozen interface — `Gio.DBusConnection.call` with
-a short timeout and a callback that tolerates failure is the whole
-strategy.
-"""
+"""Discover MPRIS players and publish the currently relevant one."""
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 
 import gi
@@ -34,6 +12,8 @@ gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 from salon.core.nowplaying import Player, Selection  # noqa: E402
+from salon.services.mpris_metadata import player_from_properties  # noqa: E402
+from salon.services.mpris_transport import MprisTransport  # noqa: E402
 
 _PREFIX = "org.mpris.MediaPlayer2."
 _PATH = "/org/mpris/MediaPlayer2"
@@ -46,19 +26,6 @@ _PROPERTIES = "org.freedesktop.DBus.Properties"
 _TIMEOUT_MS = 1500
 
 
-def _artist_of(metadata: GLib.Variant | None) -> str:
-    """`xesam:artist` is an array of strings in the specification and a
-    plain string in several real players."""
-    if metadata is None:
-        return ""
-    value = metadata.get("xesam:artist")
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (list, tuple)):
-        return ", ".join(str(item) for item in value if item)
-    return ""
-
-
 class NowPlayingWatcher:
     """Follows every MPRIS player on the session bus and reports the one
     that matters, or None."""
@@ -69,6 +36,7 @@ class NowPlayingWatcher:
         self._connection: Gio.DBusConnection | None = None
         self._subscriptions: list[int] = []
         self._last: Player | None = None
+        self._transport = MprisTransport(lambda: self._connection, lambda: self.current)
 
     # --- lifecycle -------------------------------------------------------
 
@@ -123,45 +91,13 @@ class NowPlayingWatcher:
         return self._selection.current()
 
     def play_pause(self) -> bool:
-        return self._call_player("PlayPause")
+        return self._transport.call("PlayPause")
 
     def next_track(self) -> bool:
-        return self._call_player("Next")
+        return self._transport.call("Next")
 
     def previous_track(self) -> bool:
-        return self._call_player("Previous")
-
-    def _call_player(self, method: str) -> bool:
-        """Returns whether there was anything to call, so the caller can
-        fall back — pressing play with nothing playing should do whatever
-        the screen would otherwise do, not nothing."""
-        player = self.current
-        connection = self._connection
-        if player is None or connection is None:
-            return False
-        connection.call(
-            player.bus_name,
-            _PATH,
-            _PLAYER_IFACE,
-            method,
-            None,
-            None,
-            Gio.DBusCallFlags.NONE,
-            _TIMEOUT_MS,
-            None,
-            self._on_called,
-        )
-        return True
-
-    @staticmethod
-    def _on_called(connection: Gio.DBusConnection, result: Gio.AsyncResult) -> None:
-        try:
-            connection.call_finish(result)
-        except GLib.Error:
-            # A player that refuses PlayPause (some browsers do, for a tab
-            # that has since navigated away) is not worth a message on the
-            # television.
-            pass
+        return self._transport.call("Previous")
 
     # --- discovery -------------------------------------------------------
 
@@ -275,29 +211,8 @@ class NowPlayingWatcher:
             self._selection.remove(bus_name)
             self._publish()
             return
-        metadata = properties.get("Metadata") or {}
         previous = self._selection.players.get(bus_name)
-        status = str(properties.get("PlaybackStatus", ""))
-        title = str(metadata.get("xesam:title", "") or "")
-        player = Player(
-            bus_name=bus_name,
-            identity=previous.identity if previous else _fallback_identity(bus_name),
-            status=status,
-            title=title,
-            artist=_artist_of(metadata),
-            # Only bumped when something actually changed, so that a
-            # periodic refresh cannot promote a paused player above the one
-            # that is playing.
-            changed_at=(
-                previous.changed_at
-                if previous is not None
-                and previous.status == status
-                and previous.title == title
-                else time.monotonic()
-            ),
-            can_go_next=bool(properties.get("CanGoNext", False)),
-            can_go_previous=bool(properties.get("CanGoPrevious", False)),
-        )
+        player = player_from_properties(bus_name, properties, previous)
         self._selection.update(player)
         self._publish()
 
@@ -322,10 +237,3 @@ class NowPlayingWatcher:
             return
         self._last = current
         self._on_change(current)
-
-
-def _fallback_identity(bus_name: str) -> str:
-    """Something readable before `Identity` comes back — and for the
-    players that never answer it."""
-    tail = bus_name.removeprefix(_PREFIX).split(".")[0]
-    return tail.replace("_", " ").title() if tail else "Media"

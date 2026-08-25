@@ -1,0 +1,215 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# ruff: noqa: F403, F405
+"""Focused home-view workflow."""
+
+from salon.services.component import ServiceComponent
+from salon.ui.home_rows import *
+from salon.ui.home_shared import *
+from salon.ui.home_spring import *
+from salon.ui.home_viewport import *
+
+
+class HomeActionRouter(ServiceComponent):
+    def _dispatch_action(self, action: Action) -> None:
+        self._last_input = time.monotonic()
+        if self._screensaver.showing:
+            # Swallowed, not acted on. Someone reaching for the remote to
+            # see the clock must not launch Netflix by doing so.
+            self._screensaver.hide()
+            return
+
+        if self._onboarding.get_visible():
+            # Ahead of even MENU: the introduction is what explains that
+            # MENU exists, and there is nothing behind it worth reaching.
+            self._onboarding.handle_action(action)
+            return
+
+        if action is Action.MENU:
+            # Highest priority, deliberately ahead of every other mode —
+            # this is the only reachable way to suspend/shut down or exit
+            # Salon on a fullscreen, keyboard-less kiosk, so it must never
+            # be one of the things a stuck launch or an active pointer
+            # session can swallow.
+            if self._child_active or self._pointer_mode or self._launcher.has_child:
+                # ...and while something else is in front of Salon it means
+                # "bring me home", because a menu drawn in Salon's own
+                # window would appear underneath Netflix where nobody can
+                # see it. See _return_from_child.
+                #
+                # `has_child` is asked as well as the two mode flags, and it
+                # is the one that makes MENU *reliable*. Those flags are set
+                # from `on_child_focused`, which needs Salon's window to go
+                # from active to inactive — an edge that never happens when
+                # the window was already inactive at launch, which is what
+                # the phone does every time it opens a tile while another
+                # app is in front. Without this, MENU fell through to
+                # opening the system menu underneath the app: invisible,
+                # swallowing the next press to close itself again, and
+                # looking for all the world like a button that works every
+                # other time.
+                self._return_from_child()
+                return
+            if self._text_entry.get_visible():
+                # The keyboard is open on top of Settings. Closing Settings
+                # from under it would leave a text field editing a panel
+                # that is no longer on screen.
+                return
+            if self._settings_screen.get_visible():
+                self._settings_screen.handle_action(action)
+                return
+            if self._phone_pairing.get_visible():
+                # It is drawn above the system menu, so opening one behind
+                # it would be a menu nobody can see taking every press.
+                self._phone_pairing.close()
+                return
+            if self._system_menu.get_visible():
+                self._system_menu.hide()
+            else:
+                self._show_system_menu()
+            return
+
+        # Above the menus it is opened from, and below MENU, which closes
+        # everything: a screen showing a code is not a place MENU should
+        # stop working.
+        if self._phone_pairing.get_visible():
+            self._phone_pairing.handle_action(action)
+            return
+
+        for menu in (self._system_menu, self._tile_menu):
+            if not menu.get_visible():
+                continue
+            if action is Action.UP:
+                menu.move(-1)
+            elif action is Action.DOWN:
+                menu.move(1)
+            elif action is Action.OK:
+                menu.activate_selected()
+            elif action in (Action.BACK, Action.OPTIONS):
+                menu.hide()
+            return
+
+        # Innermost first: text entry is opened *by* Settings, on top of
+        # it, so it has to be offered the action before Settings is.
+        if self._text_entry.get_visible():
+            self._text_entry.handle_action(action)
+            return
+
+        if self._settings_screen.get_visible():
+            self._settings_screen.note_action(action)
+            self._settings_screen.handle_action(action)
+            return
+
+        if self._apps_grid.get_visible():
+            if action is Action.OPTIONS:
+                self._open_tile_menu(self._apps_grid.focused_tile, from_grid=True)
+            else:
+                self._apps_grid.handle_action(action)
+            return
+
+        if self._search.get_visible():
+            self._search.handle_action(action)
+            return
+
+        # Volume is the one group that is true whatever is on screen: it
+        # acts on the system's audio, not on a window, so it stays above
+        # the "something else is in front" guards below.
+        # `_on_volume_read` rather than the OSD directly: it shows the OSD
+        # *and* carries the new level to the phone, so a slider in someone's
+        # hand does not sit at the old position until they drag it.
+        if action is Action.VOLUME_UP:
+            audio.adjust_volume(1, lambda: audio.get_volume(self._on_volume_read))
+            return
+        if action is Action.VOLUME_DOWN:
+            audio.adjust_volume(-1, lambda: audio.get_volume(self._on_volume_read))
+            return
+        if action is Action.MUTE:
+            audio.toggle_mute(lambda: audio.get_volume(self._on_volume_read))
+            return
+
+        # Everything from here down draws or acts on Salon's own window, so
+        # the guards for "an app is covering it" come first. They used not
+        # to, and the three actions that sat above them all misfired from
+        # behind a launched app: SEARCH opened the search overlay where
+        # nobody could see it and then took every press, POWER opened the
+        # system menu the same way, and PLAY_PAUSE with nothing playing fell
+        # through to *launching the focused tile* on top of the app that was
+        # already running — which is also what left MENU with no child to
+        # close. The rule the MENU handler above states ("a menu drawn in
+        # Salon's own window would appear underneath Netflix") is this one.
+        if self._pointer_mode or self._child_active:
+            if action is Action.PLAY_PAUSE:
+                # The transport half only. The launch fallback below makes
+                # sense on an idle home screen and nowhere else.
+                if not self._now_playing.play_pause():
+                    self._toast("Nothing is playing.")
+                return
+            if self._pointer_mode:
+                if action is Action.SEARCH:
+                    # While the cursor is being driven over a browser
+                    # window, Salon's own search is the wrong thing to open
+                    # — the text field the user is aiming at belongs to
+                    # Chrome, so SEARCH toggles GNOME's on-screen keyboard
+                    # for it instead.
+                    set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+                elif action is Action.OK:
+                    self._pointer.click()
+                elif action is Action.BACK:
+                    self._pointer_mode = False
+                    self._toast("Cursor off. Press MENU to close the app and come back.")
+                return
+            # A native app (e.g. a game client) reads the same raw gamepad
+            # device directly — that input bypasses window focus entirely,
+            # unlike keyboard/mouse, so Salon has to deliberately go quiet
+            # rather than fight it for button presses. Resumes on exit, or
+            # on MENU, which is handled above.
+            return
+
+        if action is Action.SEARCH:
+            self._open_search()
+            return
+        if action is Action.PLAY_PAUSE:
+            # Falls through to launching the focused tile when nothing is
+            # playing: on a remote whose only large button is play, the
+            # useless outcome is the one that does nothing at all.
+            if not self._now_playing.play_pause():
+                self._launch_focused()
+            return
+        if action is Action.POWER:
+            # The system menu, not an immediate suspend. A television
+            # remote's power key is one press away from every other key on
+            # it, and Salon cannot know whether it was meant for the TV.
+            self._show_system_menu()
+            return
+
+        if action is Action.BACK:
+            if self._launcher.is_launching:
+                self._launcher.cancel()
+            # Otherwise a no-op: there's no parent screen at the top level
+            # yet (no search overlay stack built), and BACK must never quit
+            # Salon outright — see _on_key_pressed's dev-only Escape
+            # shortcut, or MENU -> Exit Salon, for that.
+            return
+
+        if self._nav_focused:
+            self._handle_nav_action(action)
+            return
+
+        if action is Action.OPTIONS:
+            self._open_tile_menu(
+                self._catalog.tile_at(self._focus.row, self._focus.col), from_grid=False
+            )
+            return
+
+        if action in _DIRECTIONS:
+            change = self._focus.handle(action)
+            if change.moved:
+                self._update_focus()
+            elif change.bump is Bump.UP:
+                # The top of the tiles is not a wall: it's the top bar. This
+                # is the whole reason Search/Settings/Power are reachable at
+                # all without knowing that MENU exists.
+                self._set_nav_focused(True)
+            elif change.bump is not Bump.NONE:
+                self._rubber_band(change.bump)
+        elif action is Action.OK:
+            self._launch_focused()
