@@ -37,7 +37,7 @@ done
 # inside the sandbox and cover the host-prefixed capabilities that cannot be
 # truthfully inferred from a host-side unit test.
 XDG_RUNTIME_DIR="$runtime_dir" WAYLAND_DISPLAY=salon-flatpak-wayland \
-  flatpak run --env=PYTHONPATH=/app/share/salon --command=python3 \
+  flatpak run --env=PYTHONPATH=/app/share/salon --env=GSETTINGS_BACKEND=memory --command=python3 \
   io.github.alexydaher.Salon -c '
 from salon.core import sandbox
 from salon.services.audio import wpctl_argv
@@ -55,8 +55,15 @@ assert wpctl_argv("status")[:2] == ["flatpak-spawn", "--host"]
 assert detect_browser() == ("flatpak", "run", "com.google.Chrome")
 Gtk.init()
 class Context:
-    def __getattr__(self, _name):
-        return lambda *_args, **_kwargs: False
+    def phone_remote_running(self): return False
+    def phone_remote_hint(self): return ""
+    def pointer_backend(self): return ""
+    def set_phone_remote(self, _enabled): return False
+    def push(self, _panel): pass
+    def open_control_center(self, _panel): pass
+    def rebuild(self): pass
+    def toast(self, _message): pass
+    def quit_app(self): pass
 context = Context()
 settings = Gio.Settings.new(config.APP_ID)
 network_rows = network_panel(context, settings).build()
@@ -71,6 +78,7 @@ assert not next(row for row in system_rows if row.label_text == "Start Salon at 
 '
 
 XDG_RUNTIME_DIR="$runtime_dir" WAYLAND_DISPLAY=salon-flatpak-wayland GDK_BACKEND=wayland \
+  GSETTINGS_BACKEND=memory \
   timeout 8s flatpak run io.github.alexydaher.Salon >"$runtime_dir/salon.log" 2>&1 &
 app_pid=$!
 sleep 4
