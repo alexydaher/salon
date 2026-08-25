@@ -46,6 +46,8 @@ class StatusBar(Gtk.Box):
         self._buttons: list[Gtk.Button] = []
         self._button_labels: list[Gtk.Label] = []
         self._button_boxes: list[Gtk.Box] = []
+        self._button_images: list[Gtk.Image] = []
+        self._connection_badges: list[Gtk.Widget] = []
         self._actions: list[Callable[[], None]] = []
         for icon_name, tooltip, handler in (
             ("system-search-symbolic", "Search", on_search),
@@ -59,7 +61,11 @@ class StatusBar(Gtk.Box):
             ("emblem-system-symbolic", "Settings", on_settings),
             ("system-shutdown-symbolic", "Power", on_power),
         ):
-            self.append(self._make_button(icon_name, tooltip, handler))
+            button = self._make_button(icon_name, tooltip, handler)
+            self.append(button)
+            if icon_name == "phone-symbolic":
+                self._phone_button = button
+                self._phone_badge = self._connection_badges[-1]
 
         self._selected = 0
         self._nav_focused = False
@@ -87,7 +93,22 @@ class StatusBar(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         box.set_halign(Gtk.Align.CENTER)
         image = Gtk.Image.new_from_icon_name(icon_name)
-        box.append(image)
+        icon = Gtk.Overlay()
+        icon.set_child(image)
+        badge = Gtk.Box()
+        badge.add_css_class("salon-connection-badge")
+        badge.set_halign(Gtk.Align.END)
+        badge.set_valign(Gtk.Align.END)
+        badge.set_can_target(False)
+        badge.set_visible(False)
+        icon.add_overlay(badge)
+        box.append(icon)
+        if icon_name == "phone-symbolic":
+            controller_icon = Gtk.Image.new_from_icon_name("input-gaming-symbolic")
+            controller_icon.add_css_class("salon-controller-indicator")
+            controller_icon.set_visible(False)
+            box.append(controller_icon)
+            self._controller_icon = controller_icon
         label = Gtk.Label(label=tooltip)
         label.add_css_class("salon-status-button-label")
         label.set_visible(False)
@@ -95,6 +116,8 @@ class StatusBar(Gtk.Box):
         button.set_child(box)
         self._button_labels.append(label)
         self._button_boxes.append(box)
+        self._button_images.append(image)
+        self._connection_badges.append(badge)
         index = len(self._buttons)
         button.connect("clicked", lambda _b: on_click())
         motion = Gtk.EventControllerMotion()
@@ -115,13 +138,34 @@ class StatusBar(Gtk.Box):
         self._button_height = size
         for button in self._buttons:
             button.set_size_request(-1, size)
-        for box in self._button_boxes:
+        for index, box in enumerate(self._button_boxes):
             box.set_spacing(scale.px(10.0))
             box.set_size_request(size, -1)
-            child = box.get_first_child()
-            if isinstance(child, Gtk.Image):
-                child.set_pixel_size(scale.px(30.0))
+            self._button_images[index].set_pixel_size(scale.px(30.0))
+            badge_size = scale.px(10.0)
+            self._connection_badges[index].set_size_request(badge_size, badge_size)
+        self._controller_icon.set_pixel_size(scale.px(26.0))
         self._update_selection()
+
+    def set_connection_state(self, *, controller: bool, phone: bool) -> None:
+        """Show that at least one usable remote is already attached.
+
+        The phone action remains available so another phone can still scan
+        the code; the badge only answers the at-a-glance question of whether
+        Salon currently has something connected.
+        """
+        self._controller_icon.set_visible(controller)
+        self._phone_badge.set_visible(phone)
+        if controller and phone:
+            status = "Controller and phone connected"
+        elif controller:
+            status = "Controller connected"
+        elif phone:
+            status = "Phone connected"
+        else:
+            status = "Connect a phone"
+        self._phone_button.set_tooltip_text(status)
+        self._phone_button.update_property([Gtk.AccessibleProperty.LABEL], [status])
 
     # --- focus ------------------------------------------------------------
 

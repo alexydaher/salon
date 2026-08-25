@@ -35,6 +35,10 @@ class HomePreferences(ServiceComponent):
         opened. The card hides immediately; the hold goes when there is no
         longer a phone to lose.
         """
+        self._status_bar.set_connection_state(
+            controller=self._gamepad_count > 0,
+            phone=self._pairing.connected,
+        )
         wanted = self._settings.get_boolean("remote-hint") and self._gamepad_count == 0
         if wanted:
             if not self._pairing.holds(_HINT_HOLDER):

@@ -328,6 +328,31 @@ toast > label {
   opacity: 1;
 }
 
+/* An actively polling phone makes this dot appear on the phone glyph. It is
+   a presence indicator, not a disabled state: the button still opens the
+   pairing code so another phone can connect. */
+.salon-connection-badge {
+  background-color: @accent;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 var(--focus-ring) @surface-0;
+}
+
+.salon-status-button.selected .salon-connection-badge {
+  background-color: @surface-0;
+  box-shadow: 0 0 0 var(--focus-ring) @accent;
+}
+
+/* Controller presence is deliberately a glyph rather than another dot, so
+   a glance distinguishes the two input sources. When both are connected,
+   this sits beside the dotted phone glyph. */
+.salon-controller-indicator {
+  color: @accent;
+}
+
+.salon-status-button.selected .salon-controller-indicator {
+  color: @surface-0;
+}
+
 /* --- First run (§6.11) ------------------------------------------------- */
 
 .salon-onboarding-body {
