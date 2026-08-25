@@ -8,6 +8,16 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.3 — 2026-08-25
+
+### Packaging
+
+* Tagged releases now publish a native Debian package alongside both Flatpak
+  architectures.
+* A dedicated OpenPGP key signs a self-hosted Flatpak repository on GitHub
+  Pages, providing a one-click `.flatpakref` and automatic updates without
+  relying on Flathub.
+
 ## 0.2.2 — 2026-08-25
 
 ### Hardened

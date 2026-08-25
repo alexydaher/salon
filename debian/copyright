@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Salon
+Source: https://github.com/alexydaher/salon
+
+Files: *
+Copyright: 2026 Alexy Daher
+License: GPL-3+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 3 is available in /usr/share/common-licenses/GPL-3.
+
+Files: data/io.github.alexydaher.Salon.metainfo.xml.in
+Copyright: 2026 Alexy Daher
+License: CC0-1.0
+ To the extent possible under law, the author has waived all copyright
+ and related or neighboring rights to this file.
+ .
+ On Debian systems, the complete text of the CC0 1.0 Universal license is
+ available in /usr/share/common-licenses/CC0-1.0.

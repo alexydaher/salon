@@ -1,0 +1,51 @@
+Source: salon
+Section: utils
+Priority: optional
+Maintainer: Alexy Daher <alexydaher@users.noreply.github.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ desktop-file-utils,
+ appstream,
+ libadwaita-1-dev (>= 1.5.0),
+ libgdk-pixbuf-2.0-dev (>= 2.42.0),
+ libglib2.0-dev (>= 2.80.0),
+ libgtk-4-dev (>= 4.16.0),
+ libmanette-0.2-dev (>= 0.2.0),
+ libsoup-3.0-dev,
+ meson (>= 1.3.0),
+ python3 (>= 3.12),
+ python3-gi
+Standards-Version: 4.7.2
+Homepage: https://github.com/alexydaher/salon
+Vcs-Browser: https://github.com/alexydaher/salon
+Vcs-Git: https://github.com/alexydaher/salon.git
+Rules-Requires-Root: no
+
+Package: salon
+Architecture: all
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ gir1.2-adw-1 (>= 1.5.0),
+ gir1.2-gdkpixbuf-2.0 (>= 2.42.0),
+ gir1.2-gtk-4.0 (>= 4.16.0),
+ gir1.2-manette-0.2 (>= 0.2.0),
+ gir1.2-soup-3.0,
+ python3 (>= 3.12),
+ python3-gi
+Recommends:
+ gnome-session,
+ gnome-shell | gnome-kiosk
+Suggests:
+ cec-utils,
+ chromium,
+ orca,
+ pipewire-bin
+Description: fullscreen living-room launcher for GNOME
+ Salon presents installed applications, games, commands, and web apps as
+ large tiles designed to be read from a sofa. It can be controlled with a
+ gamepad, keyboard, HDMI-CEC remote, mouse, or a phone on the local network.
+ .
+ The native package includes optional GNOME Shell and GNOME Kiosk login
+ sessions in addition to the regular desktop application.

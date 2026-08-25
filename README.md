@@ -11,25 +11,36 @@ skin over one. It launches the applications and web apps you already have.
 
 ## Install
 
-Salon is distributed from [GitHub Releases][latest-release], not from
-Flathub. The Flatpak bundle is the easiest way to try it and works without
-building the source.
+Salon is distributed directly by the project, not through Flathub. The
+signed Flatpak repository is the easiest way to install it and receive
+updates. A native Debian package is also available for the complete GNOME
+session integration.
 
 If `flatpak --version` does not work, follow the setup instructions for your
 distribution at [flatpak.org/setup](https://flatpak.org/setup/) first. Salon
 requires Flatpak 1.16 or newer.
 
-1. Open the [latest release][latest-release].
-2. Download the bundle for your computer:
-
-   * `Salon-v0.2.2-x86_64.flatpak` for most Intel and AMD PCs.
-   * `Salon-v0.2.2-aarch64.flatpak` for ARM64 computers.
-
-3. Open the downloaded file with your software installer, or install it from
-   a terminal:
+Install the Flatpak for your user account from Salon's repository:
 
 ```sh
-flatpak install --user ~/Downloads/Salon-v0.2.2-x86_64.flatpak
+flatpak install --user https://alexydaher.github.io/salon/io.github.alexydaher.Salon.flatpakref
+```
+
+This adds the signed `salon` remote. Future releases arrive with the normal
+`flatpak update` command and appear in software installers that handle
+Flatpak updates.
+
+If you prefer a standalone download, open the [latest release][latest-release]
+and download the bundle for your computer:
+
+* `Salon-v0.2.3-x86_64.flatpak` for most Intel and AMD PCs.
+* `Salon-v0.2.3-aarch64.flatpak` for ARM64 computers.
+
+Open the downloaded file with your software installer, or install it from a
+terminal:
+
+```sh
+flatpak install --user ~/Downloads/Salon-v0.2.3-x86_64.flatpak
 ```
 
 Use the `aarch64` filename instead on ARM64. If you are unsure which one you
@@ -44,31 +55,51 @@ Launch **Salon** from your applications screen, or run:
 flatpak run io.github.alexydaher.Salon
 ```
 
-GitHub bundles do not update automatically. To upgrade, download the bundle
-from the next release and install it over the existing copy:
+Standalone bundles do not update automatically. To upgrade one, download the
+bundle from the next release and install it over the existing copy:
 
 ```sh
-flatpak install --user --or-update ~/Downloads/Salon-v0.2.2-x86_64.flatpak
+flatpak install --user --or-update ~/Downloads/Salon-v0.2.3-x86_64.flatpak
 ```
 
-Your settings and catalogue are preserved. To uninstall Salon:
+Your settings and catalogue are preserved. To uninstall Salon and remove its
+remote when no longer needed:
 
 ```sh
 flatpak uninstall --user io.github.alexydaher.Salon
+flatpak remote-delete --user salon
 ```
 
 Each release also includes `SHA256SUMS` if you want to verify the download.
 Run the following from the directory containing both files:
 
 ```sh
-grep 'Salon-v0.2.2-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
+grep 'Salon-v0.2.3-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
 ```
 
 Change the filename to the ARM64 bundle when appropriate.
 
+### Native Debian package
+
+The native package enables Salon's login-screen sessions, host power actions,
+and the rest of its GNOME integration. Download `salon_0.2.3-1_all.deb` from
+the [latest release][latest-release], then install it with APT so dependencies
+are resolved automatically:
+
+```sh
+sudo apt install ~/Downloads/salon_0.2.3-1_all.deb
+```
+
+The package is architecture-independent and works on both AMD64 and ARM64,
+provided the distribution supplies Salon's minimum GTK, libadwaita, GLib and
+Python versions. Unlike the Flatpak repository, a downloaded Debian package
+does not currently update automatically.
+
 | Installation | Best for | Dedicated login session | Host power/settings |
 |---|---|---:|---:|
-| GitHub Flatpak | A quick installation | No | No |
+| Signed Flatpak repository | A quick installation with updates | No | No |
+| GitHub Flatpak bundle | An offline or one-time installation | No | No |
+| Debian package | A native installation with managed dependencies | Yes | Yes |
 | Native user install | A normal GNOME desktop | No | Yes |
 | Native system install | A television or kiosk machine | Yes | Yes |
 
@@ -359,18 +390,18 @@ The capture uses a fixed clock, local artwork, isolated settings/cache
 directories, and real in-process GTK rendering at 1280×720.
 
 A tag matching that checked version triggers the release build. For example,
-after the 0.2.2 changes have been committed and pushed:
+after the 0.2.3 changes have been committed and pushed:
 
 ```sh
-git tag -a v0.2.2 -m "Salon 0.2.2"
-git push origin v0.2.2
+git tag -a v0.2.3 -m "Salon 0.2.3"
+git push origin v0.2.3
 ```
 
-GitHub Actions builds x86-64 and ARM64 Flatpak bundles, pins the Salon source
-to the tag's exact commit in a separate manifest, writes checksums, and creates
-a GitHub release containing those files. Pushing `main` alone does not create a
-tag or publish a release, so choosing and recording the semantic version stays
-intentional. Salon is distributed directly through those GitHub releases.
+GitHub Actions builds x86-64 and ARM64 Flatpak bundles and a native Debian
+package, pins the Salon source to the tag's exact commit, signs and deploys the
+Flatpak repository, writes checksums, and creates the GitHub release. Pushing
+`main` alone does not publish a release, so choosing and recording the semantic
+version stays intentional.
 
 ## Logs
 
@@ -385,7 +416,7 @@ For the Flatpak, that log is normally at
 
 ## What hasn't been tested
 
-Salon is 0.2. The gates are green — ruff, `mypy --strict`, 481 tests, and
+Salon is 0.2. The gates are green — ruff, `mypy --strict`, 486 tests, and
 the AppStream and desktop-entry validators, on every push — but green tests
 are not the same as a verified appliance, and some of this needs hardware
 that wasn't attached to the machine it was written on.

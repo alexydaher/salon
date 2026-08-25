@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-name: Flatpak release
+name: Salon release
 
 on:
   push:
@@ -81,12 +81,159 @@ jobs:
           test -n "$bundle"
           scripts/flatpak-wayland-smoke.sh "$bundle"
 
+  debian:
+    name: Build Debian package
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: version
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    steps:
+      - name: Install package build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git \
+            build-essential debhelper dh-python devscripts lintian \
+            meson ninja-build python3 python3-gi \
+            libgtk-4-dev libadwaita-1-dev libsoup-3.0-dev \
+            libgdk-pixbuf-2.0-dev libglib2.0-dev libmanette-0.2-dev \
+            desktop-file-utils appstream
+
+      - uses: actions/checkout@v4
+
+      - name: Build and inspect the package
+        run: |
+          dpkg-buildpackage --build=binary --no-sign
+          mkdir -p release
+          find .. -maxdepth 1 -type f -name 'salon_*.deb' \
+            -exec cp --target-directory=release {} +
+          test "$(find release -name 'salon_*.deb' | wc -l)" -eq 1
+          lintian --fail-on error release/salon_*.deb
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: salon-deb-${{ github.ref_name }}
+          path: release/*.deb
+          if-no-files-found: error
+
+  flatpak-repository:
+    name: Prepare signed Flatpak repository
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: flatpak
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    env:
+      FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+    steps:
+      - name: Install repository tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git flatpak gnupg ostree python3
+
+      - uses: actions/checkout@v4
+
+      - name: Download Flatpak bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Salon-${{ github.ref_name }}-*.flatpak
+          path: bundles
+          merge-multiple: true
+
+      - name: Import signing key
+        id: signing-key
+        shell: bash
+        run: |
+          test -n "$FLATPAK_GPG_PRIVATE_KEY" || {
+            echo 'The FLATPAK_GPG_PRIVATE_KEY repository secret is required.' >&2
+            exit 1
+          }
+          install -d -m 0700 "$RUNNER_TEMP/flatpak-gnupg"
+          printf '%s' "$FLATPAK_GPG_PRIVATE_KEY" \
+            | base64 --decode \
+            | gpg --homedir "$RUNNER_TEMP/flatpak-gnupg" --batch --import
+          fingerprint="$({
+            gpg --homedir "$RUNNER_TEMP/flatpak-gnupg" \
+              --batch --with-colons --list-secret-keys
+          } | awk -F: '$1 == "sec" { primary = 1; next } primary && $1 == "fpr" { print $10; exit }')"
+          test -n "$fingerprint"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          mkdir -p site/repo
+          ostree init --repo=site/repo --mode=archive-z2
+          gpg --homedir "$RUNNER_TEMP/flatpak-gnupg" --batch \
+            --output site/salon.gpg --export "$fingerprint"
+
+      - name: Create signed repository and installer
+        env:
+          SIGNING_FINGERPRINT: ${{ steps.signing-key.outputs.fingerprint }}
+        run: |
+          bundle_count=0
+          for bundle in bundles/*.flatpak; do
+            flatpak build-import-bundle \
+              --gpg-sign="$SIGNING_FINGERPRINT" \
+              --gpg-homedir="$RUNNER_TEMP/flatpak-gnupg" \
+              --update-appstream \
+              site/repo "$bundle"
+            bundle_count=$((bundle_count + 1))
+          done
+          test "$bundle_count" -eq 2
+          flatpak build-update-repo \
+            --title=Salon \
+            --comment='Official Salon releases' \
+            --description='Signed Flatpak releases of the Salon living-room launcher' \
+            --homepage='https://github.com/alexydaher/salon' \
+            --default-branch=master \
+            --gpg-import=site/salon.gpg \
+            --gpg-sign="$SIGNING_FINGERPRINT" \
+            --gpg-homedir="$RUNNER_TEMP/flatpak-gnupg" \
+            site/repo
+          python3 scripts/prepare-flatpak-repository.py \
+            --public-key site/salon.gpg \
+            --output-dir site
+
+      - name: Upload Pages repository
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Upload installer metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-repository-metadata-${{ github.ref_name }}
+          path: |
+            site/io.github.alexydaher.Salon.flatpakref
+            site/salon.flatpakrepo
+            site/salon.gpg
+          if-no-files-found: error
+
+  pages:
+    name: Publish Flatpak repository
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: flatpak-repository
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
   release:
     name: Publish GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - version
       - flatpak
+      - debian
+      - flatpak-repository
+      - pages
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -107,10 +254,22 @@ jobs:
           path: release
           merge-multiple: true
 
+      - name: Download Debian package
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-deb-${{ github.ref_name }}
+          path: release
+
+      - name: Download Flatpak repository installer
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-repository-metadata-${{ github.ref_name }}
+          path: release
+
       - name: Write checksums
         run: |
           cd release
-          sha256sum -- *.flatpak io.github.alexydaher.Salon.yaml > SHA256SUMS
+          sha256sum -- * > SHA256SUMS
 
       - name: Create the GitHub release
         env:

@@ -50,6 +50,7 @@ def checked_version(root: Path, requested_tag: str | None) -> tuple[str, str]:
     metainfo_text = metainfo_path.read_text()
     manifest = (root / f"{APP_ID}.yaml").read_text()
     changelog = (root / "CHANGELOG.md").read_text()
+    debian_changelog = (root / "debian" / "changelog").read_text()
 
     meson_version = match_one(r"^\s*version:\s*'([^']+)'", meson, "Meson version")
     python_version = str(pyproject["project"]["version"])
@@ -65,6 +66,11 @@ def checked_version(root: Path, requested_tag: str | None) -> tuple[str, str]:
     values = {
         "pyproject.toml": python_version,
         "latest AppStream release": appstream_version,
+        "Debian package": match_one(
+            r"\Asalon \(([^)-]+)(?:-[^)]+)?\)",
+            debian_changelog,
+            "Debian package version",
+        ),
     }
     for label, value in values.items():
         if value != version:

@@ -38,3 +38,25 @@ def test_ci_installs_every_native_dependency_family() -> None:
         "python3-gobject",
     ):
         assert package in workflow
+
+
+def test_debian_package_tracks_native_minimums_and_is_architecture_independent() -> None:
+    versions = _minimum_versions()
+    control = (ROOT / "debian" / "control").read_text()
+    requirements = {
+        "python3": versions["python"],
+        "gir1.2-gtk-4.0": versions["gtk4"],
+        "gir1.2-adw-1": versions["libadwaita"],
+        "gir1.2-gdkpixbuf-2.0": versions["gdk_pixbuf"],
+        "gir1.2-manette-0.2": versions["libmanette"],
+    }
+    for package, version in requirements.items():
+        assert f"{package} (>= {version})" in control
+    assert "Architecture: all" in control
+
+
+def test_release_ci_builds_and_publishes_native_package() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "flatpak-release.yml").read_text()
+    assert "dpkg-buildpackage --build=binary --no-sign" in workflow
+    assert "lintian --fail-on error" in workflow
+    assert "salon-deb-${{ github.ref_name }}" in workflow
