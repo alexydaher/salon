@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Opening fades shared by full-screen surfaces."""
+
 from __future__ import annotations
 
 from typing import Protocol

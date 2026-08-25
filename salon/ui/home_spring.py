@@ -2,7 +2,16 @@
 # ruff: noqa: F403, F405
 """Home row-axis animation."""
 
-from salon.ui.home_shared import *
+from salon.ui.home_shared import (
+    _BUMP_MS,
+    SPRING_DAMPING_RATIO,
+    SPRING_MASS,
+    SPRING_STIFFNESS,
+    Adw,
+    Callable,
+    Gtk,
+    _translate,
+)
 
 
 class _AxisSpring:

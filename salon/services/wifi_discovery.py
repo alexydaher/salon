@@ -3,7 +3,23 @@
 """Focused Wi-Fi D-Bus operations."""
 
 from salon.services.component import ServiceComponent
-from salon.services.wifi_shared import *
+from salon.services.wifi_shared import (
+    _AP,
+    _AP_FLAGS_PRIVACY,
+    _BUS,
+    _DEVICE,
+    _DEVICE_TYPE_WIFI,
+    _NM,
+    _PATH,
+    _PROPS,
+    _TIMEOUT_MS,
+    _WIRELESS,
+    AccessPoint,
+    Callable,
+    Gio,
+    GLib,
+    _decode_ssid,
+)
 
 
 class WifiDiscovery(ServiceComponent):
@@ -14,7 +30,7 @@ class WifiDiscovery(ServiceComponent):
         is empty because NetworkManager is not running and one that is
         empty because nothing is in range must not look the same.
         """
-        bus = self._bus()
+        bus = self._owner._bus()
         if bus is None:
             on_done([], "Salon can't reach NetworkManager on this machine.")
             return
@@ -26,7 +42,7 @@ class WifiDiscovery(ServiceComponent):
         then: Callable[[], None],
         on_done: Callable[[list[AccessPoint], str], None],
     ) -> None:
-        if self._device is not None:
+        if self._owner._device is not None:
             then()
             return
 
@@ -76,7 +92,7 @@ class WifiDiscovery(ServiceComponent):
             except GLib.Error:
                 value = 0
             if value == _DEVICE_TYPE_WIFI:
-                self._device = path
+                self._owner._device = path
                 then()
                 return
             self._probe_devices(bus, rest, then, on_done)
@@ -97,7 +113,7 @@ class WifiDiscovery(ServiceComponent):
     def _scan_then_list(
         self, bus: Gio.DBusConnection, on_done: Callable[[list[AccessPoint], str], None]
     ) -> None:
-        device = self._device
+        device = self._owner._device
         if device is None:
             on_done([], "This machine has no wireless adapter.")
             return

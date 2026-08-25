@@ -2,17 +2,29 @@
 # ruff: noqa: F403, F405
 """Focused Bluetooth D-Bus operations."""
 
-from salon.services.bluetooth_shared import *
+from salon.services.bluetooth_shared import (
+    _ADAPTER,
+    _BUS,
+    _DEVICE,
+    _OBJECT_MANAGER,
+    _TIMEOUT_MS,
+    Callable,
+    Device,
+    Gio,
+    GLib,
+    _readable,
+    describe_device,
+)
 from salon.services.component import ServiceComponent
 
 
 class BluetoothDiscovery(ServiceComponent):
     def list_devices(self, on_done: Callable[[list[Device], str], None]) -> None:
-        bus = self._bus()
+        bus = self._owner._bus()
         if bus is None:
             on_done([], "Salon can't reach the Bluetooth service on this machine.")
             return
-        self._ensure_agent()
+        self._owner._ensure_agent()
 
         def on_objects(conn: Gio.DBusConnection, result: Gio.AsyncResult) -> None:
             try:
@@ -24,7 +36,7 @@ class BluetoothDiscovery(ServiceComponent):
             if not adapters:
                 on_done([], "This machine has no Bluetooth adapter.")
                 return
-            self._adapter = adapters[0]
+            self._owner._adapter = adapters[0]
             devices = [
                 Device(
                     path=path,
@@ -64,8 +76,8 @@ class BluetoothDiscovery(ServiceComponent):
     def _adapter_call(
         self, method: str, on_done: Callable[[bool, str], None] | None, ok_message: str
     ) -> None:
-        bus = self._bus()
-        adapter = self._adapter
+        bus = self._owner._bus()
+        adapter = self._owner._adapter
         if bus is None or adapter is None:
             if on_done is not None:
                 on_done(False, "This machine has no Bluetooth adapter.")

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="sky" x2="1" y2="1">
+      <stop stop-color="#221b36"/>
+      <stop offset="1" stop-color="#713f46"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="540" fill="url(#sky)"/>
+  <circle cx="740" cy="135" r="74" fill="#f7c76b" opacity=".92"/>
+  <path d="M0 410 150 300l120 72 170-150 172 178 125-92 223 140v92H0z" fill="#10131d"/>
+  <path d="M390 265v160l145-80z" fill="#fff4de" opacity=".9"/>
+  <text x="52" y="92" fill="#fff4de" font-family="sans-serif" font-size="42" font-weight="700">MOVIE NIGHT</text>
+</svg>

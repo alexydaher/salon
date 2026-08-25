@@ -166,6 +166,8 @@ _TOKEN_BYTES = 16
 
 # Soup.Status has no TOO_MANY_REQUESTS member in libsoup 3.
 _STATUS_TOO_MANY_REQUESTS = 429
+_STATUS_CONTENT_TOO_LARGE = 413
+_MAX_REQUEST_BODY_BYTES = 64 * 1024
 
 # Artwork is read off disk on the main loop, so a pathological file must not
 # become a stall. Nothing legitimate here is close to this: the largest
@@ -234,16 +236,10 @@ def _resource_bytes(name: str) -> bytes | None:
 
 
 class PhoneRemoteComponent:
-    """Bind one focused server responsibility to its owning facade."""
+    """Hold the explicit owning server facade."""
 
     def __init__(self, owner: object) -> None:
-        object.__setattr__(self, "_owner", owner)
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        setattr(self._owner, name, value)
+        self._owner = owner
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Spring-driven translation along one scrolling axis."""
+
 from __future__ import annotations
 
 import gi

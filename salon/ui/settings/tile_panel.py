@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused catalogue-editing panel builder."""
+
 from __future__ import annotations
 
 from salon.core import editing
-from salon.core.model import LaunchKind, Tile
+from salon.core.model import LaunchKind
 from salon.services.artwork import artwork_drop_dir
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel
+from salon.ui.settings.context import Panel, SettingsContext
 from salon.ui.settings.widgets import (
     ActionRow,
     ChoiceRow,
@@ -72,7 +72,11 @@ def tile_panel(context: SettingsContext, row_id: str, tile_id: str) -> Panel:
             InfoRow(
                 "Artwork",
                 "Set" if tile.artwork else "Drop folder",
-                detail=f"Drop an image at {artwork_drop_dir()}/{tile.id}.png",
+                detail=(
+                    "A custom local image is configured"
+                    if tile.artwork
+                    else f"Drop an image at {artwork_drop_dir()}/{tile.id}.png"
+                ),
             ),
             TextRow(
                 "Artwork path or URL",

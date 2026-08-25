@@ -34,7 +34,7 @@ _TILE_SCALE = 1.0
 _ASPECT = "square"
 
 
-class AppsGrid(Gtk.Box, motion.FadesIn):
+class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
     """Reachable from the top bar's grid button. Owns nothing but its own
     view of the installed-app scan; the launch itself goes back out through
     the same `on_launch` the home screen and search use."""
@@ -48,7 +48,6 @@ class AppsGrid(Gtk.Box, motion.FadesIn):
         on_close: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
-        self._grid_layout = AppsGridLayout(self)
         self._init_fade()
         self.add_css_class("salon-search")  # the same full-bleed dark field
         self.set_visible(False)
@@ -104,15 +103,13 @@ class AppsGrid(Gtk.Box, motion.FadesIn):
         self._viewport = Gtk.Fixed()
         self._viewport.set_overflow(Gtk.Overflow.HIDDEN)
         self._viewport.set_accessible_role(Gtk.AccessibleRole.GRID)
-        self._viewport.update_property(
-            [Gtk.AccessibleProperty.LABEL], ["All applications, A to Z"]
-        )
+        self._viewport.update_property([Gtk.AccessibleProperty.LABEL], ["All applications, A to Z"])
         self._grid = Gtk.Fixed()
         self._viewport.put(self._grid, 0, 0)
         self._scroll = AxisSpring(self._viewport, self._grid, vertical=True)
 
         self._viewport_host = SizeReporter(
-            self._viewport, self._grid_layout._on_resized, propagate_minimum=False
+            self._viewport, self._on_resized, propagate_minimum=False
         )
         self._viewport_host.set_hexpand(True)
         self._viewport_host.set_vexpand(True)
@@ -171,14 +168,14 @@ class AppsGrid(Gtk.Box, motion.FadesIn):
         self._content.set_margin_top(margin)
         self._content.set_margin_bottom(margin)
         self._content.set_spacing(scale.px(8.0))
-        self._grid_layout._rebuild()
+        self._rebuild()
 
     def set_pointer_active(self, active: bool) -> None:
         self._pointer_active = active
 
     @property
     def focused_tile(self) -> Tile | None:
-        index = self._grid_layout._focused_index()
+        index = self._focused_index()
         if 0 <= index < len(self._tiles):
             return self._tiles[index]
         return None
@@ -189,13 +186,12 @@ class AppsGrid(Gtk.Box, motion.FadesIn):
         # Already sorted case-insensitively by appinfo, which is the order
         # this screen wants: an A–Z grid is scannable, a ranked one is not.
         self._tiles = tiles
-        self._grid_layout._rebuild()
+        self._rebuild()
 
     def _set_hint(self, text: str) -> None:
         self._hint.set_label(text)
 
     # --- layout ----------------------------------------------------------
-
 
     # --- input -----------------------------------------------------------
 
@@ -209,11 +205,11 @@ class AppsGrid(Gtk.Box, motion.FadesIn):
                 self._on_launch(tile)
             return
         if action in (Action.PREV_GROUP, Action.NEXT_GROUP):
-            self._grid_layout._jump_letter(-1 if action is Action.PREV_GROUP else 1)
+            self._jump_letter(-1 if action is Action.PREV_GROUP else 1)
             return
         change = self._focus.handle(action)
         if change.moved:
-            self._grid_layout._update_selection()
+            self._update_selection()
         elif change.bump is not Bump.NONE:
             distance = self._scale.du(_BUMP_DISTANCE_DU)
             if change.bump is Bump.UP:
@@ -234,4 +230,4 @@ class AppsGrid(Gtk.Box, motion.FadesIn):
     def _jump_to_index(self, index: int) -> None:
         row, col = divmod(index, self._columns)
         self._focus.jump_to(row, col)
-        self._grid_layout._update_selection()
+        self._update_selection()

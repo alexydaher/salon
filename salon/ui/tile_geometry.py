@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Tile dimensions, typography, colors, and geometry constructors."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,9 +46,7 @@ class TileMetrics:
         return self.width + self.gap
 
 
-def metrics_for(
-    scale: Scale, aspect: str = "wide", *, size_scale: float = 1.0
-) -> TileMetrics:
+def metrics_for(scale: Scale, aspect: str = "wide", *, size_scale: float = 1.0) -> TileMetrics:
     """`size_scale` is the user's tile-size preference (§6.8). The bleed
     scales with the card because it exists to hold the bloom and the
     focus growth, both of which are proportional to the card; the gap and

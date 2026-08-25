@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Navigable and animated list of settings rows."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -113,8 +114,8 @@ class SettingsList(Gtk.Fixed):
             row.add_controller(motion)
             self._content.append(row)
 
-        if not keep_selection or self._selected >= len(rows):
-            self._selected = 0
+        if not keep_selection or self._selected >= len(rows) or not rows[self._selected].selectable:
+            self._selected = next((index for index, row in enumerate(rows) if row.selectable), 0)
         self._content.set_spacing(self._scale.px(6.0))
         self._update_selection(animate=False)
 
@@ -126,18 +127,20 @@ class SettingsList(Gtk.Fixed):
         if not self._rows:
             return False
         target = self._selected + delta
-        if not (0 <= target < len(self._rows)):
+        while 0 <= target < len(self._rows) and not self._rows[target].selectable:
+            target += delta
+        if not 0 <= target < len(self._rows):
             return False
         self._selected = target
         self._update_selection()
         return True
 
     def activate(self) -> None:
-        if self._rows:
+        if self._rows and self._rows[self._selected].selectable:
             self._rows[self._selected].activate_row()
 
     def select(self, index: int) -> None:
-        if 0 <= index < len(self._rows):
+        if 0 <= index < len(self._rows) and self._rows[index].selectable:
             self._selected = index
             self._update_selection()
 
@@ -145,6 +148,8 @@ class SettingsList(Gtk.Fixed):
         self._scroll.bump(distance)
 
     def _click(self, index: int) -> None:
+        if not self._rows[index].selectable:
+            return
         self.select(index)
         if self._on_activate is not None:
             self._on_activate(index)
@@ -152,12 +157,12 @@ class SettingsList(Gtk.Fixed):
             self._rows[index].activate_row()
 
     def _hover(self, index: int) -> None:
-        if self._hover_enabled:
+        if self._hover_enabled and self._rows[index].selectable:
             self.select(index)
 
     def _update_selection(self, *, animate: bool = True) -> None:
         for index, candidate in enumerate(self._rows):
-            candidate.set_selected(index == self._selected)
+            candidate.set_selected(index == self._selected and candidate.selectable)
         self._scroll_to_selection(animate=animate)
 
     def _scroll_to_selection(self, *, animate: bool) -> None:

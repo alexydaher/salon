@@ -5,7 +5,15 @@
 from __future__ import annotations
 
 from salon.services.phone_remote_delivery import _notify, _sse_frame
-from salon.services.phone_remote_shared import *
+from salon.services.phone_remote_shared import (
+    _STATUS_TOO_MANY_REQUESTS,
+    MAX_ATTEMPTS,
+    GLib,
+    PhoneRemoteComponent,
+    Soup,
+    json,
+    secrets,
+)
 
 
 class PhoneRemoteConnection(PhoneRemoteComponent):
@@ -25,44 +33,44 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
         up on the code screen instead of on a remote whose every button
         fails.
         """
-        if not self._from_local_network(message):
-            self._refuse(message, Soup.Status.FORBIDDEN, "Not on this network.")
+        if not self._owner._from_local_network(message):
+            self._owner._refuse(message, Soup.Status.FORBIDDEN, "Not on this network.")
             return
-        fields = self._fields(message)
+        fields = self._owner._fields(message)
         if fields is None:
             return
         # Checked before the credential is even read: once a session is
         # burned it is burned for the right code too, so that guessing it on
         # the last allowed attempt wins nothing.
-        if self._locked:
-            self._refuse(
+        if self._owner._locked:
+            self._owner._refuse(
                 message,
                 _STATUS_TOO_MANY_REQUESTS,
                 "Too many wrong codes. Turn the phone remote off and on again on the TV.",
             )
             return
 
-        if self._has_token(fields.get("key")):
-            self._touch()
-            self._json(message, json.dumps({"key": self._token}).encode())
+        if self._owner._has_token(fields.get("key")):
+            self._owner._touch()
+            self._owner._json(message, json.dumps({"key": self._owner._token}).encode())
             return
 
         # compare_digest, not ==: the code is short enough that a timing
         # oracle is a real (if unglamorous) way to guess it.
-        if not secrets.compare_digest(str(fields.get("code", "")), self._code):
-            self._wrong_attempts += 1
-            if self._wrong_attempts >= MAX_ATTEMPTS:
-                self._locked = True
-                if self._on_locked is not None:
-                    GLib.idle_add(_notify, self._on_locked)
-            self._refuse(message, Soup.Status.FORBIDDEN, "Wrong code.")
+        if not secrets.compare_digest(str(fields.get("code", "")), self._owner._code):
+            self._owner._wrong_attempts += 1
+            if self._owner._wrong_attempts >= MAX_ATTEMPTS:
+                self._owner._locked = True
+                if self._owner._on_locked is not None:
+                    GLib.idle_add(_notify, self._owner._on_locked)
+            self._owner._refuse(message, Soup.Status.FORBIDDEN, "Wrong code.")
             return
 
         # A correct code proves whoever is holding the phone was told it, so
         # the earlier fumbles stop counting against them.
-        self._wrong_attempts = 0
-        self._touch()
-        self._json(message, json.dumps({"key": self._token}).encode())
+        self._owner._wrong_attempts = 0
+        self._owner._touch()
+        self._owner._json(message, json.dumps({"key": self._owner._token}).encode())
 
     # --- what is on the television ---------------------------------------
 
@@ -76,12 +84,12 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
         """The poll. Answers 204 when the phone is already current, which is
         most of the time — and matters because this handler runs on the same
         main loop that is animating the tiles."""
-        if not self._authorize_get(message, query):
+        if not self._owner._authorize_get(message, query):
             return
-        if self._feed.is_current((query or {}).get("v")):
+        if self._owner._feed.is_current((query or {}).get("v")):
             message.set_status(Soup.Status.NO_CONTENT, None)
             return
-        self._json(message, self._feed.payload())
+        self._owner._json(message, self._owner._feed.payload())
 
     def _handle_events(
         self,
@@ -109,7 +117,7 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
         phone rather than a broken feature, which is exactly the kind of
         thing that is invisible until a television has been on for a week.
         """
-        if not self._authorize_get(message, query):
+        if not self._owner._authorize_get(message, query):
             return
         message.set_status(Soup.Status.OK, None)
         headers = message.get_response_headers()
@@ -127,19 +135,19 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
         # The current state immediately, so a phone that has just connected
         # draws the television rather than an empty page until something
         # over there happens to change.
-        body.append(_sse_frame(self._feed.payload()))
-        self._streams.append(message)
+        body.append(_sse_frame(self._owner._feed.payload()))
+        self._owner._streams.append(message)
         message.connect("finished", self._on_stream_finished)
 
     def _on_stream_finished(self, message: Soup.ServerMessage) -> None:
         try:
-            self._streams.remove(message)
+            self._owner._streams.remove(message)
         except ValueError:
             pass
 
     def _broadcast(self, payload: bytes) -> None:
         frame = _sse_frame(payload)
-        for message in list(self._streams):
+        for message in list(self._owner._streams):
             try:
                 message.get_response_body().append(frame)
                 message.unpause()
@@ -150,10 +158,10 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
                 self._on_stream_finished(message)
 
     def _close_streams(self) -> None:
-        for message in list(self._streams):
+        for message in list(self._owner._streams):
             try:
                 message.get_response_body().complete()
                 message.unpause()
             except (GLib.Error, TypeError):
                 pass
-        self._streams.clear()
+        self._owner._streams.clear()

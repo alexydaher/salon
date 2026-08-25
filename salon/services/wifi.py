@@ -4,12 +4,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
 
-from salon.services.component import component_attribute
+from salon.core import sandbox
 from salon.services.wifi_connection import WifiConnection
 from salon.services.wifi_discovery import WifiDiscovery
-from salon.services.wifi_shared import *
+from salon.services.wifi_shared import AccessPoint, Gio, GLib
+
+__all__ = ["AccessPoint", "WifiService"]
 
 
 class WifiService:
@@ -25,12 +27,20 @@ class WifiService:
         self._connection: Gio.DBusConnection | None = None
         self._device: str | None = None
 
-        self._components = (WifiDiscovery(self), WifiConnection(self))
+        self._discovery = WifiDiscovery(self)
+        self._connections = WifiConnection(self)
 
-    def __getattr__(self, name: str) -> Any:
-        return component_attribute(self._components, name)
+    def list_networks(self, on_done: Callable[[list[AccessPoint], str], None]) -> None:
+        self._discovery.list_networks(on_done)
+
+    def connect(
+        self, point: AccessPoint, password: str, on_done: Callable[[bool, str], None]
+    ) -> None:
+        self._connections.connect(point, password, on_done)
 
     def _bus(self) -> Gio.DBusConnection | None:
+        if not sandbox.capabilities().network_configuration:
+            return None
         if self._connection is None:
             try:
                 self._connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)

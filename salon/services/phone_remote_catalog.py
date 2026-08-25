@@ -5,7 +5,16 @@
 from __future__ import annotations
 
 from salon.services.phone_remote_delivery import _deliver_level, _finite, _notify
-from salon.services.phone_remote_shared import *
+from salon.services.phone_remote_shared import (
+    _ART_TYPES,
+    _MAX_ART_BYTES,
+    MAX_SEARCH_RESULTS,
+    TILE_ACTIONS,
+    GLib,
+    PhoneRemoteComponent,
+    Soup,
+    json,
+)
 
 
 class PhoneRemoteCatalog(PhoneRemoteComponent):
@@ -31,17 +40,17 @@ class PhoneRemoteCatalog(PhoneRemoteComponent):
         stay cheap; see `HomeView._search_for_phone`, which ranks a list it
         already has rather than scanning the disk.
         """
-        fields = self._authorize(message)
+        fields = self._owner._authorize(message)
         if fields is None:
             return
-        if self._on_search is None:
-            self._refuse(message, Soup.Status.NOT_IMPLEMENTED, "Search isn't available.")
+        if self._owner._on_search is None:
+            self._owner._refuse(message, Soup.Status.NOT_IMPLEMENTED, "Search isn't available.")
             return
-        results = self._on_search(str(fields.get("q", "")))[:MAX_SEARCH_RESULTS]
+        results = self._owner._on_search(str(fields.get("q", "")))[:MAX_SEARCH_RESULTS]
         # Remembered before they are sent, so the /art request the page
         # makes for each result a moment later is answerable.
-        self._offered.offer(tile.id for tile in results)
-        self._json(
+        self._owner._offered.offer(tile.id for tile in results)
+        self._owner._json(
             message,
             json.dumps({"results": [tile.to_dict() for tile in results]}).encode(),
         )
@@ -65,18 +74,20 @@ class PhoneRemoteCatalog(PhoneRemoteComponent):
         — "edit" opens a screen on the television, which is a strange thing
         to have happen with no acknowledgement in your hand.
         """
-        fields = self._authorize(message)
+        fields = self._owner._authorize(message)
         if fields is None:
             return
         tile_id = str(fields.get("id", ""))
         what = str(fields.get("what", ""))
-        if self._on_tile_action is None or what not in TILE_ACTIONS:
-            self._refuse(message, Soup.Status.BAD_REQUEST, "Unknown tile action.")
+        if self._owner._on_tile_action is None or what not in TILE_ACTIONS:
+            self._owner._refuse(message, Soup.Status.BAD_REQUEST, "Unknown tile action.")
             return
         if not self._may_touch(tile_id):
-            self._refuse(message, Soup.Status.NOT_FOUND, "That is not on the TV any more.")
+            self._owner._refuse(message, Soup.Status.NOT_FOUND, "That is not on the TV any more.")
             return
-        self._json(message, json.dumps({"said": self._on_tile_action(tile_id, what)}).encode())
+        self._owner._json(
+            message, json.dumps({"said": self._owner._on_tile_action(tile_id, what)}).encode()
+        )
 
     def _handle_volume(
         self,
@@ -94,22 +105,22 @@ class PhoneRemoteCatalog(PhoneRemoteComponent):
         expressing that as nineteen presses of a step key is how you get a
         volume control that lags behind the thumb moving it.
         """
-        fields = self._authorize(message)
+        fields = self._owner._authorize(message)
         if fields is None:
             return
         if fields.get("mute"):
-            if self._on_mute is not None:
-                mute = self._on_mute
+            if self._owner._on_mute is not None:
+                mute = self._owner._on_mute
                 GLib.idle_add(_notify, mute)
-            self._ok(message)
+            self._owner._ok(message)
             return
-        if self._on_volume is None:
-            self._refuse(message, Soup.Status.NOT_IMPLEMENTED, "Volume isn't available.")
+        if self._owner._on_volume is None:
+            self._owner._refuse(message, Soup.Status.NOT_IMPLEMENTED, "Volume isn't available.")
             return
         level = min(1.0, max(0.0, _finite(fields.get("level"))))
-        callback = self._on_volume
+        callback = self._owner._on_volume
         GLib.idle_add(lambda: _deliver_level(callback, level))
-        self._ok(message)
+        self._owner._ok(message)
 
     def _may_touch(self, tile_id: str) -> bool:
         """Whether the phone has been shown this tile.
@@ -119,7 +130,9 @@ class PhoneRemoteCatalog(PhoneRemoteComponent):
         filesystem — which is also why there is no path traversal to get
         wrong anywhere in this file.
         """
-        return bool(tile_id) and (tile_id in self._feed.tile_ids() or tile_id in self._offered)
+        return bool(tile_id) and (
+            tile_id in self._owner._feed.tile_ids() or tile_id in self._owner._offered
+        )
 
     def _handle_art(
         self,
@@ -134,14 +147,14 @@ class PhoneRemoteCatalog(PhoneRemoteComponent):
         path: the phone can ask for the artwork of something it was shown
         and for nothing else, so there is no traversal to get wrong.
         """
-        if not self._authorize_get(message, query):
+        if not self._owner._authorize_get(message, query):
             return
         escaped = path.removeprefix("/art/") if path.startswith("/art/") else ""
         tile_id = GLib.uri_unescape_string(escaped, None) or "" if escaped else ""
-        if not self._may_touch(tile_id) or self._art_for is None:
+        if not self._may_touch(tile_id) or self._owner._art_for is None:
             message.set_status(Soup.Status.NOT_FOUND, None)
             return
-        art = self._art_for(tile_id)
+        art = self._owner._art_for(tile_id)
         if art is None:
             message.set_status(Soup.Status.NOT_FOUND, None)
             return

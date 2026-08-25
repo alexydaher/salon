@@ -8,6 +8,21 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.2 — 2026-08-25
+
+### Hardened
+
+* Salon no longer changes the global GNOME screen-lock setting.
+* Catalogue parsing now validates and normalizes every known value and reports
+  all malformed inputs as location-aware configuration errors.
+* Browser launching and the sole `wpctl` audio backend execute explicitly on
+  the host when sandboxed and report unavailable/error states to the UI.
+* Phone requests, remote downloads, decoded images, and generated cache growth
+  now have strict resource limits; portal failures are contained and reset.
+* Flatpak Settings rows honestly disable unsupported host integrations.
+* Native dependency minimums, Wayland/Flatpak smoke harnesses, crash recovery,
+  reproducible screenshots, and explicit component composition are enforced.
+
 ## 0.2.1 — 2026-08-25
 
 ### Improved

@@ -4,27 +4,34 @@
 
 from __future__ import annotations
 
-from salon.services.phone_remote_shared import *
+from salon.services.phone_remote_shared import (
+    _CONNECTED_SECONDS,
+    Callable,
+    PhoneRemoteComponent,
+    RemoteState,
+    local_address,
+    time,
+)
 
 
 class PhoneRemoteState(PhoneRemoteComponent):
     def acquire(self, holder: str) -> bool:
         """Start the server on behalf of `holder`, or note that it already
         wants it. Returns False only if starting actually failed."""
-        self._holders.add(holder)
-        return self.start()
+        self._owner._holders.add(holder)
+        return self._owner.start()
 
     def release(self, holder: str) -> None:
-        self._holders.discard(holder)
-        if not self._holders:
-            self.stop()
+        self._owner._holders.discard(holder)
+        if not self._owner._holders:
+            self._owner.stop()
 
     def holds(self, holder: str) -> bool:
-        return holder in self._holders
+        return holder in self._owner._holders
 
     def set_text_sink(self, sink: Callable[[str], None] | None) -> None:
         """Where typed text lands, or None when nothing on screen wants it."""
-        self._text_sink = sink
+        self._owner._text_sink = sink
 
     def release_text_sink(self, sink: Callable[[str], None]) -> None:
         """Give the sink back, but only if it is still ours.
@@ -34,8 +41,8 @@ class PhoneRemoteState(PhoneRemoteComponent):
         so an unconditional clear on the way out would leave the phone
         typing into nothing on the screen that just arrived.
         """
-        if self._text_sink is sink:
-            self._text_sink = None
+        if self._owner._text_sink is sink:
+            self._owner._text_sink = None
 
     # --- what the phone sees ---------------------------------------------
 
@@ -52,29 +59,29 @@ class PhoneRemoteState(PhoneRemoteComponent):
         cannot be told, it can only ask, and a second is a long time to
         wait to see that the button you pressed did something.
         """
-        changed = self._feed.publish(state)
-        if changed and self._streams:
-            self._broadcast(self._feed.payload())
+        changed = self._owner._feed.publish(state)
+        if changed and self._owner._streams:
+            self._owner._broadcast(self._owner._feed.payload())
         return changed
 
     @property
     def running(self) -> bool:
-        return self._server is not None
+        return self._owner._server is not None
 
     @property
     def code(self) -> str:
-        return self._code
+        return self._owner._code
 
     @property
     def token(self) -> str:
-        return self._token
+        return self._owner._token
 
     @property
     def locked(self) -> bool:
         """Too many wrong codes. The server keeps listening — refusing every
         request is the point — but nothing it is sent can be typed any
         more."""
-        return self._locked
+        return self._owner._locked
 
     @property
     def connected(self) -> bool:
@@ -87,13 +94,13 @@ class PhoneRemoteState(PhoneRemoteComponent):
         so a phone with the page open reads as connected and one that has
         been closed stops doing so within a few seconds.
         """
-        return self.running and (time.monotonic() - self._talked_at) < _CONNECTED_SECONDS
+        return self.running and (time.monotonic() - self._owner._talked_at) < _CONNECTED_SECONDS
 
     @property
     def url(self) -> str | None:
         """The address to type in by hand. Pairs with the four-digit code."""
         address = local_address()
-        return f"http://{address}:{self._port}" if address else None
+        return f"http://{address}:{self._owner._port}" if address else None
 
     @property
     def pair_url(self) -> str | None:
@@ -101,6 +108,6 @@ class PhoneRemoteState(PhoneRemoteComponent):
         session token in its fragment so that scanning it is the whole of
         connecting. See the module docstring on why the fragment."""
         base = self.url
-        if base is None or not self._token:
+        if base is None or not self._owner._token:
             return None
-        return f"{base}/#k={self._token}"
+        return f"{base}/#k={self._owner._token}"

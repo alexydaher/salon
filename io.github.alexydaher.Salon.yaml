@@ -94,11 +94,11 @@ finish-args:
   # Flatpak gets the consent dialog, once, as it should. Nothing needs to
   # be configured for this; the absence of the line *is* the configuration.
 
-  # Deliberately absent: direct host dconf and logind access. A native Salon
-  # session can suppress GNOME's lock screen, toggle the shell keyboard and
-  # expose suspend/restart/shutdown. The Flatpak is an ordinary application,
-  # cannot install that login session, and disables those host-wide features
-  # instead of weakening the sandbox further.
+  # Deliberately absent: direct host dconf and logind access. Salon never
+  # changes GNOME's global lock preference; an administrator configures that
+  # for the dedicated account. A native session can still toggle the shell
+  # keyboard and expose suspend/restart/shutdown. The Flatpak disables those
+  # host-wide features instead of weakening the sandbox further.
 
   # Nothing for xdg-config/salon, xdg-data/salon or xdg-cache/salon. A
   # sandboxed app already owns its own XDG dirs, so those three grants only
@@ -143,7 +143,7 @@ modules:
       # one stays tag-only, for building the app from a clean checkout.
       - type: git
         url: https://github.com/alexydaher/salon.git
-        tag: v0.2.1
+        tag: v0.2.2
         # Once the manifest lives in Flathub's repository, the external-data
         # checker watches for release tags and opens the next update PR.
         x-checker-data:

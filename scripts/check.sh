@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 echo "== ruff =="
-ruff check salon tests
+ruff check salon tests scripts
 
 echo "== mypy --strict (salon.core, salon.input) =="
 mypy --strict salon/core salon/input
@@ -20,6 +20,12 @@ if [ ! -d build ]; then
   meson setup build
 fi
 meson compile -C build
+
+echo "== meson dependency rejection tests =="
+python3 scripts/meson-negative-dependencies.py
+
+echo "== real Wayland smoke test =="
+scripts/wayland-smoke.sh
 
 # The AppStream metainfo and the desktop entry are validated here rather
 # than at submission time, which is the worst moment to learn a tag is

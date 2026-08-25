@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Text and vignette painting for a tile."""
-from __future__ import annotations
 
-from typing import Any
+from __future__ import annotations
 
 import gi
 
@@ -16,12 +15,6 @@ from salon.ui.tile_geometry import _TRANSPARENT, _point, _stops, _with_alpha  # 
 
 
 class TileTextRenderer:
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
-
     def snapshot_labels(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
         padding = self._scale.du(20.0)
         available = rect.get_width() - 2 * padding
@@ -48,9 +41,7 @@ class TileTextRenderer:
         snapshot.append_layout(title_layout, theme.color("text-primary"))
         snapshot.restore()
 
-    def _layout(
-        self, text: str, font: Pango.FontDescription, width: float
-    ) -> Pango.Layout:
+    def _layout(self, text: str, font: Pango.FontDescription, width: float) -> Pango.Layout:
         layout = self.create_pango_layout(text)
         layout.set_font_description(font)
         layout.set_width(int(width * Pango.SCALE))

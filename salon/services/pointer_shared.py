@@ -74,6 +74,7 @@ _BUS_NAME = "org.freedesktop.portal.Desktop"
 _OBJECT_PATH = "/org/freedesktop/portal/desktop"
 _RD_IFACE = "org.freedesktop.portal.RemoteDesktop"
 _REQUEST_IFACE = "org.freedesktop.portal.Request"
+_SESSION_IFACE = "org.freedesktop.portal.Session"
 
 # mutter's own interface. Version 1, unchanged since it was introduced, and
 # load-bearing for gnome-remote-desktop — but private, so it is tried and
@@ -169,7 +170,7 @@ def _a11y_settings() -> Gio.Settings | None:
     Worth the detour, because `Gio.Settings.new` on a schema that is not
     there does not raise — it is a `g_error`, which aborts the process. So
     on a desktop without gsettings-desktop-schemas, Salon died on the first
-    press of Y in pointer mode instead of doing nothing. `screenlock.py`
+    press of Y in pointer mode instead of doing nothing. Host settings
     guards its own host key the same way, for the same reason.
     """
     source = Gio.SettingsSchemaSource.get_default()

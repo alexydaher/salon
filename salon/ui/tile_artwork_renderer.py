@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Artwork, icon, bloom, and generated-card painting for a tile."""
-from __future__ import annotations
 
-from typing import Any
+from __future__ import annotations
 
 import gi
 
@@ -27,12 +26,6 @@ from salon.ui.tile_geometry import (  # noqa: E402
 
 
 class TileArtworkRenderer:
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
-
     def snapshot_bloom(self, snapshot: Gtk.Snapshot, focus: float) -> None:
         """§7.1's light-fall: the focused tile casts a soft warm bloom onto
         its neighbours, as though a lamp turned toward it. Bounded to the
@@ -61,6 +54,7 @@ class TileArtworkRenderer:
             bounds,
         )
         snapshot.pop()
+
     def snapshot_texture(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
         """Cover-fit: fill the tile, crop the overflow, never letterbox."""
         texture = self._artwork.texture
@@ -85,8 +79,10 @@ class TileArtworkRenderer:
         # Scrim under the title, so a light image never swallows the text.
         scrim_height = rect.get_height() * 0.55
         scrim = _rect(
-            rect.get_x(), rect.get_y() + rect.get_height() - scrim_height,
-            rect.get_width(), scrim_height,
+            rect.get_x(),
+            rect.get_y() + rect.get_height() - scrim_height,
+            rect.get_width(),
+            scrim_height,
         )
         snapshot.append_linear_gradient(
             scrim,
@@ -193,9 +189,7 @@ class TileArtworkRenderer:
         and quiet, on the generated gradient."""
         initial = (self.tile.title or "?").strip()[:1].upper()
         layout = self.create_pango_layout(initial)
-        layout.set_font_description(
-            font_description(DISPLAY_FAMILY, box.get_height() * 0.95, 700)
-        )
+        layout.set_font_description(font_description(DISPLAY_FAMILY, box.get_height() * 0.95, 700))
         width, height = layout.get_pixel_size()
         snapshot.save()
         snapshot.translate(

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Volume/mute via wpctl (PipeWire), with pactl as a fallback (§8).
+"""Volume, mute and output selection through one ``wpctl`` backend.
 
 Never Gvc (no stable public API) and never a shell — every call here is a
 plain argv, run async via Gio.Subprocess so a slow or hung mixer can't
@@ -12,13 +12,19 @@ from __future__ import annotations
 import re
 import shutil
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
+
+from salon.core import sandbox  # noqa: E402
+from salon.services.audio_types import (  # noqa: E402
+    AudioAvailability,
+    AudioResult,
+    Sink,
+)
 
 _SINK = "@DEFAULT_AUDIO_SINK@"
 _DEFAULT_VOLUME_STEP_PERCENT = 5
@@ -35,19 +41,6 @@ def set_volume_step(percent: int) -> None:
 
 def volume_step() -> int:
     return _volume_step_percent
-
-
-@dataclass(frozen=True, slots=True)
-class Sink:
-    """One output. `id` is WirePlumber's node id, which is *not* stable
-    across reboots — the description is what Settings persists, and the id
-    is re-resolved from it each time (§8: getting audio out of the right
-    HDMI port is a top-three real-world failure, so this has to survive a
-    restart)."""
-
-    id: int
-    description: str
-    is_default: bool
 
 
 # " │  *   59. Speaker [vol: 0.42]" — the star marks the current default.
@@ -86,46 +79,99 @@ def parse_sinks(status: str) -> list[Sink]:
 
 
 def list_sinks(on_result: Callable[[list[Sink]], None]) -> None:
-    if not _have_wpctl():
-        on_result([])
-        return
+    list_sinks_result(lambda _status, sinks: on_result(sinks))
 
-    def on_output(stdout: str | None) -> None:
-        on_result(parse_sinks(stdout) if stdout else [])
 
-    _run_async(["wpctl", "status"], on_output)
+def list_sinks_result(
+    on_result: Callable[[AudioResult, list[Sink]], None],
+) -> None:
+    def on_output(result: AudioResult) -> None:
+        if result.availability is not AudioAvailability.AVAILABLE:
+            on_result(result, [])
+            return
+        sinks = parse_sinks(result.output)
+        if not sinks:
+            availability = (
+                AudioAvailability.NO_OUTPUTS
+                if "Sinks:" in result.output
+                else AudioAvailability.MALFORMED_OUTPUT
+            )
+            on_result(AudioResult(availability), [])
+            return
+        on_result(result, sinks)
+
+    run_wpctl(("status",), on_output)
 
 
 def set_default_sink(sink_id: int, on_done: Callable[[], None] | None = None) -> None:
-    if not _have_wpctl():
-        if on_done is not None:
-            on_done()
-        return
-    _run_async(["wpctl", "set-default", str(sink_id)], lambda _out: on_done() if on_done else None)
+    set_default_sink_result(
+        sink_id, lambda _result: on_done() if on_done is not None else None
+    )
+
+
+def set_default_sink_result(sink_id: int, on_done: Callable[[AudioResult], None]) -> None:
+    run_wpctl(("set-default", str(sink_id)), on_done)
+
 
 # "Volume: 0.45" or "Volume: 0.45 [MUTED]"
 _WPCTL_VOLUME_RE = re.compile(r"Volume:\s*([\d.]+)\s*(\[MUTED\])?")
 
 
 def _have_wpctl() -> bool:
+    if sandbox.in_flatpak():
+        return shutil.which("flatpak-spawn") is not None
     return shutil.which("wpctl") is not None
 
 
+def wpctl_argv(*args: str, sandboxed: bool | None = None) -> list[str]:
+    return [*sandbox.host_prefix(sandboxed), "wpctl", *args]
+
+
 def _run_async(argv: list[str], on_done: Callable[[str | None], None]) -> None:
+    def finish(result: AudioResult) -> None:
+        on_done(result.output if result.availability is AudioAvailability.AVAILABLE else None)
+
+    _run_async_result(argv, finish)
+
+
+def run_wpctl(args: tuple[str, ...], on_done: Callable[[AudioResult], None]) -> None:
+    """Run one mixer operation and report why it was unavailable or failed."""
+    if not _have_wpctl():
+        on_done(AudioResult(AudioAvailability.NOT_INSTALLED, error="wpctl is not installed"))
+        return
+    _run_async_result(wpctl_argv(*args), on_done)
+
+
+def _run_async_result(argv: list[str], on_done: Callable[[AudioResult], None]) -> None:
     try:
-        launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE)
+        launcher = Gio.SubprocessLauncher.new(
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+        )
         subprocess = launcher.spawnv(argv)
-    except GLib.Error:
-        on_done(None)
+    except GLib.Error as error:
+        availability = (
+            AudioAvailability.HOST_EXECUTION_FAILED
+            if sandbox.in_flatpak()
+            else AudioAvailability.PROCESS_FAILED
+        )
+        on_done(AudioResult(availability, error=error.message))
         return
 
     def on_communicated(proc: Gio.Subprocess, result: Gio.AsyncResult) -> None:
         try:
             ok, stdout, _stderr = proc.communicate_utf8_finish(result)
-        except GLib.Error:
-            on_done(None)
+        except GLib.Error as error:
+            on_done(AudioResult(AudioAvailability.PROCESS_FAILED, error=error.message))
             return
-        on_done(stdout if ok else None)
+        if not ok or not proc.get_successful():
+            availability = (
+                AudioAvailability.HOST_EXECUTION_FAILED
+                if sandbox.in_flatpak()
+                else AudioAvailability.PROCESS_FAILED
+            )
+            on_done(AudioResult(availability, error=_stderr or "wpctl failed"))
+            return
+        on_done(AudioResult(AudioAvailability.AVAILABLE, output=stdout or ""))
 
     subprocess.communicate_utf8_async(None, None, on_communicated)
 
@@ -148,16 +194,14 @@ def get_volume(on_result: Callable[[float, bool], None]) -> None:
             return
         on_result(float(match.group(1)), match.group(2) is not None)
 
-    _run_async(["wpctl", "get-volume", _SINK], on_output)
+    _run_async(wpctl_argv("get-volume", _SINK), on_output)
 
 
 def adjust_volume(direction: int, on_done: Callable[[], None] | None = None) -> None:
     """direction: +1 or -1, one configured volume step."""
     sign = "+" if direction > 0 else "-"
     if _have_wpctl():
-        argv = ["wpctl", "set-volume", _SINK, f"{_volume_step_percent}%{sign}"]
-    elif shutil.which("pactl") is not None:
-        argv = ["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{sign}{_volume_step_percent}%"]
+        argv = wpctl_argv("set-volume", _SINK, f"{_volume_step_percent}%{sign}")
     else:
         if on_done is not None:
             on_done()
@@ -176,9 +220,7 @@ def set_volume(level: float, on_done: Callable[[], None] | None = None) -> None:
     """
     level = min(1.0, max(0.0, level))
     if _have_wpctl():
-        argv = ["wpctl", "set-volume", _SINK, f"{level:.3f}"]
-    elif shutil.which("pactl") is not None:
-        argv = ["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{round(level * 100)}%"]
+        argv = wpctl_argv("set-volume", _SINK, f"{level:.3f}")
     else:
         if on_done is not None:
             on_done()
@@ -188,9 +230,7 @@ def set_volume(level: float, on_done: Callable[[], None] | None = None) -> None:
 
 def toggle_mute(on_done: Callable[[], None] | None = None) -> None:
     if _have_wpctl():
-        argv = ["wpctl", "set-mute", _SINK, "toggle"]
-    elif shutil.which("pactl") is not None:
-        argv = ["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"]
+        argv = wpctl_argv("set-mute", _SINK, "toggle")
     else:
         if on_done is not None:
             on_done()

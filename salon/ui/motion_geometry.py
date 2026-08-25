@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """GTK allocation reporting and GSK geometry constructors."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

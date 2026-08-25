@@ -2,7 +2,13 @@
 # ruff: noqa: F403, F405
 """Home viewport clipping and fades."""
 
-from salon.ui.home_shared import *
+from salon.ui.home_shared import (
+    Gdk,
+    Graphene,
+    Gsk,
+    Gtk,
+    _point,
+)
 
 
 class _LayoutViewport(Gtk.Fixed):

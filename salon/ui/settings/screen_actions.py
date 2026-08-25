@@ -2,9 +2,18 @@
 # ruff: noqa: F403, F405
 """Focused settings-screen workflow."""
 
+from salon.core import sandbox
 from salon.services.component import ServiceComponent
 from salon.ui.settings.navigation_policy import is_settings_back, section_target
-from salon.ui.settings.screen_shared import *
+from salon.ui.settings.screen_shared import (
+    _BUMP_DISTANCE_DU,
+    _MAX_NOTES,
+    Action,
+    Gio,
+    GLib,
+    Pane,
+    SettingsRow,
+)
 
 
 class SettingsActionController(ServiceComponent):
@@ -13,18 +22,18 @@ class SettingsActionController(ServiceComponent):
         # inside Settings it means "put me back on the home screen" — no
         # matter how many levels of the tile editor are on the stack.
         if action is Action.MENU:
-            self.close()
+            self._owner.close()
             return
 
-        if self._preview_row is not None:
+        if self._owner._preview_row is not None:
             self._handle_preview(action)
             return
 
         # An open value list owns every button, including BACK, so it is
         # checked before the pane dispatch below rather than inside it.
-        if self._popup.is_open:
-            self._popup.handle_action(action)
-            self._update_legend()
+        if self._owner._popup.is_open:
+            self._owner._popup.handle_action(action)
+            self._owner._update_legend()
             return
 
         if action in (Action.PREV_GROUP, Action.NEXT_GROUP):
@@ -32,63 +41,65 @@ class SettingsActionController(ServiceComponent):
             return
 
         if is_settings_back(action):
-            if self._pane is Pane.PANEL:
-                self._pop()
+            if self._owner._pane is Pane.PANEL:
+                self._owner._pop()
             else:
-                self.close()
+                self._owner.close()
             return
 
-        if self._pane is Pane.SECTIONS:
+        if self._owner._pane is Pane.SECTIONS:
             self._handle_sections(action)
         else:
             self._handle_panel(action)
 
     def _handle_preview(self, action: Action) -> None:
         if action in (Action.BACK, Action.OK):
-            self._leave_preview()
+            self._owner._leave_preview()
             return
         if action in (Action.LEFT, Action.RIGHT):
-            row = self._preview_row
+            row = self._owner._preview_row
             if row is not None and row.adjust(-1 if action is Action.LEFT else 1):
-                self._refresh_preview()
+                self._owner._refresh_preview()
             return
         if action in (Action.UP, Action.DOWN):
-            self._step_preview(-1 if action is Action.UP else 1)
+            self._owner._step_preview(-1 if action is Action.UP else 1)
 
     def _handle_sections(self, action: Action) -> None:
         if action in (Action.UP, Action.DOWN):
-            if self._sections.move(-1 if action is Action.UP else 1):
-                self._set_stack([self._section_panels[self._sections.selected_index]])
-                self._rebuild_panel()
+            if self._owner._sections.move(-1 if action is Action.UP else 1):
+                self._owner._set_stack(
+                    [self._owner._section_panels[self._owner._sections.selected_index]]
+                )
+                self._owner._rebuild_panel()
             else:
-                self._sections.bump(
-                    self._scale.du(_BUMP_DISTANCE_DU) * (1 if action is Action.UP else -1)
+                self._owner._sections.bump(
+                    self._owner._scale.du(_BUMP_DISTANCE_DU) * (1 if action is Action.UP else -1)
                 )
         elif action in (Action.RIGHT, Action.OK):
-            self._enter_section(self._sections.selected_index)
+            self._owner._enter_section(self._owner._sections.selected_index)
         elif action is Action.LEFT:
             # BACK owns navigation history. A horizontal direction should
             # never unexpectedly close a full-screen surface.
-            row = self._sections.selected_row
+            row = self._owner._sections.selected_row
             if row is not None:
                 row.flash_denied()
 
     def _handle_panel(self, action: Action) -> None:
         if action is Action.OK:
-            row = self._panel_list.selected_row
+            row = self._owner._panel_list.selected_row
             if row is not None and row.previewable:
-                self._enter_preview(row)
+                self._owner._enter_preview(row)
                 return
             if row is not None and row.choices:
                 self._open_values(row)
                 return
-            self._panel_list.activate()
+            self._owner._panel_list.activate()
             return
         if action in (Action.UP, Action.DOWN):
             delta = -1 if action is Action.UP else 1
-            if not self._panel_list.move(delta):
-                self._panel_list.bump(self._scale.du(_BUMP_DISTANCE_DU) * -delta)
-            self._update_legend()
+            if not self._owner._panel_list.move(delta):
+                self._owner._panel_list.bump(self._owner._scale.du(_BUMP_DISTANCE_DU) * -delta)
+            self._owner._update_legend()
             return
         if action is Action.RIGHT:
             self._enter_row()
@@ -97,7 +108,7 @@ class SettingsActionController(ServiceComponent):
             # LEFT is deliberately not a second BACK button. Values are
             # chosen from a visible list, so there is no hidden edit for it
             # to perform here either.
-            row = self._panel_list.selected_row
+            row = self._owner._panel_list.selected_row
             if row is not None:
                 row.flash_denied()
 
@@ -110,23 +121,27 @@ class SettingsActionController(ServiceComponent):
         `_set_stack`, so discovery and other temporary work is stopped.
         """
         target = section_target(
-            self._sections.selected_index, len(self._section_panels), action
+            self._owner._sections.selected_index, len(self._owner._section_panels), action
         )
         if target is None:
-            active = self._sections if self._pane is Pane.SECTIONS else self._panel_list
+            active = (
+                self._owner._sections
+                if self._owner._pane is Pane.SECTIONS
+                else self._owner._panel_list
+            )
             row = active.selected_row
             if row is not None:
                 row.flash_denied()
             return
-        self._sections.select(target)
-        self._set_stack([self._section_panels[target]])
-        self._rebuild_panel()
+        self._owner._sections.select(target)
+        self._owner._set_stack([self._owner._section_panels[target]])
+        self._owner._rebuild_panel()
 
     def _activate_panel_row(self, index: int) -> None:
         """A click. Deliberately not the preview strip: entering preview
         hides the whole screen, which is a fine answer to a deliberate OK
         from a remote and a startling one to a mouse click."""
-        row = self._panel_list.rows[index]
+        row = self._owner._panel_list.rows[index]
         if row.choices:
             self._open_values(row)
         else:
@@ -134,47 +149,50 @@ class SettingsActionController(ServiceComponent):
 
     def _enter_row(self) -> None:
         """RIGHT on the selected row: go in, whatever "in" means for it."""
-        row = self._panel_list.selected_row
+        row = self._owner._panel_list.selected_row
         if row is None:
             return
         if row.choices:
             self._open_values(row)
         elif row.enterable:
-            self._panel_list.activate()
+            self._owner._panel_list.activate()
         else:
             # A plain action row, or a read-only one. RIGHT deliberately
             # does not run it — see ActionRow.
             row.flash_denied()
 
     def _open_values(self, row: SettingsRow) -> None:
-        if self._popup.open_for(row):
-            self._update_legend()
+        if self._owner._popup.open_for(row):
+            self._owner._update_legend()
 
     def _on_value_chosen(self) -> None:
         """A value was picked. The row has already written it; everything
         else on the panel may now be describing the old one — a tile's kind
         decides which rows exist below it — so rebuild rather than guess."""
-        self._rebuild_panel()
+        self._owner._rebuild_panel()
 
     def note_action(self, action: Action) -> None:
         """Feed the controller test panel. Only recorded while Settings is
         open, so this costs nothing the rest of the time."""
-        if not self.get_visible():
+        if not self._owner.get_visible():
             return
-        self._context.notes.insert(0, action.value)
-        del self._context.notes[_MAX_NOTES:]
-        if self._stack and self._stack[-1].title == "Controller test":
-            self._rebuild_panel()
+        self._owner._context.notes.insert(0, action.value)
+        del self._owner._context.notes[_MAX_NOTES:]
+        if self._owner._stack and self._owner._stack[-1].title == "Controller test":
+            self._owner._rebuild_panel()
 
     def _open_control_center(self, panel: str) -> None:
         """§1: Salon is not a settings panel — system configuration
         delegates to gnome-control-center."""
+        if not sandbox.capabilities().control_center:
+            self._owner._context.toast("GNOME Settings is unavailable in the Flatpak build.")
+            return
         try:
             Gio.Subprocess.new(
                 ["gnome-control-center", panel],
                 Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE,
             )
         except GLib.Error:
-            self._context.toast(
+            self._owner._context.toast(
                 "GNOME Settings isn't installed, so this can't be opened from here."
             )

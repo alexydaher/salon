@@ -22,14 +22,14 @@ requires Flatpak 1.16 or newer.
 1. Open the [latest release][latest-release].
 2. Download the bundle for your computer:
 
-   * `Salon-v0.2.1-x86_64.flatpak` for most Intel and AMD PCs.
-   * `Salon-v0.2.1-aarch64.flatpak` for ARM64 computers.
+   * `Salon-v0.2.2-x86_64.flatpak` for most Intel and AMD PCs.
+   * `Salon-v0.2.2-aarch64.flatpak` for ARM64 computers.
 
 3. Open the downloaded file with your software installer, or install it from
    a terminal:
 
 ```sh
-flatpak install --user ~/Downloads/Salon-v0.2.1-x86_64.flatpak
+flatpak install --user ~/Downloads/Salon-v0.2.2-x86_64.flatpak
 ```
 
 Use the `aarch64` filename instead on ARM64. If you are unsure which one you
@@ -61,7 +61,7 @@ Each release also includes `SHA256SUMS` if you want to verify the download.
 Run the following from the directory containing both files:
 
 ```sh
-grep 'Salon-v0.2.1-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
+grep 'Salon-v0.2.2-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
 ```
 
 Change the filename to the ARM64 bundle when appropriate.
@@ -167,10 +167,15 @@ sections without changing whether the section list or its panel is active.
 
 * GNOME on Wayland for the full experience and native integration. Salon is
   Wayland-only by design and does not fall back to X11.
-* GTK 4.16 or newer (for CSS `var()`), libadwaita 1.5+, PyGObject, and
-  `libmanette` 0.2+.
-* Optional: `wpctl` (PipeWire) for volume, `cec-client` for HDMI-CEC, Chrome
-  or Chromium for web tiles.
+* Python 3.12+, GTK 4.16.0+ (for CSS `var()`), libadwaita 1.5.0+, GLib/GIO
+  2.80.0+, GdkPixbuf 2.42.0+, libsoup 3.0.0+, PyGObject, and libmanette
+  0.2.0+. The authoritative values live in
+  `build-aux/minimum-versions.ini` and are consumed directly by Meson.
+* Optional runtime capabilities: `wpctl` (PipeWire) for volume, `cec-client`
+  for HDMI-CEC, Chrome or Chromium for web tiles, GNOME Kiosk for the kiosk
+  login session, and Orca for screen-reader use. Missing command-line
+  capabilities are reported in Settings; session and accessibility packages
+  are administrator-installed features rather than build dependencies.
 
 The Flatpak can also be installed on KDE Plasma Wayland. Salon remains a
 GNOME-oriented application, so GNOME-specific session integration is not
@@ -242,12 +247,11 @@ rather than spinning on a black screen forever. Either way the reason is in
 `$XDG_STATE_HOME/salon/salon.log`, because the restart is otherwise the only
 evidence anything happened.
 
-In this session Salon also switches off GNOME's **idle screen lock** for as
-long as it is running, and puts it back on the way out. The screen still
-blanks on idle; it just doesn't come back asking for a password, which is a
-question a gamepad and a TV remote cannot answer. Salon does not do this
-when you start it from Show Applications — a guest in someone's desktop has
-no business changing that.
+Salon never changes GNOME's global idle screen-lock preference. Configure
+screen locking for the dedicated account before using it as an appliance.
+The screen can still blank on idle; disabling password locking for the
+dedicated account prevents it returning to a prompt that a gamepad or TV
+remote cannot answer.
 
 For a gentler version, Settings → System → **Start Salon at login** just
 adds an autostart entry to your normal desktop session.
@@ -344,12 +348,22 @@ The Flatpak release workflow checks every push and pull request with
 `scripts/prepare-flatpak-release.py`. It rejects a change unless the Meson,
 Python, AppStream, changelog, screenshot and manifest versions all agree.
 
-A tag matching that checked version triggers the release build. For example,
-after the 0.2.1 changes have been committed and pushed:
+Regenerate the four release screenshots from the deterministic local
+catalogue after compiling the current tree:
 
 ```sh
-git tag -a v0.2.1 -m "Salon 0.2.1"
-git push origin v0.2.1
+meson devenv -C build python3 scripts/capture-release-screenshots.py
+```
+
+The capture uses a fixed clock, local artwork, isolated settings/cache
+directories, and real in-process GTK rendering at 1280×720.
+
+A tag matching that checked version triggers the release build. For example,
+after the 0.2.2 changes have been committed and pushed:
+
+```sh
+git tag -a v0.2.2 -m "Salon 0.2.2"
+git push origin v0.2.2
 ```
 
 GitHub Actions builds x86-64 and ARM64 Flatpak bundles, pins the Salon source
@@ -371,7 +385,7 @@ For the Flatpak, that log is normally at
 
 ## What hasn't been tested
 
-Salon is 0.2. The gates are green — ruff, `mypy --strict`, 409 tests, and
+Salon is 0.2. The gates are green — ruff, `mypy --strict`, 481 tests, and
 the AppStream and desktop-entry validators, on every push — but green tests
 are not the same as a verified appliance, and some of this needs hardware
 that wasn't attached to the machine it was written on.
@@ -379,10 +393,10 @@ that wasn't attached to the machine it was written on.
 * **HDMI-CEC has never touched a CEC adapter.** The keycode table and the
   `cec-client` line parsing are covered by tests; nothing else about it has
   run against a television.
-* **One controller.** A DualSense over USB enumerates, and the mapping has
-  now been used rather than only reasoned about. No other pad has been
-  tried. If yours is wrong, that's a bug worth filing — the mapping is in
-  `salon/input/gamepad.py`.
+* **One controller, partially.** A DualSense over USB enumerates and a live
+  libmanette sample receives its button/axis events. The full in-app action
+  pass and every other pad remain release-checklist work. If yours is wrong,
+  that's a bug worth filing — the mapping is in `salon/input/gamepad.py`.
 * **A polkit refusal has never been seen.** Suspend, restart and shut down
   have now been invoked and they work. What that cannot exercise is the
   path where logind *says no* and the denial has to arrive back as a

@@ -3,10 +3,18 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
-from salon.ui.home_rows import *
-from salon.ui.home_shared import *
-from salon.ui.home_spring import *
-from salon.ui.home_viewport import *
+from salon.ui.home_rows import _is_browser_launch
+from salon.ui.home_shared import (
+    _RELAUNCH_DELAY_MS,
+    Callable,
+    GLib,
+    LaunchKind,
+    SystemMenuItem,
+    Tile,
+    onscreen_keyboard_available,
+    power,
+    recents,
+)
 
 
 class HomeLaunchController(ServiceComponent):
@@ -25,9 +33,9 @@ class HomeLaunchController(ServiceComponent):
         does not, and can't — its events go to the focused window — which is
         why the toast at launch names the controller button.
         """
-        title = self._launcher.child_title or "the app"
-        if self._launcher.close_child():
-            self._toast(f"Closing {title}…")
+        title = self._owner._launcher.child_title or "the app"
+        if self._owner._launcher.close_child():
+            self._owner._toast(f"Closing {title}…")
             return
         # No handle on it: a .desktop launch whose pid was a wrapper that
         # exited immediately (§11). Saying so beats a button that silently
@@ -35,13 +43,13 @@ class HomeLaunchController(ServiceComponent):
         # because nothing will ever report that app going away and MENU
         # would otherwise keep answering "I can't close that" long after the
         # user closed it themselves.
-        self._pointer_mode = False
-        self._child_active = False
-        self._launcher.abandon()
-        self._toast(f"Salon can't close {title} — use the app's own way out.")
+        self._owner._pointer_mode = False
+        self._owner._child_active = False
+        self._owner._launcher.abandon()
+        self._owner._toast(f"Salon can't close {title} — use the app's own way out.")
 
     def _launch_focused(self) -> None:
-        tile = self._catalog.tile_at(self._focus.row, self._focus.col)
+        tile = self._owner._catalog.tile_at(self._owner._focus.row, self._owner._focus.col)
         if tile is not None:
             self._launch_tile(tile)
 
@@ -56,11 +64,11 @@ class HomeLaunchController(ServiceComponent):
         # the launching overlay is stacked *below* search and the all-apps
         # grid, so leaving one of those up hides the only feedback that
         # anything is happening at all.
-        if self._apps_grid.get_visible():
-            self._apps_grid.close()
-        if self._search.get_visible():
-            self._search.close()
-        if self._launcher.has_child:
+        if self._owner._apps_grid.get_visible():
+            self._owner._apps_grid.close()
+        if self._owner._search.get_visible():
+            self._owner._search.close()
+        if self._owner._launcher.has_child:
             # Something is already out there. Only the phone can reach this
             # — on the television the launcher is behind the app and nobody
             # can press OK on a tile they cannot see — and launching over
@@ -70,18 +78,18 @@ class HomeLaunchController(ServiceComponent):
             # nothing tracking it.
             #
             # So: close what is there, and open this once it has gone.
-            self._pending_launch = tile
+            self._owner._pending_launch = tile
             self._return_from_child()
             return
-        self._launcher.launch(tile)
+        self._owner._launcher.launch(tile)
 
     def _handle_builtin(self, target: str) -> None:
         if target == "settings":
-            self._open_settings()
+            self._owner._open_settings()
         elif target == "search":
-            self._open_search()
+            self._owner._open_search()
         else:
-            self._toast(f"There's nothing behind the {target} tile yet.")
+            self._owner._toast(f"There's nothing behind the {target} tile yet.")
 
     def _build_system_menu_items(self) -> list[SystemMenuItem]:
         # The reachable escape hatch on a fullscreen, keyboard-less kiosk:
@@ -94,15 +102,15 @@ class HomeLaunchController(ServiceComponent):
         # on running, which is indistinguishable from a button that isn't
         # wired up. Now the refusal is named.
         def fail(what: str) -> Callable[[str], None]:
-            return lambda message: self._toast(f"{what} didn't happen: {message}")
+            return lambda message: self._owner._toast(f"{what} didn't happen: {message}")
 
         items: list[SystemMenuItem] = [
-            SystemMenuItem("Settings", lambda: self._open_settings()),
+            SystemMenuItem("Settings", lambda: self._owner._open_settings()),
             # Named for its state, because this is the only place that says
             # whether the remote is running at all.
             SystemMenuItem(
-                "Phone remote" if self.phone_remote_running() else "Connect a phone",
-                self._open_phone_pairing,
+                "Phone remote" if self._owner.phone_remote_running() else "Connect a phone",
+                self._owner._open_phone_pairing,
             ),
         ]
         if power.can_suspend():
@@ -123,72 +131,77 @@ class HomeLaunchController(ServiceComponent):
             items.append(
                 SystemMenuItem("Shut Down", lambda: power.power_off(fail("Shut down")), danger=True)
             )
-        items.append(SystemMenuItem("About Salon", lambda: self._open_settings("about")))
-        items.append(SystemMenuItem("Exit Salon", self._application.quit))
+        items.append(SystemMenuItem("About Salon", lambda: self._owner._open_settings("about")))
+        items.append(SystemMenuItem("Exit Salon", self._owner._application.quit))
         items.append(SystemMenuItem("Cancel", lambda: None))
         return items
 
     def _on_launch_started(self, tile: Tile) -> None:
-        self._current_launch_is_browser = _is_browser_launch(tile)
+        self._owner._current_launch_is_browser = _is_browser_launch(tile)
         # Resolved from the tile rather than read off the focused widget:
         # a launch can come from a search result, which has no counterpart
         # in the home rows at all. The resolver caches, so this is cheap.
-        artwork = self._artwork.resolve(tile, icon_size=round(self._metrics.height * 0.5))
-        self._launching_overlay.show_for(
+        artwork = self._owner._artwork.resolve(
+            tile, icon_size=round(self._owner._metrics.height * 0.5)
+        )
+        self._owner._launching_overlay.show_for(
             tile,
             accent=artwork.accent,
             hint=f"{self._close_hint()} to close it and come back to Salon",
         )
-        recents.push_recent(self._settings, tile.id)
-        self._refresh_catalog(preserve_focus=True)
-        self._publish_remote_state()
+        recents.push_recent(self._owner._settings, tile.id)
+        self._owner._refresh_catalog(preserve_focus=True)
+        self._owner._publish_remote_state()
 
     def _on_child_focused(self) -> None:
-        self._launching_overlay.hide()
-        tile_title = self._launcher.child_title or "the app"
+        self._owner._launching_overlay.hide()
+        tile_title = self._owner._launcher.child_title or "the app"
         # On by default, but still a preference: the RemoteDesktop grant is
         # taken once at startup and restored silently after that (see
         # _prewarm_pointer_session), which is what made it affordable to
         # default on. Turning it off in Settings → Input leaves a browser
         # tile navigable only by whatever the site itself offers.
-        if self._current_launch_is_browser and self._settings.get_boolean("gamepad-pointer"):
-            self._pointer_mode = True
-            self._start_pointer_session()
+        if self._owner._current_launch_is_browser and self._owner._settings.get_boolean(
+            "gamepad-pointer"
+        ):
+            self._owner._pointer_mode = True
+            self._owner._start_pointer_session()
             controls = "Right stick = cursor, A = click"
             if onscreen_keyboard_available():
                 controls += ", Y = keyboard"
-            self._toast(
-                controls + ", "
-                + ("START or phone Menu" if self._pairing.connected else "START")
+            self._owner._toast(
+                controls
+                + ", "
+                + ("START or phone Menu" if self._owner._pairing.connected else "START")
                 + " = close and come back"
             )
         else:
-            self._child_active = True
-            self._toast(f"{self._close_hint()} to close {tile_title} and come back.")
+            self._owner._child_active = True
+            self._owner._toast(f"{self._close_hint()} to close {tile_title} and come back.")
         # The child taking focus arrives asynchronously, long after the
         # press that launched it — so without this the phone's header still
         # said "home" while the application was on the television, and only
         # caught up at the *next* button press. It is the one line on the
         # phone that answers "where am I", and it was always one event
         # behind.
-        self._publish_remote_state()
+        self._owner._publish_remote_state()
 
     def _on_launch_timed_out(self) -> None:
-        self._launching_overlay.show_timed_out()
-        self._publish_remote_state()
+        self._owner._launching_overlay.show_timed_out()
+        self._owner._publish_remote_state()
 
     def _on_returned(self) -> None:
-        self._launching_overlay.hide()
+        self._owner._launching_overlay.hide()
         # Salon's own way back in. Under GNOME Shell this rides on top of
         # the Shell's window-close animation; under GNOME Kiosk, whose
         # compositor hides a destroyed window with no transition at all, it
         # is the entire thing standing between an application and the home
         # screen.
-        self._return_fade.play()
-        self._pointer_mode = False
-        self._child_active = False
-        self._publish_remote_state()
-        pending, self._pending_launch = self._pending_launch, None
+        self._owner._return_fade.play()
+        self._owner._pointer_mode = False
+        self._owner._child_active = False
+        self._owner._publish_remote_state()
+        pending, self._owner._pending_launch = self._owner._pending_launch, None
         if pending is not None:
             # A tile tapped on the phone while another app was in front. The
             # old one has just gone; give the compositor a moment to hand
@@ -206,9 +219,9 @@ class HomeLaunchController(ServiceComponent):
         connected. A phone in someone's hand has a Menu button of its own,
         and telling them to press START on a controller they may not own is
         the difference between a way out and a trapped television."""
-        if self._pairing.connected:
+        if self._owner._pairing.connected:
             return "Press START on the controller, or Menu on your phone,"
         return "Press START on the controller"
 
     def _on_launch_error(self, message: str) -> None:
-        self._toast(message)
+        self._owner._toast(message)

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Deterministic local and cached artwork paths."""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,6 +11,9 @@ from salon.core import siteicon
 from salon.core.model import Tile
 
 _ARTWORK_EXTENSIONS = ("jpg", "jpeg", "png", "webp")
+_MAX_CACHE_BYTES = 256 * 1024 * 1024
+_MAX_CACHE_ENTRIES = 512
+
 
 def artwork_drop_dir() -> Path:
     data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
@@ -42,6 +46,8 @@ def site_icon_miss_path(url: str) -> Path:
     config save and every artwork drop.
     """
     return site_icon_path(url).with_suffix(".miss")
+
+
 def drop_folder_path(tile_id: str) -> Path | None:
     drop_dir = artwork_drop_dir()
     for extension in _ARTWORK_EXTENSIONS:
@@ -54,6 +60,35 @@ def drop_folder_path(tile_id: str) -> Path | None:
 def cached_remote_path(url: str) -> Path:
     digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
     return artwork_cache_dir() / f"{digest}.png"
+
+
+def prune_artwork_cache(
+    *, max_bytes: int = _MAX_CACHE_BYTES, max_entries: int = _MAX_CACHE_ENTRIES
+) -> None:
+    """Bound only Salon-generated cache files, oldest first."""
+    root = artwork_cache_dir()
+    try:
+        files = [path for path in root.rglob("*") if path.is_file()]
+    except OSError:
+        return
+    entries: list[tuple[float, int, Path]] = []
+    for path in files:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        entries.append((stat.st_mtime, stat.st_size, path))
+    total = sum(size for _mtime, size, _path in entries)
+    count = len(entries)
+    for _mtime, size, path in sorted(entries):
+        if total <= max_bytes and count <= max_entries:
+            break
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        total -= size
+        count -= 1
 
 
 def local_artwork_path(tile: Tile) -> Path | None:

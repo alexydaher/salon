@@ -34,7 +34,7 @@ _BUMP_DISTANCE_DU = 26.0
 _KEY_CELL_DU = 64.0
 
 
-class SearchOverlay(Gtk.Box, motion.FadesIn):
+class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
     def __init__(
         self,
         scale: Scale,
@@ -45,7 +45,6 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         on_close: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
-        self._result_controller = SearchResultsController(self)
         self._init_fade()
         self.add_css_class("salon-search")
         self.set_visible(False)
@@ -93,7 +92,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
             scale,
             pairing,
             on_key_pressed=self._press_key,
-            on_text_changed=self._result_controller._refresh_results,
+            on_text_changed=self._refresh_results,
             cell_du=_KEY_CELL_DU,
         )
         self._body.append(self._keyboard)
@@ -101,9 +100,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         self._results_viewport = Gtk.Fixed()
         self._results_viewport.set_overflow(Gtk.Overflow.HIDDEN)
         self._results_viewport.set_accessible_role(Gtk.AccessibleRole.GRID)
-        self._results_viewport.update_property(
-            [Gtk.AccessibleProperty.LABEL], ["Search results"]
-        )
+        self._results_viewport.update_property([Gtk.AccessibleProperty.LABEL], ["Search results"])
         # Wrapped, and reporting a zero minimum: a Gtk.Fixed measures to fit
         # its children, so a long result list would ask to be taller than
         # the window, be allocated it, and then scroll nowhere because every
@@ -111,7 +108,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         # had; same fix.
         self._results_host = SizeReporter(
             self._results_viewport,
-            self._result_controller._on_results_resized,
+            self._on_results_resized,
             propagate_minimum=False,
         )
         self._results_host.set_hexpand(True)
@@ -135,11 +132,11 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         self._pane = Pane.KEYBOARD
         self.set_visible(True)
         self._begin_fade()
-        self._result_controller._refresh_results()
+        self._refresh_results()
         # Scanning every .desktop file on the system is far too slow for the
         # frame clock, so results start as catalogue-only and widen when the
         # scan lands (§10: no blocking I/O on the main loop).
-        appinfo.list_installed_async(self._result_controller._on_installed_scanned)
+        appinfo.list_installed_async(self._on_installed_scanned)
 
     def close(self) -> None:
         self.set_visible(False)
@@ -149,7 +146,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         self._scale = scale
         self._keyboard.set_scale(scale)
         self._apply_scale(scale)
-        self._result_controller._rebuild_result_widgets()
+        self._rebuild_result_widgets()
 
     def _apply_scale(self, scale: Scale) -> None:
         margin = scale.px(
@@ -168,7 +165,6 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         self._keyboard.set_hover_enabled(active)
 
     # --- results ---------------------------------------------------------
-
 
     # --- input -----------------------------------------------------------
 
@@ -189,20 +185,20 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
 
     def _handle_keyboard_direction(self, action: Action) -> None:
         if self._keyboard.move(action):
-            self._result_controller._update_selection()
+            self._update_selection()
             return
         if action is Action.RIGHT and self._results:
             self._pane = Pane.RESULTS
-            self._result_controller._update_selection()
+            self._update_selection()
 
     def _handle_results_direction(self, action: Action) -> None:
         change = self._results_focus.handle(action)
         if change.moved:
-            self._result_controller._update_selection()
+            self._update_selection()
             return
         if change.bump is Bump.LEFT:
             self._pane = Pane.KEYBOARD
-            self._result_controller._update_selection()
+            self._update_selection()
             return
         if change.bump is not Bump.NONE:
             distance = self._scale.du(_BUMP_DISTANCE_DU)
@@ -216,16 +212,16 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
         if result.done:
             if self._results:
                 self._pane = Pane.RESULTS
-                self._result_controller._update_selection()
+                self._update_selection()
             return
         if result.changed:
             self._results_focus = FocusModel([])
-            self._result_controller._refresh_results()
+            self._refresh_results()
         else:
-            self._result_controller._update_selection()
+            self._update_selection()
 
     def _launch_focused(self) -> None:
-        index = self._result_controller._focused_index()
+        index = self._focused_index()
         if 0 <= index < len(self._results):
             tile = self._results[index]
             self.close()
@@ -236,7 +232,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
             return
         self._pane = Pane.RESULTS
         self._results_focus.jump_to(*divmod(index, RESULT_COLUMNS))
-        self._result_controller._update_selection()
+        self._update_selection()
         self._launch_focused()
 
     def _hover_result(self, index: int) -> None:
@@ -247,4 +243,4 @@ class SearchOverlay(Gtk.Box, motion.FadesIn):
             return
         self._pane = Pane.RESULTS
         self._results_focus.jump_to(*position)
-        self._result_controller._update_selection()
+        self._update_selection()

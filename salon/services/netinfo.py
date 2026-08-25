@@ -153,9 +153,7 @@ class NetworkWatcher:
     identical updates is work nobody asked for.
     """
 
-    def __init__(
-        self, on_change: Callable[[NetworkStatus], None], *, interval_s: int = 30
-    ) -> None:
+    def __init__(self, on_change: Callable[[NetworkStatus], None], *, interval_s: int = 30) -> None:
         self._on_change = on_change
         self._interval_s = interval_s
         self._last: NetworkStatus | None = None

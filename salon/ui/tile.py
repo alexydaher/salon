@@ -52,7 +52,7 @@ from salon.ui.tile_geometry import (  # noqa: E402
 from salon.ui.tile_text_renderer import TileTextRenderer  # noqa: E402
 
 
-class TileWidget(Gtk.Widget):
+class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
     """One tile. Focus drives a single 0..1 spring value; scale, bloom
     intensity, ring opacity and the brightness lift are all derived from it,
     so they can never disagree with each other mid-animation."""
@@ -106,8 +106,6 @@ class TileWidget(Gtk.Widget):
         self._subtitle_font = font_description(
             BODY_FAMILY, scale.du(subtitle.size_du), subtitle.weight
         )
-        self._art_renderer = TileArtworkRenderer(self)
-        self._text_renderer = TileTextRenderer(self)
 
     @property
     def artwork_accent(self) -> Gdk.RGBA:
@@ -159,8 +157,7 @@ class TileWidget(Gtk.Widget):
         """
         bleed = self._metrics.bleed
         return (
-            bleed <= x <= bleed + self._metrics.width
-            and bleed <= y <= bleed + self._metrics.height
+            bleed <= x <= bleed + self._metrics.width and bleed <= y <= bleed + self._metrics.height
         )
 
     # --- focus animation -------------------------------------------------
@@ -196,7 +193,7 @@ class TileWidget(Gtk.Widget):
         focus = max(0.0, min(1.0, self._focus_amount))
 
         if focus > 0.01:
-            self._art_renderer.snapshot_bloom(snapshot, focus)
+            self.snapshot_bloom(snapshot, focus)
 
         # Scale about the visual box's own centre. Gsk.Transform is
         # immutable with chaining semantics in PyGObject (§11) — every step
@@ -214,7 +211,6 @@ class TileWidget(Gtk.Widget):
         self._snapshot_card(snapshot, focus)
         snapshot.restore()
 
-
     def _snapshot_card(self, snapshot: Gtk.Snapshot, focus: float) -> None:
         metrics = self._metrics
         rect = _rect(metrics.bleed, metrics.bleed, metrics.width, metrics.height)
@@ -222,11 +218,11 @@ class TileWidget(Gtk.Widget):
 
         snapshot.push_rounded_clip(rounded)
         if self._artwork.texture is not None:
-            self._art_renderer.snapshot_texture(snapshot, rect)
+            self.snapshot_texture(snapshot, rect)
         else:
-            self._art_renderer.snapshot_generated(snapshot, rect)
-        self._text_renderer.snapshot_vignette(snapshot, rect)
-        self._text_renderer.snapshot_labels(snapshot, rect)
+            self.snapshot_generated(snapshot, rect)
+        self.snapshot_vignette(snapshot, rect)
+        self.snapshot_labels(snapshot, rect)
         if focus > 0.01:
             # A brightness lift, not just an outline — the focused tile is
             # meant to read as lit, and this is what carries that when

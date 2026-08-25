@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Base row widget for Salon's controller-friendly settings lists."""
 from __future__ import annotations
 
 import gi
@@ -13,6 +12,7 @@ from salon.ui.scale import Scale  # noqa: E402
 _DENY_FLASH_MS = 220
 _DROPDOWN_GLYPH = "\u2304"
 _DROPDOWN_ALPHA = {True: "70%", False: "22%"}
+
 
 class SettingsRow(Gtk.Button):
     """Label on the left, current value on the right.
@@ -29,6 +29,8 @@ class SettingsRow(Gtk.Button):
         danger: bool = False,
         icon_name: str = "",
         preview: bool = False,
+        available: bool = True,
+        unavailable_reason: str = "",
     ) -> None:
         super().__init__()
         self.add_css_class("salon-settings-row")
@@ -43,6 +45,8 @@ class SettingsRow(Gtk.Button):
         self._raw_value = ""
         self._is_selected = False
         self._deny_source = 0
+        self.available = available
+        self.unavailable_reason = ""
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.set_child(box)
@@ -83,6 +87,8 @@ class SettingsRow(Gtk.Button):
         box.append(self._value)
 
         self._box = box
+        if not available:
+            self.make_unavailable(unavailable_reason)
 
     # --- appearance ------------------------------------------------------
 
@@ -182,7 +188,16 @@ class SettingsRow(Gtk.Button):
 
     @property
     def selectable(self) -> bool:
-        return True
+        return self.available
+
+    def make_unavailable(self, reason: str) -> SettingsRow:
+        self.available = False
+        self.unavailable_reason = reason
+        self.set_sensitive(False)
+        self.add_css_class("unavailable")
+        self.set_detail(reason)
+        self.set_value("Unavailable")
+        return self
 
     @property
     def choices(self) -> list[tuple[str, str]]:

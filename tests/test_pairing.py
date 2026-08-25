@@ -71,6 +71,20 @@ def _send_full(port: int, path: str, payload: dict) -> tuple[int, bytes]:
         return int(error.code), error.read()
 
 
+def _send_bytes(port: int, path: str, payload: bytes) -> tuple[int, bytes]:
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return int(response.status), response.read()
+    except urllib.error.HTTPError as error:
+        return int(error.code), error.read()
+
+
 def _get(port: int, path: str, **params: str) -> tuple[int, bytes]:
     query = f"?{urllib.parse.urlencode(params)}" if params else ""
     try:
@@ -128,6 +142,19 @@ def server():
 
 
 # --- getting in -----------------------------------------------------------
+
+
+def test_oversized_request_body_is_rejected_before_json_decode(server: PairingServer) -> None:
+    port = server._port  # noqa: SLF001
+    status, body = _run(server, lambda: _send_bytes(port, "/connect", b"x" * (64 * 1024 + 1)))
+    assert status == 413
+    assert b"too large" in body.lower()
+
+
+def test_request_body_at_limit_is_not_rejected_as_too_large(server: PairingServer) -> None:
+    port = server._port  # noqa: SLF001
+    status, _body = _run(server, lambda: _send_bytes(port, "/connect", b" " * (64 * 1024)))
+    assert status != 413
 
 
 def test_the_right_code_is_exchanged_for_the_session_token(server: PairingServer) -> None:

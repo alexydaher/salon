@@ -1,15 +1,35 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F403, F405
 """Compatibility facade for launching and child-window lifecycle."""
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
 
-from salon.services.component import component_attribute
-from salon.services.launcher_execution import LauncherExecution
-from salon.services.launcher_lifecycle import ChildWindowLifecycle
-from salon.services.launcher_shared import *
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gio, Gtk  # noqa: E402
+
+from salon.core.model import Tile  # noqa: E402
+from salon.services.launcher_execution import LauncherExecution  # noqa: E402
+from salon.services.launcher_lifecycle import ChildWindowLifecycle  # noqa: E402
+from salon.services.launcher_shared import (  # noqa: E402
+    _DEFAULT_IDLE_INHIBIT_SECONDS,
+    BrowserAvailability,
+    BrowserResolution,
+    detect_browser,
+    parse_browser_command,
+    preflight_browser,
+)
+
+__all__ = [
+    "BrowserAvailability",
+    "BrowserResolution",
+    "LauncherService",
+    "detect_browser",
+    "parse_browser_command",
+    "preflight_browser",
+]
 
 
 class LauncherService:
@@ -18,6 +38,8 @@ class LauncherService:
         application: Gtk.Application,
         idle_inhibit_seconds: int = _DEFAULT_IDLE_INHIBIT_SECONDS,
         browser_scale_factor: float = 1.0,
+        browser_command: Callable[[], tuple[str, ...]] | None = None,
+        browser_extra_flags: Callable[[], tuple[str, ...]] | None = None,
     ) -> None:
         self._application = application
         self._idle_inhibit_seconds = idle_inhibit_seconds
@@ -25,6 +47,8 @@ class LauncherService:
         # for a desktop monitor; ui/home.py updates it if the window moves
         # to a monitor with a different height.
         self.browser_scale_factor = browser_scale_factor
+        self._browser_command = browser_command or detect_browser
+        self._browser_extra_flags = browser_extra_flags or (lambda: ())
 
         self._subprocess: Gio.Subprocess | None = None
         # Set for .desktop launches, where there is no Gio.Subprocess to
@@ -51,10 +75,35 @@ class LauncherService:
         self.on_returned: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
 
-        self._components = (LauncherExecution(self), ChildWindowLifecycle(self))
+        self._execution = LauncherExecution(self)
+        self._lifecycle = ChildWindowLifecycle(self)
 
-    def __getattr__(self, name: str) -> Any:
-        return component_attribute(self._components, name)
+    def launch(self, tile: Tile) -> None:
+        self._execution.launch(tile)
+
+    def cancel(self) -> None:
+        self._execution.cancel()
+
+    def close_child(self) -> bool:
+        return self._lifecycle.close_child()
+
+    def notify_window_active(self, is_active: bool) -> None:
+        self._lifecycle.notify_window_active(is_active)
+
+    # Component-to-component calls are deliberately enumerated here. This
+    # keeps the facade's supported surface reviewable without changing the
+    # state owner during this migration stage.
+    def _start_idle_inhibit(self) -> None:
+        self._lifecycle._start_idle_inhibit()  # noqa: SLF001
+
+    def _on_overlay_timeout(self) -> bool:
+        return self._lifecycle._on_overlay_timeout()  # noqa: SLF001
+
+    def _on_subprocess_exited(self, proc: Gio.Subprocess, result: Gio.AsyncResult) -> None:
+        self._lifecycle._on_subprocess_exited(proc, result)  # noqa: SLF001
+
+    def _finish_return(self) -> None:
+        self._lifecycle._finish_return()  # noqa: SLF001
 
     @property
     def child_title(self) -> str | None:

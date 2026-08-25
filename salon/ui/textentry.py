@@ -104,9 +104,7 @@ class TextEntryOverlay(Gtk.Box):
     def set_pointer_active(self, active: bool) -> None:
         self._keyboard.set_hover_enabled(active)
 
-    def open(
-        self, *, title: str, initial: str, on_done: Callable[[str | None], None]
-    ) -> None:
+    def open(self, *, title: str, initial: str, on_done: Callable[[str | None], None]) -> None:
         self._on_done = on_done
         self._title_label.set_label(title)
         self._keyboard.reset(initial)

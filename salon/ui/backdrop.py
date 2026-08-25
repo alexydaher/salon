@@ -30,7 +30,7 @@ _DEBOUNCE_MS = 150
 _WALLPAPER_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".avif")
 
 
-class Backdrop(Gtk.Widget):
+class Backdrop(Gtk.Widget, BackdropRenderer):
     def __init__(self) -> None:
         super().__init__()
         self.set_hexpand(True)
@@ -67,7 +67,6 @@ class Backdrop(Gtk.Widget):
         target = Adw.CallbackAnimationTarget.new(self._on_tick)
         self._animation = Adw.TimedAnimation.new(self, 0.0, 1.0, _FADE_MS, target)
         self._animation.set_easing(Adw.Easing.EASE_OUT_CUBIC)
-        self._renderer = BackdropRenderer(self)
 
     # --- wallpaper -------------------------------------------------------
 
@@ -167,7 +166,7 @@ class Backdrop(Gtk.Widget):
         self._to_art = None
         if source is not None:
             paintable, full_bleed = source
-            blurred = self._renderer.blurred(paintable)
+            blurred = self.blurred(paintable)
             if blurred is not None:
                 self._to_art = Blurred(texture=blurred, full_bleed=full_bleed)
         self._animation.set_duration(motion.duration_ms(_FADE_MS))
@@ -188,4 +187,4 @@ class Backdrop(Gtk.Widget):
         self.queue_draw()
 
     def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
-        self._renderer.snapshot(snapshot)
+        BackdropRenderer.snapshot(self, snapshot)

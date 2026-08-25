@@ -24,9 +24,14 @@ different waits:
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import signal
+import subprocess
+import threading
 from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
 
 import gi
 
@@ -64,7 +69,35 @@ _CLOSE_GRACE_SECONDS = 4
 _CLOSE_POLL_MS = 400
 
 
-def detect_browser() -> tuple[str, ...]:
+class BrowserAvailability(StrEnum):
+    AVAILABLE = "available"
+    NOT_INSTALLED = "not-installed"
+    HOST_EXECUTION_FAILED = "host-execution-failed"
+
+
+@dataclass(frozen=True, slots=True)
+class BrowserResolution:
+    availability: BrowserAvailability
+    argv: tuple[str, ...] = ()
+    error: str = ""
+
+
+def parse_browser_command(value: str) -> tuple[str, ...]:
+    """Parse a user command without invoking a shell."""
+    try:
+        return tuple(shlex.split(value))
+    except ValueError as exc:
+        raise ValueError(f"Invalid browser command: {exc}") from exc
+
+
+def detect_browser(*, sandboxed: bool | None = None) -> tuple[str, ...]:
+    if sandboxed is None:
+        sandboxed = sandbox.in_flatpak()
+    if sandboxed:
+        # This argv is itself run through flatpak-spawn --host. The host's
+        # Flatpak installation is the only browser source we can name
+        # without pretending the sandbox can inspect the host PATH.
+        return ("flatpak", "run", "com.google.Chrome")
     for name in _BROWSER_CANDIDATES:
         path = shutil.which(name)
         if path:
@@ -73,6 +106,58 @@ def detect_browser() -> tuple[str, ...]:
     if shutil.which("flatpak"):
         return ("flatpak", "run", "com.google.Chrome")
     return ()
+
+
+def resolve_browser(*, sandboxed: bool | None = None) -> BrowserResolution:
+    """Probe browser availability, including the host side of a Flatpak."""
+    if sandboxed is None:
+        sandboxed = sandbox.in_flatpak()
+    if not sandboxed:
+        argv = detect_browser(sandboxed=False)
+        availability = BrowserAvailability.AVAILABLE if argv else BrowserAvailability.NOT_INSTALLED
+        return BrowserResolution(availability, argv)
+    if shutil.which("flatpak-spawn") is None:
+        return BrowserResolution(
+            BrowserAvailability.HOST_EXECUTION_FAILED,
+            error="flatpak-spawn is not available",
+        )
+    try:
+        for candidate in _BROWSER_CANDIDATES:
+            result = subprocess.run(
+                [*sandbox.HOST_SPAWN, "which", candidate],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return BrowserResolution(BrowserAvailability.AVAILABLE, (result.stdout.strip(),))
+        result = subprocess.run(
+            [*sandbox.HOST_SPAWN, "flatpak", "info", "com.google.Chrome"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return BrowserResolution(BrowserAvailability.HOST_EXECUTION_FAILED, error=str(error))
+    if result.returncode == 0:
+        return BrowserResolution(
+            BrowserAvailability.AVAILABLE, ("flatpak", "run", "com.google.Chrome")
+        )
+    return BrowserResolution(BrowserAvailability.NOT_INSTALLED)
+
+
+def preflight_browser(
+    on_result: Callable[[BrowserResolution], None], *, sandboxed: bool | None = None
+) -> None:
+    """Resolve without blocking GTK's main loop and return on that loop."""
+
+    def worker() -> None:
+        result = resolve_browser(sandboxed=sandboxed)
+        GLib.idle_add(on_result, result)
+
+    threading.Thread(target=worker, name="salon-browser-preflight", daemon=True).start()
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

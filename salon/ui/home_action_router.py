@@ -3,25 +3,31 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
-from salon.ui.home_rows import *
-from salon.ui.home_shared import *
-from salon.ui.home_spring import *
-from salon.ui.home_viewport import *
+from salon.ui.home_shared import (
+    _DIRECTIONS,
+    Action,
+    Bump,
+    audio,
+    onscreen_keyboard_available,
+    onscreen_keyboard_enabled,
+    set_onscreen_keyboard_enabled,
+    time,
+)
 
 
 class HomeActionRouter(ServiceComponent):
     def _dispatch_action(self, action: Action) -> None:
-        self._last_input = time.monotonic()
-        if self._screensaver.showing:
+        self._owner._last_input = time.monotonic()
+        if self._owner._screensaver.showing:
             # Swallowed, not acted on. Someone reaching for the remote to
             # see the clock must not launch Netflix by doing so.
-            self._screensaver.hide()
+            self._owner._screensaver.hide()
             return
 
-        if self._onboarding.get_visible():
+        if self._owner._onboarding.get_visible():
             # Ahead of even MENU: the introduction is what explains that
             # MENU exists, and there is nothing behind it worth reaching.
-            self._onboarding.handle_action(action)
+            self._owner._onboarding.handle_action(action)
             return
 
         if action is Action.MENU:
@@ -30,7 +36,11 @@ class HomeActionRouter(ServiceComponent):
             # Salon on a fullscreen, keyboard-less kiosk, so it must never
             # be one of the things a stuck launch or an active pointer
             # session can swallow.
-            if self._child_active or self._pointer_mode or self._launcher.has_child:
+            if (
+                self._owner._child_active
+                or self._owner._pointer_mode
+                or self._owner._launcher.has_child
+            ):
                 # ...and while something else is in front of Salon it means
                 # "bring me home", because a menu drawn in Salon's own
                 # window would appear underneath Netflix where nobody can
@@ -47,38 +57,38 @@ class HomeActionRouter(ServiceComponent):
                 # swallowing the next press to close itself again, and
                 # looking for all the world like a button that works every
                 # other time.
-                self._return_from_child()
+                self._owner._return_from_child()
                 return
-            if self._text_entry.get_visible():
+            if self._owner._text_entry.get_visible():
                 # Cancel the edit before closing Settings underneath it.
                 # START remains the global escape hatch even while the
                 # on-screen keyboard is open.
-                self._text_entry.handle_action(Action.BACK)
-                if self._settings_screen.get_visible():
-                    self._settings_screen.handle_action(action)
+                self._owner._text_entry.handle_action(Action.BACK)
+                if self._owner._settings_screen.get_visible():
+                    self._owner._settings_screen.handle_action(action)
                 return
-            if self._settings_screen.get_visible():
-                self._settings_screen.handle_action(action)
+            if self._owner._settings_screen.get_visible():
+                self._owner._settings_screen.handle_action(action)
                 return
-            if self._phone_pairing.get_visible():
+            if self._owner._phone_pairing.get_visible():
                 # It is drawn above the system menu, so opening one behind
                 # it would be a menu nobody can see taking every press.
-                self._phone_pairing.close()
+                self._owner._phone_pairing.close()
                 return
-            if self._system_menu.get_visible():
-                self._system_menu.hide()
+            if self._owner._system_menu.get_visible():
+                self._owner._system_menu.hide()
             else:
-                self._show_system_menu()
+                self._owner._show_system_menu()
             return
 
         # Above the menus it is opened from, and below MENU, which closes
         # everything: a screen showing a code is not a place MENU should
         # stop working.
-        if self._phone_pairing.get_visible():
-            self._phone_pairing.handle_action(action)
+        if self._owner._phone_pairing.get_visible():
+            self._owner._phone_pairing.handle_action(action)
             return
 
-        for menu in (self._system_menu, self._tile_menu):
+        for menu in (self._owner._system_menu, self._owner._tile_menu):
             if not menu.get_visible():
                 continue
             if action is Action.UP:
@@ -93,24 +103,24 @@ class HomeActionRouter(ServiceComponent):
 
         # Innermost first: text entry is opened *by* Settings, on top of
         # it, so it has to be offered the action before Settings is.
-        if self._text_entry.get_visible():
-            self._text_entry.handle_action(action)
+        if self._owner._text_entry.get_visible():
+            self._owner._text_entry.handle_action(action)
             return
 
-        if self._settings_screen.get_visible():
-            self._settings_screen.note_action(action)
-            self._settings_screen.handle_action(action)
+        if self._owner._settings_screen.get_visible():
+            self._owner._settings_screen.note_action(action)
+            self._owner._settings_screen.handle_action(action)
             return
 
-        if self._apps_grid.get_visible():
+        if self._owner._apps_grid.get_visible():
             if action is Action.OPTIONS:
-                self._open_tile_menu(self._apps_grid.focused_tile, from_grid=True)
+                self._owner._open_tile_menu(self._owner._apps_grid.focused_tile, from_grid=True)
             else:
-                self._apps_grid.handle_action(action)
+                self._owner._apps_grid.handle_action(action)
             return
 
-        if self._search.get_visible():
-            self._search.handle_action(action)
+        if self._owner._search.get_visible():
+            self._owner._search.handle_action(action)
             return
 
         # Volume is the one group that is true whatever is on screen: it
@@ -120,13 +130,13 @@ class HomeActionRouter(ServiceComponent):
         # *and* carries the new level to the phone, so a slider in someone's
         # hand does not sit at the old position until they drag it.
         if action is Action.VOLUME_UP:
-            audio.adjust_volume(1, lambda: audio.get_volume(self._on_volume_read))
+            audio.adjust_volume(1, lambda: audio.get_volume(self._owner._on_volume_read))
             return
         if action is Action.VOLUME_DOWN:
-            audio.adjust_volume(-1, lambda: audio.get_volume(self._on_volume_read))
+            audio.adjust_volume(-1, lambda: audio.get_volume(self._owner._on_volume_read))
             return
         if action is Action.MUTE:
-            audio.toggle_mute(lambda: audio.get_volume(self._on_volume_read))
+            audio.toggle_mute(lambda: audio.get_volume(self._owner._on_volume_read))
             return
 
         # Everything from here down draws or acts on Salon's own window, so
@@ -139,14 +149,14 @@ class HomeActionRouter(ServiceComponent):
         # already running — which is also what left MENU with no child to
         # close. The rule the MENU handler above states ("a menu drawn in
         # Salon's own window would appear underneath Netflix") is this one.
-        if self._pointer_mode or self._child_active:
+        if self._owner._pointer_mode or self._owner._child_active:
             if action is Action.PLAY_PAUSE:
                 # The transport half only. The launch fallback below makes
                 # sense on an idle home screen and nowhere else.
-                if not self._now_playing.play_pause():
-                    self._toast("Nothing is playing.")
+                if not self._owner._now_playing.play_pause():
+                    self._owner._toast("Nothing is playing.")
                 return
-            if self._pointer_mode:
+            if self._owner._pointer_mode:
                 if action is Action.SEARCH:
                     # While the cursor is being driven over a browser
                     # window, Salon's own search is the wrong thing to open
@@ -156,14 +166,14 @@ class HomeActionRouter(ServiceComponent):
                     if onscreen_keyboard_available():
                         set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
                     else:
-                        self._toast(
+                        self._owner._toast(
                             "The desktop keyboard isn't available; use the phone's Type tab."
                         )
                 elif action is Action.OK:
-                    self._pointer.click()
+                    self._owner._pointer.click()
                 elif action is Action.BACK:
-                    self._pointer_mode = False
-                    self._toast("Cursor off. Press MENU to close the app and come back.")
+                    self._owner._pointer_mode = False
+                    self._owner._toast("Cursor off. Press MENU to close the app and come back.")
                 return
             # A native app (e.g. a game client) reads the same raw gamepad
             # device directly — that input bypasses window focus entirely,
@@ -173,51 +183,52 @@ class HomeActionRouter(ServiceComponent):
             return
 
         if action is Action.SEARCH:
-            self._open_search()
+            self._owner._open_search()
             return
         if action is Action.PLAY_PAUSE:
             # Falls through to launching the focused tile when nothing is
             # playing: on a remote whose only large button is play, the
             # useless outcome is the one that does nothing at all.
-            if not self._now_playing.play_pause():
-                self._launch_focused()
+            if not self._owner._now_playing.play_pause():
+                self._owner._launch_focused()
             return
         if action is Action.POWER:
             # The system menu, not an immediate suspend. A television
             # remote's power key is one press away from every other key on
             # it, and Salon cannot know whether it was meant for the TV.
-            self._show_system_menu()
+            self._owner._show_system_menu()
             return
 
         if action is Action.BACK:
-            if self._launcher.is_launching:
-                self._launcher.cancel()
+            if self._owner._launcher.is_launching:
+                self._owner._launcher.cancel()
             # Otherwise a no-op: there's no parent screen at the top level
             # yet (no search overlay stack built), and BACK must never quit
             # Salon outright — see _on_key_pressed's dev-only Escape
             # shortcut, or MENU -> Exit Salon, for that.
             return
 
-        if self._nav_focused:
-            self._handle_nav_action(action)
+        if self._owner._nav_focused:
+            self._owner._handle_nav_action(action)
             return
 
         if action is Action.OPTIONS:
-            self._open_tile_menu(
-                self._catalog.tile_at(self._focus.row, self._focus.col), from_grid=False
+            self._owner._open_tile_menu(
+                self._owner._catalog.tile_at(self._owner._focus.row, self._owner._focus.col),
+                from_grid=False,
             )
             return
 
         if action in _DIRECTIONS:
-            change = self._focus.handle(action)
+            change = self._owner._focus.handle(action)
             if change.moved:
-                self._update_focus()
+                self._owner._update_focus()
             elif change.bump is Bump.UP:
                 # The top of the tiles is not a wall: it's the top bar. This
                 # is the whole reason Search/Settings/Power are reachable at
                 # all without knowing that MENU exists.
-                self._set_nav_focused(True)
+                self._owner._set_nav_focused(True)
             elif change.bump is not Bump.NONE:
-                self._rubber_band(change.bump)
+                self._owner._rubber_band(change.bump)
         elif action is Action.OK:
-            self._launch_focused()
+            self._owner._launch_focused()

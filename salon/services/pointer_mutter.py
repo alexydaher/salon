@@ -1,9 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F403, F405
 """Focused pointer-injection backend responsibility."""
 
-from salon.services.component import ServiceComponent
-from salon.services.pointer_shared import *
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+from salon.services.component import ServiceComponent  # noqa: E402
+from salon.services.pointer_shared import (  # noqa: E402
+    _MUTTER_BUS,
+    _MUTTER_IFACE,
+    _MUTTER_PATH,
+    _MUTTER_SESSION_IFACE,
+    _MUTTER_TIMEOUT_MS,
+)
 
 
 class MutterPointerBackend(ServiceComponent):
@@ -18,7 +28,7 @@ class MutterPointerBackend(ServiceComponent):
         such bus name and `call_sync` fails immediately.
         """
         try:
-            result = self._connection.call_sync(
+            result = self._owner._connection.call_sync(
                 _MUTTER_BUS,
                 _MUTTER_PATH,
                 _MUTTER_IFACE,
@@ -30,7 +40,7 @@ class MutterPointerBackend(ServiceComponent):
                 None,
             )
             session = str(result.unpack()[0])
-            self._connection.call_sync(
+            self._owner._connection.call_sync(
                 _MUTTER_BUS,
                 session,
                 _MUTTER_SESSION_IFACE,
@@ -47,12 +57,12 @@ class MutterPointerBackend(ServiceComponent):
             # about to be tried.
             print(f"[pointer] mutter's RemoteDesktop is not available ({error.message}).")
             return False
-        self._mutter_session = session
-        self._session_handle = session
+        self._owner._mutter_session = session
+        self._owner._session_handle = session
         # A session dies with the compositor. gnome-shell restarting would
         # otherwise leave `ready` True over a session that no longer exists,
         # and every press after that would go nowhere in silence.
-        self._closed_sub = self._connection.signal_subscribe(
+        self._owner._closed_sub = self._owner._connection.signal_subscribe(
             _MUTTER_BUS,
             _MUTTER_SESSION_IFACE,
             "Closed",
@@ -65,14 +75,14 @@ class MutterPointerBackend(ServiceComponent):
 
     def _on_mutter_closed(self, *_args: object) -> None:
         print("[pointer] mutter closed the remote-desktop session.")
-        self._fail()
+        self._owner._fail()
 
     def _mutter_call(self, method: str, args: GLib.Variant | None) -> None:
-        if self._mutter_session is None:
+        if self._owner._mutter_session is None:
             return
-        self._connection.call(
+        self._owner._connection.call(
             _MUTTER_BUS,
-            self._mutter_session,
+            self._owner._mutter_session,
             _MUTTER_SESSION_IFACE,
             method,
             args,
@@ -84,7 +94,7 @@ class MutterPointerBackend(ServiceComponent):
         )
 
     def _release_mutter(self) -> None:
-        if self._closed_sub is not None:
-            self._connection.signal_unsubscribe(self._closed_sub)
-            self._closed_sub = None
-        self._mutter_session = None
+        if self._owner._closed_sub is not None:
+            self._owner._connection.signal_unsubscribe(self._owner._closed_sub)
+            self._owner._closed_sub = None
+        self._owner._mutter_session = None

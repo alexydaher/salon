@@ -4,7 +4,17 @@
 
 from __future__ import annotations
 
-from salon.services.phone_remote_shared import *
+from salon.services.phone_remote_shared import (
+    _MAX_REQUEST_BODY_BYTES,
+    _STATUS_CONTENT_TOO_LARGE,
+    _STATUS_TOO_MANY_REQUESTS,
+    Gio,
+    PhoneRemoteComponent,
+    Soup,
+    is_local_address,
+    json,
+    secrets,
+)
 
 
 class PhoneRemoteAuthorization(PhoneRemoteComponent):
@@ -31,7 +41,17 @@ class PhoneRemoteAuthorization(PhoneRemoteComponent):
             message.set_status(Soup.Status.METHOD_NOT_ALLOWED, None)
             return None
         body = message.get_request_body()
+        if body.length > _MAX_REQUEST_BODY_BYTES:
+            self._refuse(
+                message,
+                _STATUS_CONTENT_TOO_LARGE,
+                "Request body is too large.",
+            )
+            return None
         payload = bytes(body.flatten().get_data() or b"")
+        if len(payload) > _MAX_REQUEST_BODY_BYTES:
+            self._refuse(message, _STATUS_CONTENT_TOO_LARGE, "Request body is too large.")
+            return None
         try:
             fields = json.loads(payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -46,7 +66,9 @@ class PhoneRemoteAuthorization(PhoneRemoteComponent):
         # timing oracle is not a practical route in: it costs nothing, and
         # the alternative is a reader having to work out why this one
         # comparison is different from the other.
-        return bool(self._token) and secrets.compare_digest(str(candidate or ""), self._token)
+        return bool(self._owner._token) and secrets.compare_digest(
+            str(candidate or ""), self._owner._token
+        )
 
     def _authorize(self, message: Soup.ServerMessage) -> dict[str, object] | None:
         """The gate every POST but `/connect` goes through. Returns the
@@ -63,7 +85,7 @@ class PhoneRemoteAuthorization(PhoneRemoteComponent):
         fields = self._fields(message)
         if fields is None:
             return None
-        if self._locked:
+        if self._owner._locked:
             self._refuse(
                 message,
                 _STATUS_TOO_MANY_REQUESTS,
@@ -75,7 +97,7 @@ class PhoneRemoteAuthorization(PhoneRemoteComponent):
             # turns it into the code screen rather than an error.
             self._refuse(message, Soup.Status.UNAUTHORIZED, "Not connected any more.")
             return None
-        self._touch()
+        self._owner._touch()
         return fields
 
     def _authorize_get(self, message: Soup.ServerMessage, query: dict[str, str] | None) -> bool:
@@ -91,13 +113,13 @@ class PhoneRemoteAuthorization(PhoneRemoteComponent):
         if not self._from_local_network(message):
             self._refuse(message, Soup.Status.FORBIDDEN, "Not on this network.")
             return False
-        if self._locked:
+        if self._owner._locked:
             self._refuse(message, _STATUS_TOO_MANY_REQUESTS, "Locked.")
             return False
         if not self._has_token((query or {}).get("k")):
             self._refuse(message, Soup.Status.UNAUTHORIZED, "Not connected any more.")
             return False
-        self._touch()
+        self._owner._touch()
         return True
 
     @staticmethod

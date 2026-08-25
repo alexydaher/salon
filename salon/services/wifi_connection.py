@@ -3,7 +3,21 @@
 """Focused Wi-Fi D-Bus operations."""
 
 from salon.services.component import ServiceComponent
-from salon.services.wifi_shared import *
+from salon.services.wifi_shared import (
+    _BUS,
+    _CONNECTION,
+    _NM,
+    _PATH,
+    _SETTINGS,
+    _SETTINGS_PATH,
+    _TIMEOUT_MS,
+    AccessPoint,
+    Callable,
+    Gio,
+    GLib,
+    _decode_ssid,
+    _readable,
+)
 
 
 class WifiConnection(ServiceComponent):
@@ -17,8 +31,8 @@ class WifiConnection(ServiceComponent):
         and NetworkManager would accumulate "SFR_936F 1", "SFR_936F 2" for
         ever — visible in every other network tool on the system.
         """
-        bus = self._bus()
-        device = self._device
+        bus = self._owner._bus()
+        device = self._owner._device
         if bus is None or device is None:
             on_done(False, "Salon can't reach NetworkManager on this machine.")
             return

@@ -1,19 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused catalogue-editing panel builder."""
+
 from __future__ import annotations
 
 from salon.core import editing
 from salon.core.model import LaunchKind, Tile
-from salon.services.artwork import artwork_drop_dir
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel
+from salon.ui.settings.context import Panel, SettingsContext
 from salon.ui.settings.widgets import (
     ActionRow,
-    ChoiceRow,
     InfoRow,
     SettingsRow,
-    TextRow,
-    ToggleRow,
 )
 
 _ASPECTS = [("wide", "Wide"), ("square", "Square"), ("poster", "Poster")]
@@ -63,8 +59,7 @@ def _installed_panel(context: SettingsContext, row_id: str) -> Panel:
             context.installed_apps(_on_scanned)
             return [InfoRow("Looking for installed apps…", "")]
         return [
-            ActionRow(app.title, lambda a=app: _add_installed(context, row_id, a))
-            for app in found
+            ActionRow(app.title, lambda a=app: _add_installed(context, row_id, a)) for app in found
         ]
 
     def _on_scanned(apps: list[Tile]) -> None:

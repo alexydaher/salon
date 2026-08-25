@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "rows": [
+    {
+      "id": "entertainment",
+      "title": "Entertainment",
+      "tiles": [
+        {"id": "movies", "title": "Movie Night", "subtitle": "Your cinema", "icon_name": "video-x-generic-symbolic", "artwork": "tests/fixtures/movie-night.svg", "accent": "#D9584B", "launch": {"kind": "url", "target": "https://example.com/movies"}},
+        {"id": "arcade", "title": "Arcade", "subtitle": "Pick up and play", "icon_name": "input-gaming-symbolic", "accent": "#4C9BE8", "launch": {"kind": "url", "target": "https://example.com/games"}},
+        {"id": "radio", "title": "Living Room Radio", "subtitle": "Recently played", "icon_name": "audio-speakers-symbolic", "accent": "#B77BE8", "launch": {"kind": "url", "target": "https://example.com/radio"}},
+        {"id": "photos", "title": "Photo Gallery", "subtitle": "Shared albums", "icon_name": "folder-pictures-symbolic", "accent": "#5FBF7F", "launch": {"kind": "url", "target": "https://example.com/photos"}}
+      ]
+    },
+    {
+      "id": "at-home",
+      "title": "At Home",
+      "tiles": [
+        {"id": "weather", "title": "Weather", "subtitle": "This week", "icon_name": "weather-clear-symbolic", "accent": "#4C9BE8", "launch": {"kind": "url", "target": "https://example.com/weather"}},
+        {"id": "recipes", "title": "Recipes", "subtitle": "Dinner ideas", "icon_name": "view-list-symbolic", "accent": "#E8A33D", "launch": {"kind": "url", "target": "https://example.com/recipes"}},
+        {"id": "music", "title": "Music Library", "subtitle": "Albums and playlists", "icon_name": "folder-music-symbolic", "accent": "#B77BE8", "launch": {"kind": "url", "target": "https://example.com/music"}}
+      ]
+    }
+  ]
+}

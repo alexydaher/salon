@@ -68,6 +68,15 @@ def test_ozone_flag_is_added_only_on_wayland() -> None:
     assert "--ozone-platform=wayland" in wayland
 
 
+def test_browser_extra_flags_are_appended_after_salon_flags() -> None:
+    argv = launchspec.resolve(
+        url_spec(),
+        browser_command=BROWSER,
+        browser_extra_flags=("--disable-features=X", "--name=two words"),
+    )
+    assert argv[-2:] == ["--disable-features=X", "--name=two words"]
+
+
 @pytest.mark.parametrize("session_type", ["x11", "tty", ""])
 def test_ozone_flag_is_absent_off_wayland(session_type: str) -> None:
     argv = launchspec.resolve(url_spec(), browser_command=BROWSER, session_type=session_type)

@@ -1,47 +1,51 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused settings panel builder."""
+
 from __future__ import annotations
 
-import shutil
-from collections.abc import Callable
+import shlex
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
-from salon import config as app_config  # noqa: E402
-from salon.core import sandbox, tokens  # noqa: E402
-from salon.input.actions import Action  # noqa: E402
-from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
+from salon.services import launcher  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
-    ActionRow,
-    ChoiceRow,
     InfoRow,
-    RangeRow,
     SettingsRow,
     TextRow,
-    ToggleRow,
 )
 
 
 def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
+    resolution = launcher.BrowserResolution(launcher.BrowserAvailability.NOT_INSTALLED)
+    preflight_started = False
+
+    def on_preflight(result: launcher.BrowserResolution) -> bool:
+        nonlocal resolution
+        resolution = result
+        context.rebuild()
+        return GLib.SOURCE_REMOVE
+
     def build() -> list[SettingsRow]:
-        detected = launcher.detect_browser()
-        configured = settings.get_string("browser-command")
+        nonlocal preflight_started
+        if not preflight_started:
+            preflight_started = True
+            launcher.preflight_browser(on_preflight)
+        detected = resolution.argv
+        failure_detail = {
+            launcher.BrowserAvailability.NOT_INSTALLED: "No supported browser is installed.",
+            launcher.BrowserAvailability.HOST_EXECUTION_FAILED: "Host browser detection failed.",
+        }.get(resolution.availability, "")
         return [
             TextRow(
                 "Browser command",
-                lambda: configured,
+                lambda: settings.get_string("browser-command"),
                 lambda: _edit_browser(context, settings),
                 placeholder="Autodetect",
-                detail=(
-                    " ".join(detected)
-                    if detected
-                    else "No browser found. Install Google Chrome to open web services."
-                ),
+                detail=(" ".join(detected) if detected else failure_detail),
             ),
             InfoRow(
                 "Detected",
@@ -65,16 +69,20 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
         ]
 
-    return Panel(
-        title="Browser", build=build, panel_id="browser", icon_name="web-browser-symbolic"
-    )
+    return Panel(title="Browser", build=build, panel_id="browser", icon_name="web-browser-symbolic")
 
 
 def _edit_browser(context: SettingsContext, settings: Gio.Settings) -> None:
     def done(value: str | None) -> None:
         if value is None:
             return
-        settings.set_string("browser-command", value.strip())
+        normalized = value.strip()
+        try:
+            shlex.split(normalized)
+        except ValueError as exc:
+            context.toast(f"Browser command wasn't changed: {exc}")
+            return
+        settings.set_string("browser-command", normalized)
         context.rebuild()
 
     context.edit_text(
@@ -86,7 +94,12 @@ def _edit_flags(context: SettingsContext, settings: Gio.Settings) -> None:
     def done(value: str | None) -> None:
         if value is None:
             return
-        settings.set_strv("browser-extra-flags", value.split())
+        try:
+            flags = shlex.split(value)
+        except ValueError as exc:
+            context.toast(f"Browser flags weren't changed: {exc}")
+            return
+        settings.set_strv("browser-extra-flags", flags)
         context.rebuild()
 
     context.edit_text(

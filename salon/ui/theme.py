@@ -69,8 +69,7 @@ def color(name: str) -> Gdk.RGBA:
 
 def build_css(color_value: Gdk.RGBA, palette: dict[str, str]) -> str:
     red, green, blue = (
-        round(channel * 255)
-        for channel in (color_value.red, color_value.green, color_value.blue)
+        round(channel * 255) for channel in (color_value.red, color_value.green, color_value.blue)
     )
     lines = [
         "/* Generated at runtime by salon/ui/theme.py — do not edit. */",

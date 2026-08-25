@@ -2,7 +2,18 @@
 # ruff: noqa: F403, F405
 """Focused Bluetooth D-Bus operations."""
 
-from salon.services.bluetooth_shared import *
+from salon.services.bluetooth_shared import (
+    _ADAPTER,
+    _BUS,
+    _DEVICE,
+    _PROPS,
+    _TIMEOUT_MS,
+    Callable,
+    Device,
+    Gio,
+    GLib,
+    _readable,
+)
 from salon.services.component import ServiceComponent
 
 
@@ -13,11 +24,11 @@ class BluetoothConnections(ServiceComponent):
         Trust is what makes the controller come back by itself after a
         reboot; without it every session starts with the same dance.
         """
-        bus = self._bus()
+        bus = self._owner._bus()
         if bus is None:
             on_done(False, "Salon can't reach the Bluetooth service on this machine.")
             return
-        self._ensure_agent()
+        self._owner._ensure_agent()
 
         def after_pair(conn: Gio.DBusConnection, result: Gio.AsyncResult) -> None:
             try:
@@ -102,7 +113,7 @@ class BluetoothConnections(ServiceComponent):
         unpairing it to hand it over would mean pairing it again on the way
         back. It stays trusted, so it reconnects on its own.
         """
-        bus = self._bus()
+        bus = self._owner._bus()
         if bus is None:
             on_done(False, "Salon can't reach the Bluetooth service on this machine.")
             return
@@ -136,8 +147,8 @@ class BluetoothConnections(ServiceComponent):
         asked to do it. That is also why this needs an adapter, and so a
         listing, to have happened first.
         """
-        bus = self._bus()
-        adapter = self._adapter
+        bus = self._owner._bus()
+        adapter = self._owner._adapter
         if bus is None or adapter is None:
             on_done(False, "Salon can't reach the Bluetooth service on this machine.")
             return

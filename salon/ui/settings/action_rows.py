@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Action, information, and toggle settings rows."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -51,9 +52,7 @@ class InfoRow(SettingsRow):
     """Read-only. Still selectable, because on a D-pad a row you cannot
     land on is a row you cannot read the end of."""
 
-    def __init__(
-        self, label: str, value: str, *, detail: str = "", icon_name: str = ""
-    ) -> None:
+    def __init__(self, label: str, value: str, *, detail: str = "", icon_name: str = "") -> None:
         super().__init__(label, detail=detail, icon_name=icon_name)
         self.set_value(value)
         self.add_css_class("info")

@@ -159,7 +159,7 @@
       <range min="0" max="120"/>
       <default>10</default>
       <summary>Minutes of inactivity before the idle screen appears</summary>
-      <description>Salon suppresses the desktop's own screen lock in its session, which would otherwise leave a bright static interface on the panel indefinitely. After this many idle minutes it fades to a slowly drifting clock; any button brings it back. 0 turns it off.</description>
+      <description>After this many idle minutes Salon fades to a slowly drifting clock; any button brings it back. This does not change the desktop's screen-lock preference. 0 turns it off.</description>
     </key>
     <key name="show-games-row" type="b">
       <default>false</default>

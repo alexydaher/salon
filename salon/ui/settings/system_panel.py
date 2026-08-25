@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused settings panel builder."""
+
 from __future__ import annotations
 
 import shutil
@@ -12,17 +12,12 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
-from salon.core import sandbox, tokens  # noqa: E402
-from salon.input.actions import Action  # noqa: E402
-from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
+from salon.core import sandbox  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
-    ChoiceRow,
-    InfoRow,
     RangeRow,
     SettingsRow,
-    TextRow,
     ToggleRow,
 )
 
@@ -30,44 +25,70 @@ from salon.ui.settings.widgets import (  # noqa: E402
 def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     from salon.services import power
 
+    caps = sandbox.capabilities()
+    flatpak_reason = "Unavailable in the Flatpak build; use the desktop's Settings app."
+
+    def host_row(row: SettingsRow) -> SettingsRow:
+        return row if caps.control_center else row.make_unavailable(flatpak_reason)
+
     def build() -> list[SettingsRow]:
         rows: list[SettingsRow] = [
-            ActionRow(
-                "Display and resolution",
-                lambda: context.open_control_center("display"),
-                detail="Resolution, refresh rate and scaling",
+            host_row(
+                ActionRow(
+                    "Display and resolution",
+                    lambda: context.open_control_center("display"),
+                    detail="Resolution, refresh rate and scaling",
+                )
             ),
-            ActionRow(
-                "Date and time",
-                lambda: context.open_control_center("datetime"),
-                detail="What the clock in the top bar shows",
+            host_row(
+                ActionRow(
+                    "Date and time",
+                    lambda: context.open_control_center("datetime"),
+                    detail="What the clock in the top bar shows",
+                )
             ),
-            ActionRow(
-                "Region and language",
-                lambda: context.open_control_center("region"),
+            host_row(
+                ActionRow(
+                    "Region and language",
+                    lambda: context.open_control_center("region"),
+                )
             ),
-            ActionRow(
-                "Accessibility",
-                lambda: context.open_control_center("a11y"),
-                detail="Larger text, high contrast, screen reader",
+            host_row(
+                ActionRow(
+                    "Accessibility",
+                    lambda: context.open_control_center("a11y"),
+                    detail="Larger text, high contrast, screen reader",
+                )
             ),
-            ActionRow(
-                "Power and screen blanking",
-                lambda: context.open_control_center("power"),
+            host_row(
+                ActionRow(
+                    "Power and screen blanking",
+                    lambda: context.open_control_center("power"),
+                )
             ),
-            ActionRow(
-                "Software updates",
-                lambda: _open_updates(context),
-                detail=(
-                    "Opens GNOME Software"
-                    if shutil.which("gnome-software")
-                    else "GNOME Software isn't installed"
-                ),
+            host_row(
+                ActionRow(
+                    "Software updates",
+                    lambda: _open_updates(context),
+                    detail=(
+                        "Opens GNOME Software"
+                        if shutil.which("gnome-software")
+                        else "GNOME Software isn't installed"
+                    ),
+                )
             ),
-            ToggleRow(
-                "Start Salon at login",
-                lambda: settings.get_boolean("autostart"),
-                lambda value: _set_autostart(context, settings, value),
+            (
+                ToggleRow(
+                    "Start Salon at login",
+                    lambda: settings.get_boolean("autostart"),
+                    lambda value: _set_autostart(context, settings, value),
+                )
+                if caps.autostart
+                else ToggleRow(
+                    "Start Salon at login", lambda: False, lambda _value: None
+                ).make_unavailable(
+                    "Unavailable in Flatpak; enable autostart from the host desktop."
+                )
             ),
             RangeRow(
                 "Keep screen awake after launching",
@@ -80,6 +101,7 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 detail="Covers the gap before the app issues its own inhibit",
             ),
         ]
+
         # Named in the failure message, because logind refusing to suspend
         # and Salon never having asked look identical from the sofa.
         def fail(what: str) -> Callable[[str], None]:
@@ -97,9 +119,7 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 )
             )
         if power.can_reboot():
-            rows.append(
-                ActionRow("Restart", lambda: power.reboot(fail("Restart")), danger=True)
-            )
+            rows.append(ActionRow("Restart", lambda: power.reboot(fail("Restart")), danger=True))
         if power.can_power_off():
             rows.append(
                 ActionRow("Shut Down", lambda: power.power_off(fail("Shut down")), danger=True)
@@ -126,6 +146,9 @@ def _open_updates(context: SettingsContext) -> None:
 
 
 def _set_autostart(context: SettingsContext, settings: Gio.Settings, enabled: bool) -> None:
+    if not sandbox.capabilities().autostart:
+        context.toast("Autostart is unavailable in Flatpak; configure it on the host desktop.")
+        return
     settings.set_boolean("autostart", enabled)
     path = GLib.build_filenamev(
         [GLib.get_user_config_dir(), "autostart", f"{app_config.APP_ID}.desktop"]

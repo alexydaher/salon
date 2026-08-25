@@ -1,33 +1,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Search ranking, result layout, and result selection."""
-from __future__ import annotations
 
-from typing import Any
+from __future__ import annotations
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
-from salon.core import ranking, tokens  # noqa: E402
-from salon.core.focus import Bump, FocusModel  # noqa: E402
+from salon.core import ranking  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.services import appinfo  # noqa: E402
-from salon.services.artwork import ArtworkResolver  # noqa: E402
 from salon.ui.search_models import Pane  # noqa: E402
 from salon.ui.tile import TileWidget, metrics_for  # noqa: E402
 
 RESULT_COLUMNS = 3
 _MAX_RESULTS = 60
 
+
 class SearchResultsController:
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
-
     def _on_installed_scanned(self, tiles: list[Tile]) -> None:
         self._installed_tiles = tiles
         if self.get_visible():
@@ -53,8 +44,7 @@ class SearchResultsController:
             # search surfaces that ordered or deduplicated results
             # differently would be two things to learn.
             self._results = [
-                by_id[tile_id]
-                for tile_id in ranking.rank_best(query, pairs, _MAX_RESULTS)
+                by_id[tile_id] for tile_id in ranking.rank_best(query, pairs, _MAX_RESULTS)
             ]
 
         self._update_hint()
@@ -70,9 +60,7 @@ class SearchResultsController:
             return
         if self._keyboard.text.strip():
             # §6.11: say what happened and what to do about it.
-            self._hint_label.set_label(
-                "Nothing matched. Try fewer letters."
-            )
+            self._hint_label.set_label("Nothing matched. Try fewer letters.")
         else:
             self._hint_label.set_label("Type to search your tiles and installed apps.")
 
@@ -173,6 +161,4 @@ class SearchResultsController:
         if card_top + metrics.height + metrics.bleed > viewport_height:
             desired = metrics.bleed - card_top
         target = max(lowest, min(0.0, desired))
-        self._results_scroll.animate_to(target) if animate else self._results_scroll.jump_to(
-            target
-        )
+        self._results_scroll.animate_to(target) if animate else self._results_scroll.jump_to(target)

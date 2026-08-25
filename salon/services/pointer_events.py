@@ -1,29 +1,32 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F403, F405
 """Focused pointer-injection backend responsibility."""
 
-from salon.services.component import ServiceComponent
-from salon.services.pointer_shared import *
+import gi
+
+gi.require_version("GLib", "2.0")
+from gi.repository import GLib  # noqa: E402
+
+from salon.services.component import ServiceComponent  # noqa: E402
+from salon.services.pointer_shared import (  # noqa: E402
+    _AXIS_FINISH,
+    _KEY_GAP_MS,
+    _PRESSED,
+    _RELEASED,
+    BTN_LEFT,
+    keysym_for,
+)
 
 
 class PointerEventInjection(ServiceComponent):
     def move(self, dx: float, dy: float) -> None:
-        if not self.ready:
+        if not self._owner.ready:
             return
-        if self._backend == "mutter":
-            self._mutter_call("NotifyPointerMotionRelative", GLib.Variant("(dd)", (dx, dy)))
+        if self._owner._backend == "mutter":
+            self._owner._mutter_call("NotifyPointerMotionRelative", GLib.Variant("(dd)", (dx, dy)))
             return
-        self._connection.call(
-            _BUS_NAME,
-            _OBJECT_PATH,
-            _RD_IFACE,
+        self._owner._portal_notify(
             "NotifyPointerMotion",
-            GLib.Variant("(oa{sv}dd)", (self._session_handle, {}, dx, dy)),
-            None,
-            Gio.DBusCallFlags.NONE,
-            -1,
-            None,
-            None,
+            GLib.Variant("(oa{sv}dd)", (self._owner._session_handle, {}, dx, dy)),
         )
 
     def scroll(self, dx: float, dy: float) -> None:
@@ -37,57 +40,43 @@ class PointerEventInjection(ServiceComponent):
         scrolling in GTK and in a browser stops when the fingers lift
         rather than drifting on.
         """
-        if not self.ready or not (dx or dy):
+        if not self._owner.ready or not (dx or dy):
             return
-        if self._backend == "mutter":
-            self._mutter_call("NotifyPointerAxis", GLib.Variant("(ddu)", (dx, dy, 0)))
+        if self._owner._backend == "mutter":
+            self._owner._mutter_call("NotifyPointerAxis", GLib.Variant("(ddu)", (dx, dy, 0)))
             return
-        self._connection.call(
-            _BUS_NAME,
-            _OBJECT_PATH,
-            _RD_IFACE,
+        self._owner._portal_notify(
             "NotifyPointerAxis",
-            GLib.Variant("(oa{sv}dd)", (self._session_handle, {}, dx, dy)),
-            None,
-            Gio.DBusCallFlags.NONE,
-            -1,
-            None,
-            None,
+            GLib.Variant("(oa{sv}dd)", (self._owner._session_handle, {}, dx, dy)),
         )
 
     def scroll_finish(self) -> None:
         """Tell the compositor the fingers have left the glass."""
-        if not self.ready:
+        if not self._owner.ready:
             return
-        if self._backend == "mutter":
-            self._mutter_call("NotifyPointerAxis", GLib.Variant("(ddu)", (0.0, 0.0, _AXIS_FINISH)))
+        if self._owner._backend == "mutter":
+            self._owner._mutter_call(
+                "NotifyPointerAxis", GLib.Variant("(ddu)", (0.0, 0.0, _AXIS_FINISH))
+            )
             return
-        self._connection.call(
-            _BUS_NAME,
-            _OBJECT_PATH,
-            _RD_IFACE,
+        self._owner._portal_notify(
             "NotifyPointerAxis",
             GLib.Variant(
                 "(oa{sv}dd)",
-                (self._session_handle, {"finish": GLib.Variant("b", True)}, 0.0, 0.0),
+                (self._owner._session_handle, {"finish": GLib.Variant("b", True)}, 0.0, 0.0),
             ),
-            None,
-            Gio.DBusCallFlags.NONE,
-            -1,
-            None,
-            None,
         )
 
     def press(self, button: int = BTN_LEFT) -> None:
         """Hold a button down. Pairs with `release`, and exists for the
         drag gestures — a tap that presses and releases 50ms later cannot
         move a window or select a line of text."""
-        if not self.ready:
+        if not self._owner.ready:
             return
         self._notify_button(button, _PRESSED)
 
     def release(self, button: int = BTN_LEFT) -> None:
-        if not self.ready:
+        if not self._owner.ready:
             return
         self._notify_button(button, _RELEASED)
 
@@ -108,7 +97,7 @@ class PointerEventInjection(ServiceComponent):
         The keys are spaced out over the main loop rather than blasted in
         one go — see `_KEY_GAP_MS`.
         """
-        if not self.ready:
+        if not self._owner.ready:
             return False
         keysyms = [k for k in (keysym_for(c) for c in text) if k is not None]
         if not keysyms:
@@ -126,45 +115,33 @@ class PointerEventInjection(ServiceComponent):
         return GLib.SOURCE_REMOVE
 
     def _notify_keysym(self, keysym: int, state: int) -> bool:
-        if self._backend == "mutter":
-            self._mutter_call("NotifyKeyboardKeysym", GLib.Variant("(ub)", (keysym, bool(state))))
+        if self._owner._backend == "mutter":
+            self._owner._mutter_call(
+                "NotifyKeyboardKeysym", GLib.Variant("(ub)", (keysym, bool(state)))
+            )
             return GLib.SOURCE_REMOVE
-        if self._session_handle is not None:
-            self._connection.call(
-                _BUS_NAME,
-                _OBJECT_PATH,
-                _RD_IFACE,
+        if self._owner._session_handle is not None:
+            self._owner._portal_notify(
                 "NotifyKeyboardKeysym",
-                GLib.Variant("(oa{sv}iu)", (self._session_handle, {}, keysym, state)),
-                None,
-                Gio.DBusCallFlags.NONE,
-                -1,
-                None,
-                None,
+                GLib.Variant("(oa{sv}iu)", (self._owner._session_handle, {}, keysym, state)),
             )
         return GLib.SOURCE_REMOVE
 
     def click(self, button: int = BTN_LEFT) -> None:
-        if not self.ready:
+        if not self._owner.ready:
             return
         self._notify_button(button, _PRESSED)
         GLib.timeout_add(50, self._notify_button, button, _RELEASED)
 
     def _notify_button(self, button: int, state: int) -> bool:
-        if self._backend == "mutter":
-            self._mutter_call("NotifyPointerButton", GLib.Variant("(ib)", (button, bool(state))))
+        if self._owner._backend == "mutter":
+            self._owner._mutter_call(
+                "NotifyPointerButton", GLib.Variant("(ib)", (button, bool(state)))
+            )
             return GLib.SOURCE_REMOVE
-        if self._session_handle is not None:
-            self._connection.call(
-                _BUS_NAME,
-                _OBJECT_PATH,
-                _RD_IFACE,
+        if self._owner._session_handle is not None:
+            self._owner._portal_notify(
                 "NotifyPointerButton",
-                GLib.Variant("(oa{sv}iu)", (self._session_handle, {}, button, state)),
-                None,
-                Gio.DBusCallFlags.NONE,
-                -1,
-                None,
-                None,
+                GLib.Variant("(oa{sv}iu)", (self._owner._session_handle, {}, button, state)),
             )
         return GLib.SOURCE_REMOVE

@@ -4,12 +4,24 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
 
+from salon.core import sandbox
 from salon.services.bluetooth_connections import BluetoothConnections
 from salon.services.bluetooth_discovery import BluetoothDiscovery
-from salon.services.bluetooth_shared import *
-from salon.services.component import component_attribute
+from salon.services.bluetooth_shared import (
+    _AGENT_MANAGER,
+    _AGENT_PATH,
+    _AGENT_XML,
+    _BUS,
+    _TIMEOUT_MS,
+    Device,
+    Gio,
+    GLib,
+    _ignore,
+)
+
+__all__ = ["BluetoothService", "Device"]
 
 
 class BluetoothService:
@@ -20,12 +32,30 @@ class BluetoothService:
         self._adapter: str | None = None
         self._agent_id: int | None = None
 
-        self._components = (BluetoothDiscovery(self), BluetoothConnections(self))
+        self._discovery = BluetoothDiscovery(self)
+        self._connections = BluetoothConnections(self)
 
-    def __getattr__(self, name: str) -> Any:
-        return component_attribute(self._components, name)
+    def list_devices(self, on_done: Callable[[list[Device], str], None]) -> None:
+        self._discovery.list_devices(on_done)
+
+    def start_discovery(self, on_done: Callable[[bool, str], None]) -> None:
+        self._discovery.start_discovery(on_done)
+
+    def stop_discovery(self) -> None:
+        self._discovery.stop_discovery()
+
+    def pair(self, device: Device, on_done: Callable[[bool, str], None]) -> None:
+        self._connections.pair(device, on_done)
+
+    def disconnect(self, device: Device, on_done: Callable[[bool, str], None]) -> None:
+        self._connections.disconnect(device, on_done)
+
+    def forget(self, device: Device, on_done: Callable[[bool, str], None]) -> None:
+        self._connections.forget(device, on_done)
 
     def _bus(self) -> Gio.DBusConnection | None:
+        if not sandbox.capabilities().bluetooth_pairing:
+            return None
         if self._connection is None:
             try:
                 self._connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)

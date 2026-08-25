@@ -2,11 +2,21 @@
 # ruff: noqa: F403, F405
 """Focused home-view construction stage."""
 
+from salon.services import launcher
 from salon.services.component import ServiceComponent
-from salon.ui.home_rows import *
-from salon.ui.home_shared import *
-from salon.ui.home_spring import *
-from salon.ui.home_viewport import *
+from salon.ui.home_shared import (
+    CEC,
+    GAMEPAD,
+    CecSource,
+    GamepadSource,
+    Gtk,
+    LauncherService,
+    PointerInjector,
+    ScaleManager,
+    ThemeManager,
+    Tile,
+    tokens,
+)
 
 
 class HomeInputSetup(ServiceComponent):
@@ -14,63 +24,76 @@ class HomeInputSetup(ServiceComponent):
         self, application: Gtk.Application, scale_manager: ScaleManager, theme_manager: ThemeManager
     ) -> None:
         controller = Gtk.EventControllerKey()
-        controller.connect("key-pressed", self._on_key_pressed)
-        controller.connect("key-released", self._on_key_released)
-        self.add_controller(controller)
-        self.set_can_focus(True)
-        self.set_focusable(True)
-        self.set_accessible_role(Gtk.AccessibleRole.GRID)
-        self.update_property([Gtk.AccessibleProperty.LABEL], ["Home"])
+        controller.connect("key-pressed", self._owner._on_key_pressed)
+        controller.connect("key-released", self._owner._on_key_released)
+        self._owner.add_controller(controller)
+        self._owner.set_can_focus(True)
+        self._owner.set_focusable(True)
+        self._owner.set_accessible_role(Gtk.AccessibleRole.GRID)
+        self._owner.update_property([Gtk.AccessibleProperty.LABEL], ["Home"])
         scroll = Gtk.EventControllerScroll(
             flags=Gtk.EventControllerScrollFlags.BOTH_AXES | Gtk.EventControllerScrollFlags.DISCRETE
         )
-        scroll.connect("scroll", self._on_scroll)
-        self.add_controller(scroll)
+        scroll.connect("scroll", self._owner._on_scroll)
+        self._owner.add_controller(scroll)
         pointer_motion = Gtk.EventControllerMotion()
-        pointer_motion.connect("motion", self._on_pointer_motion)
-        self.add_controller(pointer_motion)
-        self._last_pointer_xy: tuple[float, float] | None = None
-        self._pointer_visible = False
-        self._pointer_mode = False
-        self._child_active = False
-        self._pending_launch: Tile | None = None
-        self._current_launch_is_browser = False
-        self._pointer = PointerInjector(
-            on_ready=self._on_pointer_ready,
-            load_restore_token=lambda: self._settings.get_string("remote-desktop-restore-token"),
-            save_restore_token=lambda token: self._settings.set_string(
+        pointer_motion.connect("motion", self._owner._on_pointer_motion)
+        self._owner.add_controller(pointer_motion)
+        self._owner._last_pointer_xy: tuple[float, float] | None = None
+        self._owner._pointer_visible = False
+        self._owner._pointer_mode = False
+        self._owner._child_active = False
+        self._owner._pending_launch: Tile | None = None
+        self._owner._current_launch_is_browser = False
+        self._owner._pointer = PointerInjector(
+            on_ready=self._owner._on_pointer_ready,
+            load_restore_token=lambda: self._owner._settings.get_string(
+                "remote-desktop-restore-token"
+            ),
+            save_restore_token=lambda token: self._owner._settings.set_string(
                 "remote-desktop-restore-token", token
             ),
-            backend=self._settings.get_string("input-injection"),
+            backend=self._owner._settings.get_string("input-injection"),
         )
-        self._launcher = LauncherService(
+        detected_browser: list[tuple[str, ...]] = [()]
+        launcher.preflight_browser(lambda result: detected_browser.__setitem__(0, result.argv))
+        self._owner._launcher = LauncherService(
             application,
-            idle_inhibit_seconds=self._settings.get_int("idle-inhibit-seconds"),
-            browser_scale_factor=tokens.browser_scale_factor(self._scale.viewport_height_px),
+            idle_inhibit_seconds=self._owner._settings.get_int("idle-inhibit-seconds"),
+            browser_scale_factor=tokens.browser_scale_factor(self._owner._scale.viewport_height_px),
+            browser_command=lambda: (
+                launcher.parse_browser_command(self._owner._settings.get_string("browser-command"))
+                or detected_browser[0]
+            ),
+            browser_extra_flags=lambda: tuple(
+                self._owner._settings.get_strv("browser-extra-flags")
+            ),
         )
-        self._launcher.on_launch_started = self._on_launch_started
-        self._launcher.on_child_focused = self._on_child_focused
-        self._launcher.on_launch_timed_out = self._on_launch_timed_out
-        self._launcher.on_returned = self._on_returned
-        self._launcher.on_error = self._on_launch_error
-        self._gamepad = GamepadSource(
-            self._on_gamepad_action,
-            on_right_stick=self._on_right_stick,
-            on_action_release=self._stop_repeat,
-            bindings=self._bindings,
-            on_raw=lambda code: self._on_raw_input(GAMEPAD, code),
-            on_devices_changed=self._on_gamepads_changed,
+        self._owner._launcher.on_launch_started = self._owner._on_launch_started
+        self._owner._launcher.on_child_focused = self._owner._on_child_focused
+        self._owner._launcher.on_launch_timed_out = self._owner._on_launch_timed_out
+        self._owner._launcher.on_returned = self._owner._on_returned
+        self._owner._launcher.on_error = self._owner._on_launch_error
+        self._owner._gamepad = GamepadSource(
+            self._owner._on_gamepad_action,
+            on_right_stick=self._owner._on_right_stick,
+            on_action_release=self._owner._stop_repeat,
+            bindings=self._owner._bindings,
+            on_raw=lambda code: self._owner._on_raw_input(GAMEPAD, code),
+            on_devices_changed=self._owner._on_gamepads_changed,
         )
-        self._gamepad_count = self._gamepad.device_count
-        self._cec = CecSource(
-            self._on_cec_action,
-            bindings=self._bindings,
-            on_raw=lambda code: self._on_raw_input(CEC, code),
+        self._owner._gamepad_count = self._owner._gamepad.device_count
+        self._owner._cec = CecSource(
+            self._owner._on_cec_action,
+            bindings=self._owner._bindings,
+            on_raw=lambda code: self._owner._on_raw_input(CEC, code),
         )
-        self._apply_cec_setting()
-        self._settings.connect("changed::cec-enabled", lambda *_: self._apply_cec_setting())
-        self._settings.connect(
-            "changed::screensaver-minutes", lambda *_: self._apply_screensaver_setting()
+        self._owner._apply_cec_setting()
+        self._owner._settings.connect(
+            "changed::cec-enabled", lambda *_: self._owner._apply_cec_setting()
         )
-        self._reload_timeout_id: int | None = None
-        self._config_path.parent.mkdir(parents=True, exist_ok=True)
+        self._owner._settings.connect(
+            "changed::screensaver-minutes", lambda *_: self._owner._apply_screensaver_setting()
+        )
+        self._owner._reload_timeout_id: int | None = None
+        self._owner._config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,10 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused full-screen overlay widget."""
-from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from __future__ import annotations
 
 import gi
 
@@ -13,7 +10,7 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("Gsk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Pango", "1.0")
-from gi.repository import Gdk, Graphene, Gsk, Gtk, Pango  # noqa: E402
+from gi.repository import Gdk, Graphene, Gsk, Gtk  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
 from salon.core.model import Tile  # noqa: E402

@@ -27,6 +27,7 @@ gi.require_version("Gio", "2.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from salon.core import sandbox  # noqa: E402
 from salon.core.bindings import CEC, Bindings  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 
@@ -68,8 +69,8 @@ _CODE_TO_ACTION = {
 }
 
 
-def available() -> bool:
-    return shutil.which(_CLIENT) is not None
+def available(*, sandboxed: bool | None = None) -> bool:
+    return sandbox.capabilities(sandboxed).cec and shutil.which(_CLIENT) is not None
 
 
 def action_for_code(code: int, bindings: Bindings | None = None) -> Action | None:

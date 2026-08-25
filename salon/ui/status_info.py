@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused top-bar widget."""
+
 from __future__ import annotations
 
-from collections.abc import Callable
+import os
 from datetime import datetime
 
 import gi
@@ -17,6 +17,7 @@ from salon.services.netinfo import NetworkStatus, NetworkWatcher  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 _TICK_INTERVAL_MS = 1000
+
 
 class StatusInfo(Gtk.Box):
     """The top-left corner: time, date, network, battery.
@@ -63,8 +64,9 @@ class StatusInfo(Gtk.Box):
 
         self._network_watcher = NetworkWatcher(self.set_network)
         self._battery_watcher = BatteryWatcher(self.set_battery)
-        self._network_watcher.start()
-        self._battery_watcher.start()
+        if not os.environ.get("SALON_CAPTURE_MODE"):
+            self._network_watcher.start()
+            self._battery_watcher.start()
 
         self.set_scale(scale)
         self._tick()
@@ -113,7 +115,8 @@ class StatusInfo(Gtk.Box):
             glyph.set_pixel_size(scale.px(30.0))
 
     def _tick(self) -> bool:
-        now = datetime.now()
+        fixed = os.environ.get("SALON_CAPTURE_CLOCK")
+        now = datetime.fromisoformat(fixed) if fixed else datetime.now()
         self._clock_label.set_label(now.strftime("%H:%M"))
         self._date_label.set_label(now.strftime("%A, %-d %B"))
         # "14:05" is read out as a number, or as two; the spoken form is

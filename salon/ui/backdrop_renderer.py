@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Rendering collaborator for the ambient home-screen backdrop."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import gi
 
@@ -22,6 +22,8 @@ class Blurred:
 
     texture: Gdk.Texture
     full_bleed: bool
+
+
 # stops reading as light and starts reading as the display being tinted —
 # which is exactly what the earlier full-screen accent wash got wrong.
 _GLOW_ALPHA = 0.13
@@ -50,6 +52,7 @@ _ICON_POOL_RADIUS_FRACTION = 0.55
 
 _WALLPAPER_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".avif")
 
+
 def rgba(red: float, green: float, blue: float, alpha: float = 1.0) -> Gdk.RGBA:
     color = Gdk.RGBA()
     color.red = red
@@ -71,13 +74,8 @@ _TRANSPARENT = rgba(0.0, 0.0, 0.0, 0.0)
 def same_color(a: Gdk.RGBA, b: Gdk.RGBA) -> bool:
     return (a.red, a.green, a.blue) == (b.red, b.green, b.blue)
 
+
 class BackdropRenderer:
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
-
     def blurred(self, source: Gdk.Paintable) -> Gdk.Texture | None:
         """The one expensive step, taken once per artwork and then cached.
 
@@ -125,6 +123,7 @@ class BackdropRenderer:
             self._blur_cache.clear()
         self._blur_cache[key] = (source, rendered)
         return rendered
+
     def snapshot(self, snapshot: Gtk.Snapshot) -> None:
         width = float(self.get_width())
         height = float(self.get_height())

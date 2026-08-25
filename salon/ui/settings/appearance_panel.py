@@ -1,25 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused settings panel builder."""
+
 from __future__ import annotations
 
 import shutil
-from collections.abc import Callable
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio  # noqa: E402
 
-from salon import config as app_config  # noqa: E402
-from salon.core import sandbox, tokens  # noqa: E402
-from salon.input.actions import Action  # noqa: E402
-from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
+from salon.core import tokens  # noqa: E402
+from salon.services import artwork  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
     ChoiceRow,
-    InfoRow,
     RangeRow,
     SettingsRow,
     TextRow,
@@ -119,7 +115,7 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=60,
                 step=5,
                 fmt=lambda v: "Never" if v == 0 else f"After {v:.0f} min",
-                detail="Fades to a drifting clock. Salon's session has no screen lock to do it.",
+                detail="Fades to a drifting clock. Configure screen locking separately.",
             ),
             ToggleRow(
                 "Reduced motion",

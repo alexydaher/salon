@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Resolve tile artwork from local files, caches, site icons, and app icons."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -18,7 +19,9 @@ from salon.services.artwork_colors import dominant_color, hashed_accent, parse_h
 from salon.services.artwork_io import is_symbolic  # noqa: E402
 from salon.services.artwork_models import Artwork  # noqa: E402
 from salon.services.artwork_network import ArtworkNetworkLoader  # noqa: E402
-from salon.services.artwork_paths import local_artwork_path  # noqa: E402
+from salon.services.artwork_paths import local_artwork_path, prune_artwork_cache  # noqa: E402
+
+_FETCH_TIMEOUT_SECONDS = 15
 
 
 def load_texture(path: Path) -> Gdk.Texture | None:
@@ -26,6 +29,7 @@ def load_texture(path: Path) -> Gdk.Texture | None:
         return Gdk.Texture.new_from_filename(str(path))
     except GLib.Error:
         return None
+
 
 class ArtworkResolver:
     """Resolves tiles to Artwork, caching decoded textures and extracted
@@ -40,7 +44,13 @@ class ArtworkResolver:
         self._color_cache: dict[tuple[str, float], Gdk.RGBA | None] = {}
         self._session: Soup.Session | None = None
         self._in_flight: set[str] = set()
-        self._network = ArtworkNetworkLoader(self)
+        self._network = ArtworkNetworkLoader(
+            settings=self._settings,
+            session_for=self._session_for,
+            in_flight=self._in_flight,
+            on_fetched=self._on_fetched,
+        )
+        prune_artwork_cache()
 
     def resolve(self, tile: Tile, *, icon_size: int) -> Artwork:
         explicit_accent = parse_hex(tile.accent) if tile.accent else None
@@ -140,3 +150,9 @@ class ArtworkResolver:
         )
 
     # --- site icons ------------------------------------------------------
+
+    def _session_for(self) -> Soup.Session:
+        if self._session is None:
+            self._session = Soup.Session()
+            self._session.set_timeout(_FETCH_TIMEOUT_SECONDS)
+        return self._session

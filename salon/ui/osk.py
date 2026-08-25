@@ -52,13 +52,9 @@ class OnScreenKeyboard(Gtk.Grid):
                 button.add_css_class("salon-osk-key")
                 if key.width > 1:
                     button.add_css_class("wide")
-                button.connect(
-                    "clicked", lambda _b, r=row_index, c=key_index: self._activate(r, c)
-                )
+                button.connect("clicked", lambda _b, r=row_index, c=key_index: self._activate(r, c))
                 motion = Gtk.EventControllerMotion()
-                motion.connect(
-                    "motion", lambda *_, r=row_index, c=key_index: self._hover(r, c)
-                )
+                motion.connect("motion", lambda *_, r=row_index, c=key_index: self._hover(r, c))
                 button.add_controller(motion)
                 self.attach(button, column, row_index, key.width, 1)
                 self._buttons[(row_index, key_index)] = button

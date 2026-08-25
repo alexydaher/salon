@@ -1,35 +1,47 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Asynchronous loading of explicit artwork and site-owned icons."""
+
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import gi
 
 gi.require_version("Soup", "3.0")
-from gi.repository import Gio, GLib, Soup  # noqa: E402
+from gi.repository import Gio, Soup  # noqa: E402
 
 from salon.core import siteicon  # noqa: E402
 from salon.core.model import LaunchKind, Tile  # noqa: E402
 from salon.services.artwork_io import decode_image, document_head, save_png  # noqa: E402
 from salon.services.artwork_paths import (  # noqa: E402
     cached_remote_path,
+    prune_artwork_cache,
     site_icon_miss_path,
     site_icon_path,
 )
+from salon.services.http_bounds import fetch_bytes  # noqa: E402
 
-_FETCH_TIMEOUT_SECONDS = 15
+_HTML_DOWNLOAD_BYTES = 512 * 1024
+_IMAGE_DOWNLOAD_BYTES = 8 * 1024 * 1024
 _SITE_ICON_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Salon/1.0"
 )
 
-class ArtworkNetworkLoader:
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
+class ArtworkNetworkLoader:
+    def __init__(
+        self,
+        *,
+        settings: Gio.Settings,
+        session_for: Callable[[], Soup.Session],
+        in_flight: set[str],
+        on_fetched: Callable[[], None] | None,
+    ) -> None:
+        self._settings = settings
+        self._session_for = session_for
+        self._in_flight = in_flight
+        self._on_fetched = on_fetched
 
     def site_icons_enabled(self) -> bool:
         return bool(self._settings.get_boolean("fetch-site-icons"))
@@ -66,19 +78,18 @@ class ArtworkNetworkLoader:
         # page to anything they do not recognise — and that stripped page is
         # exactly the one with no icon declarations in it.
         message.get_request_headers().append("User-Agent", _SITE_ICON_USER_AGENT)
-        self._session_for().send_and_read_async(
-            message, GLib.PRIORITY_LOW, None, self._on_page_fetched, url
+        fetch_bytes(
+            self._session_for(),
+            message,
+            _HTML_DOWNLOAD_BYTES,
+            lambda body: self._on_page_fetched(body, url),
         )
 
-    def _on_page_fetched(self, session: Soup.Session, result: Gio.AsyncResult, url: str) -> None:
+    def _on_page_fetched(self, body: bytes | None, url: str) -> None:
         key = f"site:{siteicon.origin(url)}"
         candidates: list[str] = []
-        try:
-            body = session.send_and_read_finish(result)
-        except GLib.Error:
-            body = None
         if body is not None:
-            html = document_head(bytes(body.get_data() or b""))
+            html = document_head(body)
             usable = siteicon.MIN_USEFUL_SIZE
             candidates = [
                 candidate.url
@@ -103,6 +114,7 @@ class ArtworkNetworkLoader:
             miss = site_icon_miss_path(url)
             miss.parent.mkdir(parents=True, exist_ok=True)
             miss.touch()
+            prune_artwork_cache()
             return
         head, rest = candidates[0], candidates[1:]
         message = Soup.Message.new("GET", head)
@@ -110,38 +122,30 @@ class ArtworkNetworkLoader:
             self._try_site_icons(url, rest)
             return
         message.get_request_headers().append("User-Agent", _SITE_ICON_USER_AGENT)
-        self._session_for().send_and_read_async(
-            message, GLib.PRIORITY_LOW, None, self._on_site_icon_fetched, (url, rest)
+        fetch_bytes(
+            self._session_for(),
+            message,
+            _IMAGE_DOWNLOAD_BYTES,
+            lambda body: self._on_site_icon_fetched(body, (url, rest)),
         )
 
-    def _on_site_icon_fetched(
-        self, session: Soup.Session, result: Gio.AsyncResult, data: tuple[str, list[str]]
-    ) -> None:
+    def _on_site_icon_fetched(self, body: bytes | None, data: tuple[str, list[str]]) -> None:
         url, rest = data
         pixbuf = None
-        try:
-            body = session.send_and_read_finish(result)
-        except GLib.Error:
-            body = None
         if body is not None:
-            pixbuf = decode_image(body.get_data())
+            pixbuf = decode_image(body)
         # An .ico that decoded to 16x16 is a favicon, not artwork: keep
         # walking rather than putting a blurred postage stamp on a tile.
         if pixbuf is not None and max(pixbuf.get_width(), pixbuf.get_height()) >= (
             siteicon.MIN_USEFUL_SIZE
         ):
             if save_png(pixbuf, site_icon_path(url)) and self._on_fetched is not None:
+                prune_artwork_cache()
                 self._on_fetched()
             return
         self._try_site_icons(url, rest)
 
     # --- explicit artwork URLs -------------------------------------------
-
-    def _session_for(self) -> Soup.Session:
-        if self._session is None:
-            self._session = Soup.Session()
-            self._session.set_timeout(_FETCH_TIMEOUT_SECONDS)
-        return self._session
 
     def maybe_fetch(self, tile: Tile) -> None:
         url = tile.artwork
@@ -154,18 +158,20 @@ class ArtworkNetworkLoader:
         if message is None:
             self._in_flight.discard(url)
             return
-        self._session_for().send_and_read_async(
-            message, GLib.PRIORITY_LOW, None, self._on_fetch_done, url
+        fetch_bytes(
+            self._session_for(),
+            message,
+            _IMAGE_DOWNLOAD_BYTES,
+            lambda body: self._on_fetch_done(body, url),
         )
 
-    def _on_fetch_done(self, session: Soup.Session, result: Gio.AsyncResult, url: str) -> None:
+    def _on_fetch_done(self, body: bytes | None, url: str) -> None:
         self._in_flight.discard(url)
-        try:
-            body = session.send_and_read_finish(result)
-        except GLib.Error:
+        if body is None:
             return
-        pixbuf = decode_image(body.get_data())
+        pixbuf = decode_image(body)
         if pixbuf is None:
             return
         if save_png(pixbuf, cached_remote_path(url)) and self._on_fetched is not None:
+            prune_artwork_cache()
             self._on_fetched()

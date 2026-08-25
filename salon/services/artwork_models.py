@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Resolved artwork value used by tile presentation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

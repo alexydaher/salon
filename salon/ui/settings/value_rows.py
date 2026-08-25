@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Choice, range, and text-entry settings rows."""
+
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence

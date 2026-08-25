@@ -1,22 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused top-bar widget."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
-from salon.services.battery import BatteryStatus, BatteryWatcher  # noqa: E402
-from salon.services.netinfo import NetworkStatus, NetworkWatcher  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 _TICK_INTERVAL_MS = 1000
+
 
 class StatusBar(Gtk.Box):
     """The global action buttons, in the top-right corner.

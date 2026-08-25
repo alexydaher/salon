@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Global animation speed and shared motion parameters."""
+
 from __future__ import annotations
 
 import gi
@@ -7,7 +8,7 @@ import gi
 gi.require_version("Adw", "1")
 from gi.repository import (  # noqa: E402
     Adw,  # noqa: E402
-    )
+)
 
 # Tighter than the brief's literal 0.82/320 — that combination read as
 # loose and bouncy on a real screen (see DECISIONS.md). A higher damping

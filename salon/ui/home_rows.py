@@ -2,7 +2,15 @@
 # ruff: noqa: F403, F405
 """Home row widgets and initial catalogue."""
 
-from salon.ui.home_shared import *
+from salon.ui.home_shared import (
+    Gtk,
+    LaunchKind,
+    LaunchSpec,
+    Row,
+    Tile,
+    TileMetrics,
+    TileWidget,
+)
 from salon.ui.home_spring import _AxisSpring
 
 

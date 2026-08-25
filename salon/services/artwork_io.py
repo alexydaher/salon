@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Image decoding, encoding, and icon-kind helpers."""
+
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import gi
@@ -11,6 +13,9 @@ gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, GLib, Gtk  # noqa: E402
 
 _HTML_SNIFF_BYTES = 512 * 1024
+_MAX_IMAGE_EDGE = 4096
+_MAX_IMAGE_PIXELS = 16_000_000
+
 
 def document_head(data: bytes) -> str:
     """The document's <head>, decoded leniently. Bounded twice: at </head>
@@ -30,6 +35,20 @@ def decode_image(data: object) -> GdkPixbuf.Pixbuf | None:
         return None
     try:
         loader = GdkPixbuf.PixbufLoader()
+
+        def bound_size(subject: GdkPixbuf.PixbufLoader, width: int, height: int) -> None:
+            if width <= 0 or height <= 0:
+                return
+            scale = min(
+                1.0,
+                _MAX_IMAGE_EDGE / width,
+                _MAX_IMAGE_EDGE / height,
+                math.sqrt(_MAX_IMAGE_PIXELS / (width * height)),
+            )
+            if scale < 1.0:
+                subject.set_size(max(1, int(width * scale)), max(1, int(height * scale)))
+
+        loader.connect("size-prepared", bound_size)
         loader.write(bytes(data))
         loader.close()
         return loader.get_pixbuf()

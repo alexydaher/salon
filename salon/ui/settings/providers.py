@@ -75,9 +75,7 @@ def providers_panel(
         known = {provider.id for provider in registry.all_providers()}
         for outcome in outcomes():
             if outcome.provider_id not in known:
-                rows.append(
-                    InfoRow(outcome.title, "Failed", detail=outcome.failure or "")
-                )
+                rows.append(InfoRow(outcome.title, "Failed", detail=outcome.failure or ""))
 
         rows.append(
             ActionRow(

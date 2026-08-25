@@ -3,32 +3,40 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
-from salon.ui.home_rows import *
-from salon.ui.home_shared import *
-from salon.ui.home_spring import *
-from salon.ui.home_viewport import *
+from salon.ui.home_rows import _RowWidgets
+from salon.ui.home_shared import (
+    _EDGE_FADE_DU,
+    _FALLBACK_VIEWPORT_HEIGHT_PX,
+    Gtk,
+    RemoteRow,
+    RemoteTile,
+    TileWidget,
+    metrics_for,
+)
 
 
 class HomeLayoutBuilder(ServiceComponent):
     def _rebuild_row_widgets(self) -> None:
-        child = self._rows_content.get_first_child()
+        child = self._owner._rows_content.get_first_child()
         while child is not None:
             next_child = child.get_next_sibling()
-            self._rows_content.remove(child)
+            self._owner._rows_content.remove(child)
             child = next_child
 
-        animations = self._animations_enabled
-        self._rows = []
+        animations = self._owner._animations_enabled
+        self._owner._rows = []
         remote_rows: list[RemoteRow] = []
-        for row_index, row in enumerate(self._catalog.rows):
-            metrics = metrics_for(self._scale, row.tile_aspect, size_scale=self._tile_scale)
+        for row_index, row in enumerate(self._owner._catalog.rows):
+            metrics = metrics_for(
+                self._owner._scale, row.tile_aspect, size_scale=self._owner._tile_scale
+            )
 
             heading = Gtk.Label(label=row.title or "")
             heading.set_halign(Gtk.Align.START)
             heading.set_xalign(0.0)
             heading.set_yalign(0.5)
             heading.add_css_class("salon-row-heading")
-            self._rows_content.put(heading, 0, 0)
+            self._owner._rows_content.put(heading, 0, 0)
 
             row_viewport = Gtk.Fixed()
             row_viewport.set_overflow(Gtk.Overflow.HIDDEN)
@@ -41,7 +49,7 @@ class HomeLayoutBuilder(ServiceComponent):
             tiles: list[TileWidget] = []
             remote_tiles: list[RemoteTile] = []
             for col, tile in enumerate(row.tiles):
-                artwork = self._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
+                artwork = self._owner._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
                 # The phone's copy of this tile, built from the artwork that
                 # was just resolved rather than resolving it a second time.
                 # A symbolic icon is monochrome and reads as a smudge on a
@@ -53,9 +61,9 @@ class HomeLayoutBuilder(ServiceComponent):
                 # draws them. Built by the same helper the phone's search
                 # results go through, so a result and a home-screen tile are
                 # the same card rather than two that drift apart.
-                remote_tiles.append(self._remote_tile_from(tile, artwork))
+                remote_tiles.append(self._owner._remote_tile_from(tile, artwork))
                 widget = TileWidget(
-                    tile, artwork, metrics, self._scale, animations_enabled=animations
+                    tile, artwork, metrics, self._owner._scale, animations_enabled=animations
                 )
                 self._attach_pointer(widget, row_index, col)
                 # Tiles start at x=0, not at -bleed: a child placed at a
@@ -66,11 +74,11 @@ class HomeLayoutBuilder(ServiceComponent):
                 tiles_box.put(widget, col * metrics.step, 0.0)
                 tiles.append(widget)
             row_viewport.put(tiles_box, 0, 0)
-            self._rows_content.put(row_viewport, 0, 0)
+            self._owner._rows_content.put(row_viewport, 0, 0)
 
             widgets = _RowWidgets(heading, row_viewport, tiles_box, tiles, metrics)
             widgets.scroller.set_animations_enabled(animations)
-            self._rows.append(widgets)
+            self._owner._rows.append(widgets)
             remote_rows.append(
                 RemoteRow(
                     id=row.id,
@@ -80,30 +88,32 @@ class HomeLayoutBuilder(ServiceComponent):
                 )
             )
 
-        self._remote_rows = tuple(remote_rows)
-        self._row_anchor.set_animations_enabled(animations)
+        self._owner._remote_rows = tuple(remote_rows)
+        self._owner._row_anchor.set_animations_enabled(animations)
         self._layout_rows()
         # _update_focus publishes, so the phone picks the new catalogue up
         # on its next poll without a second hook here.
-        self._update_focus(animate=False)
+        self._owner._update_focus(animate=False)
 
     def _layout_rows(self) -> None:
         """Position every row at an absolute y, and size the row viewports
         to the full window width so the only horizontal clip is the screen
         edge itself."""
-        width = self._viewport_width
-        heading_width = max(1, round(width - 2 * self._safe_margin))
-        self._recompute_row_tops()
-        for index, row in enumerate(self._rows):
-            top = self._row_top(index)
-            row.heading.set_size_request(heading_width, round(self._heading_height))
-            self._rows_content.move(row.heading, self._safe_margin, top)
+        width = self._owner._viewport_width
+        heading_width = max(1, round(width - 2 * self._owner._safe_margin))
+        self._owner._recompute_row_tops()
+        for index, row in enumerate(self._owner._rows):
+            top = self._owner._row_top(index)
+            row.heading.set_size_request(heading_width, round(self._owner._heading_height))
+            self._owner._rows_content.move(row.heading, self._owner._safe_margin, top)
 
             row.viewport.set_size_request(width, round(row.metrics.outer_height))
-            self._rows_content.move(
-                row.viewport, 0.0, self._row_tile_top(index) - row.metrics.bleed
+            self._owner._rows_content.move(
+                row.viewport, 0.0, self._owner._row_tile_top(index) - row.metrics.bleed
             )
-        self._rows_content.set_size_request(width, max(1, round(self._content_height())))
+        self._owner._rows_content.set_size_request(
+            width, max(1, round(self._owner._content_height()))
+        )
         self._apply_viewport_insets()
         self._update_edge_fades()
 
@@ -122,12 +132,12 @@ class HomeLayoutBuilder(ServiceComponent):
         inside the band, ramping in over the first few pixels of travel and
         capping at the full ramp once a row is genuinely passing under a bar.
         """
-        fade = self._scale.du(_EDGE_FADE_DU)
-        band_height = float(self._viewport_height or _FALLBACK_VIEWPORT_HEIGHT_PX)
-        offset = self._row_anchor.value
+        fade = self._owner._scale.du(_EDGE_FADE_DU)
+        band_height = float(self._owner._viewport_height or _FALLBACK_VIEWPORT_HEIGHT_PX)
+        offset = self._owner._row_anchor.value
         above = max(0.0, -offset)
-        below = max(0.0, self._content_height() + offset - band_height)
-        self._viewport.set_fades(min(fade, above), min(fade, below))
+        below = max(0.0, self._owner._content_height() + offset - band_height)
+        self._owner._viewport.set_fades(min(fade, above), min(fade, below))
 
     def _apply_viewport_insets(self) -> None:
         """Shrink the scrolling band to the gap between the two bars.
@@ -150,8 +160,8 @@ class HomeLayoutBuilder(ServiceComponent):
         steady state costs nothing and this cannot drive a resize loop even
         though `_layout_rows` runs from inside an allocation.
         """
-        self._viewport_host.set_margin_top(round(self._top_inset()))
-        self._viewport_host.set_margin_bottom(round(self._bottom_inset()))
+        self._owner._viewport_host.set_margin_top(round(self._owner._top_inset()))
+        self._owner._viewport_host.set_margin_bottom(round(self._owner._bottom_inset()))
 
     def _attach_pointer(self, widget: TileWidget, row: int, col: int) -> None:
         click = Gtk.GestureClick()
@@ -166,19 +176,19 @@ class HomeLayoutBuilder(ServiceComponent):
         widget.add_controller(hover)
 
     def _on_tile_clicked(self, row: int, col: int) -> None:
-        if self._system_menu.get_visible() or self._launcher.is_launching:
+        if self._owner._system_menu.get_visible() or self._owner._launcher.is_launching:
             return
-        if (row, col) != self._focus.position:
-            self._focus.jump_to(row, col)
-            self._update_focus()
-        self._launch_focused()
+        if (row, col) != self._owner._focus.position:
+            self._owner._focus.jump_to(row, col)
+            self._owner._update_focus()
+        self._owner._launch_focused()
 
     def _on_tile_hovered(self, row: int, col: int) -> None:
-        if not self._pointer_visible:
+        if not self._owner._pointer_visible:
             return  # a tile scrolled under a parked cursor, not a real hover
-        if self._system_menu.get_visible() or self._launcher.is_launching:
+        if self._owner._system_menu.get_visible() or self._owner._launcher.is_launching:
             return
-        if (row, col) == self._focus.position:
+        if (row, col) == self._owner._focus.position:
             return
-        self._focus.jump_to(row, col)
-        self._update_focus()
+        self._owner._focus.jump_to(row, col)
+        self._owner._update_focus()

@@ -1,29 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused settings panel builder."""
-from __future__ import annotations
 
-import shutil
-from collections.abc import Callable
+from __future__ import annotations
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
-from salon import config as app_config  # noqa: E402
-from salon.core import sandbox, tokens  # noqa: E402
-from salon.input.actions import Action  # noqa: E402
-from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
-    ChoiceRow,
     InfoRow,
-    RangeRow,
     SettingsRow,
-    TextRow,
-    ToggleRow,
 )
 
 

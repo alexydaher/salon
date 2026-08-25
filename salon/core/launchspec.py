@@ -26,6 +26,7 @@ def resolve(
     spec: LaunchSpec,
     *,
     browser_command: tuple[str, ...] = (),
+    browser_extra_flags: tuple[str, ...] = (),
     scale_factor: float = 1.0,
     session_type: str = "",
     host_prefix: tuple[str, ...] = (),
@@ -53,6 +54,7 @@ def resolve(
             *_resolve_url(
                 spec,
                 browser_command=browser_command,
+                browser_extra_flags=browser_extra_flags,
                 scale_factor=scale_factor,
                 session_type=session_type,
             ),
@@ -74,6 +76,7 @@ def _resolve_url(
     spec: LaunchSpec,
     *,
     browser_command: tuple[str, ...],
+    browser_extra_flags: tuple[str, ...],
     scale_factor: float,
     session_type: str,
 ) -> list[str]:
@@ -109,6 +112,7 @@ def _resolve_url(
         argv.append("--enable-spatial-navigation")
     if spec.user_agent:
         argv.append(f"--user-agent={spec.user_agent}")
+    argv.extend(browser_extra_flags)
     return argv
 
 

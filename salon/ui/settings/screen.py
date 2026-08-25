@@ -4,17 +4,39 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from salon.services.component import component_attribute
 from salon.ui.settings.screen_actions import SettingsActionController
 from salon.ui.settings.screen_navigation import SettingsNavigationController
 from salon.ui.settings.screen_preview import SettingsPreviewController
-from salon.ui.settings.screen_shared import *
+from salon.ui.settings.screen_shared import (
+    Callable,
+    Config,
+    Gio,
+    Gtk,
+    Pane,
+    Panel,
+    Pango,
+    ProviderOutcome,
+    ProviderRegistry,
+    Scale,
+    SettingsContext,
+    SettingsList,
+    SettingsRow,
+    SizeReporter,
+    Tile,
+    ValuePopup,
+    motion,
+)
 from salon.ui.settings.screen_state import SettingsStateController
 
 
-class SettingsScreen(Gtk.Box, motion.FadesIn):
+class SettingsScreen(
+    Gtk.Box,
+    motion.FadesIn,
+    SettingsStateController,
+    SettingsNavigationController,
+    SettingsPreviewController,
+    SettingsActionController,
+):
     def __init__(
         self,
         scale: Scale,
@@ -43,13 +65,7 @@ class SettingsScreen(Gtk.Box, motion.FadesIn):
         config_path: str,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
-
-        self._components = (
-            SettingsStateController(self),
-            SettingsNavigationController(self),
-            SettingsPreviewController(self),
-            SettingsActionController(self),
-        )
+        self._owner = self
         self._init_fade()
         self.add_css_class("salon-search")  # same full-bleed dark field
         self.set_visible(False)
@@ -179,16 +195,3 @@ class SettingsScreen(Gtk.Box, motion.FadesIn):
         self._section_panels: list[Panel] = []
         self._build_sections()
         self.set_scale(scale)
-
-    # --- lifecycle -------------------------------------------------------
-
-    # --- panel stack -----------------------------------------------------
-
-    # --- live preview ----------------------------------------------------
-
-    # --- input -----------------------------------------------------------
-
-    # --- odds and ends ---------------------------------------------------
-
-    def __getattr__(self, name: str) -> Any:
-        return component_attribute(self._components, name)

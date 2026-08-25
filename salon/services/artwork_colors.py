@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Artwork accent parsing, generation, and image color analysis."""
+
 from __future__ import annotations
 
 import colorsys
@@ -17,6 +18,7 @@ _MIN_ALPHA = 128
 _MIN_LIGHTNESS = 0.18
 _MAX_LIGHTNESS = 0.95
 _MIN_SATURATION = 0.15
+
 
 def _rgba(red: float, green: float, blue: float, alpha: float = 1.0) -> Gdk.RGBA:
     color = Gdk.RGBA()
@@ -36,8 +38,7 @@ def to_hex(color: Gdk.RGBA) -> str:
     """`#rrggbb`, for the one consumer that isn't GTK: the phone remote
     draws its own cards in CSS and needs the accent as a string."""
     red, green, blue = (
-        round(max(0.0, min(1.0, channel)) * 255)
-        for channel in (color.red, color.green, color.blue)
+        round(max(0.0, min(1.0, channel)) * 255) for channel in (color.red, color.green, color.blue)
     )
     return f"#{red:02x}{green:02x}{blue:02x}"
 

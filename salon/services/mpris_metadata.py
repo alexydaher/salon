@@ -36,11 +36,7 @@ def player_from_properties(
     metadata = raw_metadata if isinstance(raw_metadata, (dict, GLib.VariantDict)) else {}
     status = str(properties.get("PlaybackStatus", ""))
     title = str(metadata.get("xesam:title", "") or "")
-    unchanged = (
-        previous is not None
-        and previous.status == status
-        and previous.title == title
-    )
+    unchanged = previous is not None and previous.status == status and previous.title == title
     return Player(
         bus_name=bus_name,
         identity=previous.identity if previous else _fallback_identity(bus_name),

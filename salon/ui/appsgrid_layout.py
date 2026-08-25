@@ -1,23 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Layout, tile construction, and selection painting for the apps grid."""
+
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
-from salon.core.focus import Bump, FocusModel  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
-from salon.services import appinfo  # noqa: E402
-from salon.services.artwork import ArtworkResolver  # noqa: E402
-from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.tile import TileMetrics, TileWidget, metrics_for  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
@@ -26,12 +20,6 @@ _ASPECT = "square"
 
 
 class AppsGridLayout:
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._owner, name)
-
     def _metrics(self) -> TileMetrics:
         return metrics_for(self._scale, _ASPECT, size_scale=_TILE_SCALE)
 
@@ -214,9 +202,7 @@ class AppsGridLayout:
             widget.set_focused(i == index)
         tile = self.focused_tile
         if tile is not None:
-            self._set_hint(
-                f"{tile.title} · {tile.subtitle}" if tile.subtitle else tile.title
-            )
+            self._set_hint(f"{tile.title} · {tile.subtitle}" if tile.subtitle else tile.title)
         self._update_rail()
         if 0 <= index < len(self._widgets):
             # Same aria-activedescendant pattern as the home screen: the

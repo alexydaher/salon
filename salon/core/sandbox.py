@@ -18,11 +18,44 @@ in the *host* environment of anything a Flatpak app spawns.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 _FLATPAK_INFO = Path("/.flatpak-info")
 
 HOST_SPAWN = ("flatpak-spawn", "--host")
+
+
+@dataclass(frozen=True, slots=True)
+class Capabilities:
+    sandboxed: bool
+    control_center: bool
+    autostart: bool
+    network_configuration: bool
+    bluetooth_pairing: bool
+    cec: bool
+    mutter_injection: bool
+    shell_keyboard: bool
+    host_power: bool
+    host_spawn: bool
+
+
+def capabilities(sandboxed: bool | None = None) -> Capabilities:
+    if sandboxed is None:
+        sandboxed = in_flatpak()
+    host = not sandboxed
+    return Capabilities(
+        sandboxed=sandboxed,
+        control_center=host,
+        autostart=host,
+        network_configuration=host,
+        bluetooth_pairing=host,
+        cec=host,
+        mutter_injection=host,
+        shell_keyboard=host,
+        host_power=host,
+        host_spawn=True,
+    )
 
 
 def in_flatpak(marker: Path = _FLATPAK_INFO) -> bool:
@@ -45,8 +78,8 @@ def host_settings_available(sandboxed: bool | None = None) -> bool:
     """Whether Salon may change desktop-wide settings.
 
     The Flatpak deliberately has no direct host-dconf access. Native builds
-    can still manage the GNOME screen lock and shell keyboard when Salon is
-    installed as the television session.
+    can still manage the GNOME shell keyboard when Salon is installed as
+    the television session. Salon never changes the global screen lock.
     """
     if sandboxed is None:
         sandboxed = in_flatpak()

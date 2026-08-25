@@ -4,7 +4,12 @@
 
 from __future__ import annotations
 
-from salon.services.phone_remote_shared import *
+from salon.services.phone_remote_shared import (
+    _AWAKE_CLIPS,
+    PhoneRemoteComponent,
+    Soup,
+    _resource_bytes,
+)
 
 
 class PhoneRemoteResources(PhoneRemoteComponent):
@@ -20,12 +25,12 @@ class PhoneRemoteResources(PhoneRemoteComponent):
         if message.get_method() != "GET":
             message.set_status(Soup.Status.METHOD_NOT_ALLOWED, None)
             return
-        if not self._from_local_network(message):
-            self._refuse(message, Soup.Status.FORBIDDEN, "Not on this network.")
+        if not self._owner._from_local_network(message):
+            self._owner._refuse(message, Soup.Status.FORBIDDEN, "Not on this network.")
             return
         data = _resource_bytes(name)
         if data is None:
-            self._refuse(
+            self._owner._refuse(
                 message,
                 Soup.Status.INTERNAL_SERVER_ERROR,
                 "Salon could not find the remote's page. This copy may be installed wrong.",

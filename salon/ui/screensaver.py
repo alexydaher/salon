@@ -3,7 +3,7 @@
 
 Salon sits at full brightness indefinitely. On a desk that is fine, because
 the desktop's own screensaver takes over; in Salon's own session it is
-suppressed on purpose (`services/screenlock.py`), because a launcher that
+configured by the session administrator, because a launcher that
 demands a password when someone picks up the remote is a dead end in a
 living room. The consequence is a static, bright, high-contrast image left
 on a panel for hours — which on the OLED televisions this is aimed at is
@@ -63,8 +63,6 @@ def _parse(value: str) -> Gdk.RGBA:
     color = Gdk.RGBA()
     color.parse(value)
     return color
-
-
 
 
 def _with_alpha(color: Gdk.RGBA, alpha: float) -> Gdk.RGBA:

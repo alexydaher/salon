@@ -2,7 +2,7 @@
 # ruff: noqa: F403, F405
 """Validation and main-loop delivery helpers for remote commands."""
 
-from salon.services.phone_remote_shared import *
+from salon.services.phone_remote_shared import Callable, GLib
 
 
 def _finite(value: object) -> float:

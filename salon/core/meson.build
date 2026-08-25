@@ -10,6 +10,7 @@ python_sources = [
   'sandbox.py',
   'session.py',
   'config.py',
+  'config_serialization.py',
   'focus.py',
   'gamelib.py',
   'game_library.py',

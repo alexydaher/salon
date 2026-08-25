@@ -1,38 +1,38 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused settings panel builder."""
+
 from __future__ import annotations
 
 import shutil
-from collections.abc import Callable
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio  # noqa: E402
 
-from salon import config as app_config  # noqa: E402
-from salon.core import sandbox, tokens  # noqa: E402
-from salon.input.actions import Action  # noqa: E402
-from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
+from salon.core import sandbox  # noqa: E402
 from salon.ui.settings.bindings_panel import (  # noqa: E402
     _bindings_panel,
     _gamepad_panel,
 )
 from salon.ui.settings.bluetooth_panel import _bluetooth_panel  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
     ChoiceRow,
-    InfoRow,
     RangeRow,
     SettingsRow,
-    TextRow,
     ToggleRow,
 )
 
 
 def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
+    caps = sandbox.capabilities()
+    bluetooth_reason = "Unavailable in Flatpak; pair devices from the host desktop."
+
+    def bluetooth_row(row: SettingsRow) -> SettingsRow:
+        return row if caps.bluetooth_pairing else row.make_unavailable(bluetooth_reason)
+
     def build() -> list[SettingsRow]:
         return [
             ToggleRow(
@@ -50,16 +50,20 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     "a controller or a phone turns up"
                 ),
             ),
-            ActionRow(
-                "Pair a remote or controller",
-                lambda: context.push(_bluetooth_panel(context)),
-                detail="Bluetooth, without needing a mouse to do it",
-                value="›",
+            bluetooth_row(
+                ActionRow(
+                    "Pair a remote or controller",
+                    lambda: context.push(_bluetooth_panel(context)),
+                    detail="Bluetooth, without needing a mouse to do it",
+                    value="›",
+                )
             ),
-            ActionRow(
-                "Bluetooth, in detail",
-                lambda: context.open_control_center("bluetooth"),
-                detail="Devices needing a typed PIN, and everything else",
+            bluetooth_row(
+                ActionRow(
+                    "Bluetooth, in detail",
+                    lambda: context.open_control_center("bluetooth"),
+                    detail="Devices needing a typed PIN, and everything else",
+                )
             ),
             ActionRow(
                 "Change buttons",
@@ -103,11 +107,15 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
             ChoiceRow(
                 "Input injection",
-                [
-                    ("auto", "Automatic"),
-                    ("mutter", "Compositor only"),
-                    ("portal", "Ask the desktop"),
-                ],
+                (
+                    [
+                        ("auto", "Automatic"),
+                        ("mutter", "Compositor only"),
+                        ("portal", "Ask the desktop"),
+                    ]
+                    if caps.mutter_injection
+                    else [("portal", "Ask the desktop")]
+                ),
                 lambda: settings.get_string("input-injection"),
                 lambda value: settings.set_string("input-injection", value),
                 detail=_injection_detail(context, settings),
@@ -121,15 +129,21 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     else "Not granted yet; you'll be asked the next time it's needed"
                 ),
             ),
-            ToggleRow(
-                "HDMI-CEC input",
-                lambda: settings.get_boolean("cec-enabled"),
-                lambda value: settings.set_boolean("cec-enabled", value),
-                detail=(
-                    "Use the TV remote over HDMI. Needs cec-client installed."
-                    if shutil.which("cec-client")
-                    else "Needs cec-client, which isn't installed."
-                ),
+            (
+                ToggleRow(
+                    "HDMI-CEC input",
+                    lambda: settings.get_boolean("cec-enabled"),
+                    lambda value: settings.set_boolean("cec-enabled", value),
+                    detail=(
+                        "Use the TV remote over HDMI. Needs cec-client installed."
+                        if shutil.which("cec-client")
+                        else "Needs cec-client, which isn't installed."
+                    ),
+                )
+                if caps.cec
+                else ToggleRow(
+                    "HDMI-CEC input", lambda: False, lambda _value: None
+                ).make_unavailable("Unavailable in Flatpak; direct CEC devices are not exposed.")
             ),
         ]
 

@@ -1,16 +1,43 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F403, F405
 """Compatibility facade for pointer injection backends."""
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
 
-from salon.services.component import component_attribute
-from salon.services.pointer_events import PointerEventInjection
-from salon.services.pointer_mutter import MutterPointerBackend
-from salon.services.pointer_portal import RemoteDesktopPortalBackend
-from salon.services.pointer_shared import *
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+from salon.core import sandbox  # noqa: E402
+from salon.services.pointer_events import PointerEventInjection  # noqa: E402
+from salon.services.pointer_mutter import MutterPointerBackend  # noqa: E402
+from salon.services.pointer_portal import RemoteDesktopPortalBackend  # noqa: E402
+from salon.services.pointer_portal_calls import PortalCalls  # noqa: E402
+from salon.services.pointer_shared import (  # noqa: E402
+    BACKEND_AUTO,
+    BACKEND_MUTTER,
+    BACKEND_PORTAL,
+    BTN_LEFT,
+    BUTTONS,
+    keysym_for,
+    onscreen_keyboard_available,
+    onscreen_keyboard_enabled,
+    set_onscreen_keyboard_enabled,
+)
+
+__all__ = [
+    "BACKEND_AUTO",
+    "BACKEND_MUTTER",
+    "BACKEND_PORTAL",
+    "BUTTONS",
+    "PointerInjector",
+    "keysym_for",
+    "onscreen_keyboard_available",
+    "onscreen_keyboard_enabled",
+    "set_onscreen_keyboard_enabled",
+]
 
 
 class PointerInjector:
@@ -29,7 +56,13 @@ class PointerInjector:
         save_restore_token: Callable[[str], None] | None = None,
         backend: str = BACKEND_AUTO,
     ) -> None:
-        self._connection: Gio.DBusConnection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        try:
+            self._connection: Gio.DBusConnection | None = Gio.bus_get_sync(
+                Gio.BusType.SESSION, None
+            )
+        except (GLib.Error, OSError, TypeError, ValueError) as error:
+            print(f"[pointer] Session bus is unavailable ({error}).")
+            self._connection = None
         self._session_handle: str | None = None
         self._started = False
         self._preference = backend
@@ -44,15 +77,66 @@ class PointerInjector:
         self._load_restore_token = load_restore_token
         self._save_restore_token = save_restore_token
         self._used_restore_token = ""
+        self._pending_request_subscriptions: set[int] = set()
+        self._portal_closed_subscription: int | None = None
+        self._failure_reported = False
 
-        self._components = (
-            MutterPointerBackend(self),
-            RemoteDesktopPortalBackend(self),
-            PointerEventInjection(self),
+        self._mutter = MutterPointerBackend(self)
+        self._portal = RemoteDesktopPortalBackend(self)
+        self._portal_calls = PortalCalls(self)
+        self._events = PointerEventInjection(self)
+
+    def move(self, dx: float, dy: float) -> None:
+        self._events.move(dx, dy)
+
+    def scroll(self, dx: float, dy: float) -> None:
+        self._events.scroll(dx, dy)
+
+    def scroll_finish(self) -> None:
+        self._events.scroll_finish()
+
+    def press(self, button: int = BTN_LEFT) -> None:
+        self._events.press(button)
+
+    def release(self, button: int = BTN_LEFT) -> None:
+        self._events.release(button)
+
+    def click(self, button: int = BTN_LEFT) -> None:
+        self._events.click(button)
+
+    def type_text(self, value: str) -> bool:
+        return self._events.type_text(value)
+
+    def _start_mutter(self) -> bool:
+        return self._mutter._start_mutter()  # noqa: SLF001
+
+    def _mutter_call(self, method: str, args: GLib.Variant | None) -> None:
+        self._mutter._mutter_call(method, args)  # noqa: SLF001
+
+    def _release_mutter(self) -> None:
+        self._mutter._release_mutter()  # noqa: SLF001
+
+    def _create_session(self) -> None:
+        self._portal._create_session()  # noqa: SLF001
+
+    def _portal_notify(self, method: str, parameters: GLib.Variant) -> None:
+        self._portal_calls._portal_notify(method, parameters)  # noqa: SLF001
+
+    def _portal_sync(
+        self,
+        interface: str,
+        method: str,
+        parameters: GLib.Variant | None,
+        reply_type: GLib.VariantType | None,
+    ) -> GLib.Variant | None:
+        return self._portal_calls._portal_sync(  # noqa: SLF001
+            interface, method, parameters, reply_type
         )
 
-    def __getattr__(self, name: str) -> Any:
-        return component_attribute(self._components, name)
+    def _watch_request(
+        self, request_path: str, on_response: Callable[[int, dict[str, object]], None]
+    ) -> None:
+        self._portal_calls._watch_request(request_path, on_response)  # noqa: SLF001
 
     @property
     def ready(self) -> bool:
@@ -86,9 +170,17 @@ class PointerInjector:
         it. Empty string is legal (no parent) but not recommended."""
         if self._session_handle is not None or self._starting:
             return
+        self._failure_reported = False
+        if self._connection is None:
+            self._fail()
+            return
         self._starting = True
         self._parent_window = parent_window
-        if self._preference != BACKEND_PORTAL and self._start_mutter():
+        if (
+            self._preference != BACKEND_PORTAL
+            and sandbox.capabilities().mutter_injection
+            and self._start_mutter()
+        ):
             self._starting = False
             self._backend = "mutter"
             self._started = True
@@ -111,8 +203,6 @@ class PointerInjector:
         self._timeout_id = GLib.timeout_add_seconds(20, self._on_timeout)
         self._create_session()
 
-    # --- mutter's own interface ---------------------------------------
-
     def _on_timeout(self) -> bool:
         print(
             "[pointer] RemoteDesktop request timed out after 20s — the consent "
@@ -127,8 +217,6 @@ class PointerInjector:
             GLib.source_remove(self._timeout_id)
             self._timeout_id = None
 
-    # --- portal handshake ---------------------------------------------
-
     def stop(self) -> None:
         """Give the grant back. Only meaningful for the mutter route — the
         portal session is torn down with the bus connection, and its grant
@@ -139,3 +227,19 @@ class PointerInjector:
         self._started = False
         self._session_handle = None
         self._backend = ""
+
+    def _fail(self) -> None:
+        """Collapse every backend failure into one clean state transition."""
+        self._portal_calls.cleanup_subscriptions()
+        self._clear_timeout()
+        self._starting = False
+        self._started = False
+        self._session_handle = None
+        self._backend = ""
+        try:
+            self._release_mutter()
+        except (GLib.Error, TypeError, ValueError) as error:
+            print(f"[pointer] Backend cleanup failed: {error}.")
+        if self._on_ready is not None and not self._failure_reported:
+            self._failure_reported = True
+            self._on_ready(False)

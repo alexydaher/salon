@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# ruff: noqa: F401
 """Focused catalogue-editing panel builder."""
+
 from __future__ import annotations
 
 from salon.core import editing
 from salon.core.model import LaunchKind, Tile
-from salon.services.artwork import artwork_drop_dir
 from salon.ui.settings.context import Panel, SettingsContext, confirm_panel
 from salon.ui.settings.widgets import (
     ActionRow,
@@ -13,7 +12,6 @@ from salon.ui.settings.widgets import (
     InfoRow,
     SettingsRow,
     TextRow,
-    ToggleRow,
 )
 
 _ASPECTS = [("wide", "Wide"), ("square", "Square"), ("poster", "Poster")]
