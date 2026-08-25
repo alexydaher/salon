@@ -9,6 +9,71 @@ skin over one. It launches the applications and web apps you already have.
 
 ![The home screen](docs/screenshots/home.png)
 
+## Install
+
+Salon is distributed from [GitHub Releases][latest-release], not from
+Flathub. The Flatpak bundle is the easiest way to try it and works without
+building the source.
+
+If `flatpak --version` does not work, follow the setup instructions for your
+distribution at [flatpak.org/setup](https://flatpak.org/setup/) first. Salon
+requires Flatpak 1.16 or newer.
+
+1. Open the [latest release][latest-release].
+2. Download the bundle for your computer:
+
+   * `Salon-v0.2.1-x86_64.flatpak` for most Intel and AMD PCs.
+   * `Salon-v0.2.1-aarch64.flatpak` for ARM64 computers.
+
+3. Open the downloaded file with your software installer, or install it from
+   a terminal:
+
+```sh
+flatpak install --user ~/Downloads/Salon-v0.2.1-x86_64.flatpak
+```
+
+Use the `aarch64` filename instead on ARM64. If you are unsure which one you
+have, run `uname -m`: it prints either `x86_64` or `aarch64` (sometimes
+`arm64`). The app itself is not on Flathub, but its standard GNOME 50 runtime
+is; Flatpak may ask permission to download that runtime when you install the
+bundle.
+
+Launch **Salon** from your applications screen, or run:
+
+```sh
+flatpak run io.github.alexydaher.Salon
+```
+
+GitHub bundles do not update automatically. To upgrade, download the bundle
+from the next release and install it over the existing copy:
+
+```sh
+flatpak install --user --or-update ~/Downloads/Salon-v0.2.2-x86_64.flatpak
+```
+
+Your settings and catalogue are preserved. To uninstall Salon:
+
+```sh
+flatpak uninstall --user io.github.alexydaher.Salon
+```
+
+Each release also includes `SHA256SUMS` if you want to verify the download.
+Run the following from the directory containing both files:
+
+```sh
+grep 'Salon-v0.2.1-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
+```
+
+Change the filename to the ARM64 bundle when appropriate.
+
+| Installation | Best for | Dedicated login session | Host power/settings |
+|---|---|---:|---:|
+| GitHub Flatpak | A quick installation | No | No |
+| Native user install | A normal GNOME desktop | No | Yes |
+| Native system install | A television or kiosk machine | Yes | Yes |
+
+[latest-release]: https://github.com/alexydaher/salon/releases/latest
+
 ## What it does
 
 * **Rows of tiles**, laid out and sized for three metres away rather than
@@ -100,23 +165,30 @@ sections without changing whether the section list or its panel is active.
 
 ## Requirements
 
-* GNOME on Wayland. Salon is Wayland-only by design and does not fall back
-  to X11.
+* GNOME on Wayland for the full experience and native integration. Salon is
+  Wayland-only by design and does not fall back to X11.
 * GTK 4.16 or newer (for CSS `var()`), libadwaita 1.5+, PyGObject, and
   `libmanette` 0.2+.
 * Optional: `wpctl` (PipeWire) for volume, `cec-client` for HDMI-CEC, Chrome
   or Chromium for web tiles.
 
-## Building and running
+The Flatpak can also be installed on KDE Plasma Wayland. Salon remains a
+GNOME-oriented application, so GNOME-specific session integration is not
+available there, but Plasma users can try the launcher, tiles, search,
+gamepad input and phone remote normally.
+
+## Build from source
 
 ```sh
+git clone https://github.com/alexydaher/salon.git
+cd salon
 meson setup build
 meson compile -C build
 ./bin/salon              # runs uninstalled, out of ./build
 ```
 
-To install so it shows up in **Show Applications** alongside everything
-else — no root needed:
+To install the native build so it shows up in **Show Applications** — no root
+needed:
 
 ```sh
 meson configure build --prefix="$HOME/.local"
@@ -126,14 +198,25 @@ meson install -C build
 That puts `salon` on your `PATH`, the desktop entry in
 `~/.local/share/applications`, and the icon in the user icon theme. Re-run
 `meson install -C build` after changing anything; the installed copy is a
-snapshot, not a link to the source tree. For a system-wide install use
-`--prefix=/usr/local` and `sudo meson install -C build` instead.
+snapshot, not a link to the source tree.
 
-There is a Flatpak manifest (`io.github.alexydaher.Salon.yaml`). Read the comment at
-the top of it first: a launcher's entire purpose is starting other
-applications, so the manifest asks for host-spawn access, which is not
-meaningfully a sandbox. A distribution package or a Meson install is the
-more honest option.
+For a system-wide installation, configure a separate build with `/usr` as
+the prefix:
+
+```sh
+meson setup build-system --prefix=/usr
+meson compile -C build-system
+sudo meson install -C build-system
+```
+
+This is the installation that makes the **Salon** and **Salon (Kiosk)**
+choices available at the login screen.
+
+### Flatpak limits
+
+A launcher's purpose is starting other applications, so Salon's Flatpak asks
+for host-spawn access. Treat Salon as a trusted application even though it is
+packaged as a Flatpak.
 
 The Flatpak requires Flatpak 1.16 or newer for input-device-only gamepad
 access. It deliberately omits direct host dconf and logind access: the
@@ -141,11 +224,15 @@ GNOME shell keyboard shortcut and suspend/restart/shut-down actions are not
 offered there. Phone typing still uses the RemoteDesktop portal, and native
 installs retain all of those host-integration features.
 
+The Flatpak cannot install a login-screen session or turn the machine into a
+dedicated kiosk. Use the native system installation for that purpose.
+
 ## Running it as the session
 
-Installing puts a session entry in `wayland-sessions`, so **Salon** can be
-chosen at the login screen. That session is GNOME Shell, the standard GNOME
-session services, and Salon — not the full desktop with a launcher on top.
+A native system installation puts a session entry in `wayland-sessions`, so
+**Salon** can be chosen at the login screen. That session is GNOME Shell, the
+standard GNOME session services, and Salon — not the full desktop with a
+launcher on top.
 
 Salon is started by a systemd user unit with `Restart=always`, so if it ever
 exits, it comes straight back: the screen blinks and the television is still
@@ -177,9 +264,9 @@ perfectly good Salon on the machine with no entry at the login screen.
 Flatpak is the same wall from the other side: it exports only
 `applications`, `icons`, `metainfo` and a couple of others out of the
 sandbox, and `wayland-sessions`, `gnome-session/sessions` and
-`systemd/user` are not on that list. Installing Salon from Flathub gets you
-the app in your Applications grid; the session is a separate step, and needs
-either `--prefix=/usr` or four files copied by hand:
+`systemd/user` are not on that list. Installing Salon's GitHub Flatpak gets
+you the app in your Applications grid; the session is a separate step, and
+needs either `--prefix=/usr` or four files copied by hand:
 
 ```sh
 sudo install -Dm644 build/data/salon.desktop        /usr/share/wayland-sessions/salon.desktop
@@ -218,14 +305,18 @@ out and pick **Salon**.
 
 ## Configuration
 
-Tiles live in `~/.config/salon/tiles.json`. Everything else is GSettings
-under `io.github.alexydaher.Salon`. Both are editable by hand, and both are editable
-from the interface; changes made either way take effect immediately.
+For a native installation, tiles live in `~/.config/salon/tiles.json`. For
+the Flatpak they live in
+`~/.var/app/io.github.alexydaher.Salon/config/salon/tiles.json`. Everything
+else is GSettings under `io.github.alexydaher.Salon`. Both are editable by
+hand and from the interface; changes made either way take effect immediately.
 
 Artwork can be an explicit path, an `https://` URL that Salon fetches and
-caches, or a file dropped into `~/.local/share/salon/artwork/` named after
-the tile's id. If there is none, Salon composites the application's own
-icon onto a gradient built from that icon's dominant colour.
+caches, or a file named after the tile's id dropped into
+`~/.local/share/salon/artwork/` for a native installation. The Flatpak uses
+`~/.var/app/io.github.alexydaher.Salon/data/salon/artwork/`. If there is no
+artwork, Salon composites the application's own icon onto a gradient built
+from that icon's dominant colour.
 
 ![The tile editor](docs/screenshots/tile-editor.png)
 
@@ -265,13 +356,7 @@ GitHub Actions builds x86-64 and ARM64 Flatpak bundles, pins the Salon source
 to the tag's exact commit in a separate manifest, writes checksums, and creates
 a GitHub release containing those files. Pushing `main` alone does not create a
 tag or publish a release, so choosing and recording the semantic version stays
-intentional.
-
-The first Flathub submission is still manual: copy the prepared manifest from
-the GitHub release into the Flathub submission and request the documented
-host-spawn and Wayland-only exceptions during review. After acceptance,
-Flathub publishes merges to its app repository; the manifest's external-data
-checker watches Salon release tags and opens later update pull requests there.
+intentional. Salon is distributed directly through those GitHub releases.
 
 ## Logs
 
@@ -281,9 +366,12 @@ to stderr — which the session manager hands to the journal — and to
 `$XDG_STATE_HOME/salon/salon.log` (rotated, 512 KiB × 3). `SALON_DEBUG=1`
 turns on debug output, including GTK's own.
 
+For the Flatpak, that log is normally at
+`~/.var/app/io.github.alexydaher.Salon/.local/state/salon/salon.log`.
+
 ## What hasn't been tested
 
-Salon is 0.2. The gates are green — ruff, `mypy --strict`, 398 tests, and
+Salon is 0.2. The gates are green — ruff, `mypy --strict`, 409 tests, and
 the AppStream and desktop-entry validators, on every push — but green tests
 are not the same as a verified appliance, and some of this needs hardware
 that wasn't attached to the machine it was written on.
