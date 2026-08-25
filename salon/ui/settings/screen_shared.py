@@ -3,13 +3,13 @@
 """The Settings screen shell (§6.8).
 
 Two panes, like search: sections on the left, the current panel on the
-right. RIGHT or OK from a section enters it; LEFT always leaves, whichever
+right. RIGHT or OK from a section enters it; BACK always leaves, whichever
 pane and however deep. Panels form a stack, so the tile editor can drill
 from rows to one row to one tile and BACK unwinds it a level at a time
 rather than dumping the user back at the home screen.
 
-The horizontal axis reads the same way at every depth: **RIGHT goes in,
-LEFT comes back out**, and LEFT is never a value change. A row with a set of
+RIGHT goes into the thing under the cursor. BACK, rather than a horizontal
+direction, owns navigation history at every depth. A row with a set of
 values does not change on a direction key at all — OK raises the values as a
 small list beside the row (`popup.py`) and the choice is made there, which is
 how a console does it and the only arrangement where the alternatives can be
@@ -27,7 +27,7 @@ device with no window controls:
 
 * a legend along the bottom naming what each button does, because BACK
   unwinding one level at a time is only obvious to whoever wrote it;
-* LEFT from the section list, and MENU from anywhere, both close the screen
+* BACK from the section list, and MENU from anywhere, both close the screen
   outright — so there is always a single press between Settings and home
   however deep the tile editor has been walked into.
 

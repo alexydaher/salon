@@ -87,11 +87,16 @@ NOW, emulators, any installed app — runs natively and is unaffected.
 | Back | B | Backspace | Back |
 | Search | Y | `/` | — |
 | Options for the selected tile | X | F10 or `o` | Contents menu / blue |
+| Previous / next group | LB / RB | Page Up / Page Down | Channel down / up |
 | Settings and power | START | Menu | Setup menu |
 
 START is the one button that always means the same thing. On the home
 screen it opens the system menu; inside Settings it returns you home; while
 a launched app has the screen it closes that app and brings you back.
+
+Inside Settings, RIGHT opens the highlighted section or control and B is
+the only button that goes back. LB and RB move between top-level settings
+sections without changing whether the section list or its panel is active.
 
 ## Requirements
 

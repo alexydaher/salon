@@ -113,7 +113,7 @@ def _capture_panel(context: SettingsContext, action: Action) -> Panel:
             InfoRow(
                 f"Press the button for {action.value.replace('_', ' ').upper()}",
                 "Waiting…",
-                detail="Any controller, keyboard or TV remote. LEFT cancels.",
+                detail="Any controller, keyboard or TV remote. B/BACK cancels.",
             )
         ]
 

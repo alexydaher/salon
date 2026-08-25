@@ -45,7 +45,7 @@ class ChoiceRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "OK opens the list"
+        return "A/OK opens the list"
 
     def refresh(self) -> None:
         if self._options:
@@ -131,7 +131,7 @@ class RangeRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "OK opens the list"
+        return "A/OK opens the list"
 
     def refresh(self) -> None:
         self.set_value(self._fmt(self._get()))
@@ -175,7 +175,7 @@ class TextRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "OK or RIGHT edits it"
+        return "A/OK or RIGHT edits it"
 
     def refresh(self) -> None:
         self.set_value(self._get() or self._placeholder)

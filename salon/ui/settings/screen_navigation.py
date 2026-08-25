@@ -58,6 +58,7 @@ class SettingsNavigationController(ServiceComponent):
         sections = self._pane is Pane.SECTIONS
         self._sections.set_active(sections)
         self._panel_list.set_active(not sections)
+        self._title.set_label("Settings" if sections else self._stack[-1].title)
         self._update_legend()
 
     def _update_legend(self) -> None:
@@ -69,27 +70,29 @@ class SettingsNavigationController(ServiceComponent):
         """
         if self._pane is Pane.SECTIONS:
             self._legend.set_label(
-                "OK or RIGHT opens a section  ·  LEFT or BACK returns to the home screen"
+                "A/OK or RIGHT opens  ·  B/BACK returns home"
+                "  ·  LB/RB changes section"
             )
             return
         row = self._panel_list.selected_row
         if self._popup.is_open and row is not None:
             self._legend.set_label(
-                f"UP and DOWN pick a value for {row.label_text}"
-                "  ·  OK sets it  ·  BACK or LEFT leaves it as it was"
+                "UP/DOWN picks  ·  A/OK sets  ·  B/BACK cancels"
+                "  ·  START goes home"
             )
             return
-        parts = [row.hint if row is not None else "OK selects"]
+        parts = [row.hint if row is not None else "A/OK selects"]
         if row is not None and row.previewable:
             # OK is spoken for on these: it collapses to the preview strip,
             # which is the only way to judge an accent or a tile size. The
             # list is still there on RIGHT for anyone who knows the value
             # they want.
-            parts.append("OK previews it on the home screen")
-            parts[0] = "RIGHT opens the list" if row.choices else "RIGHT changes it here"
+            parts.append("A/OK previews")
+            parts[0] = "RIGHT lists values" if row.choices else "RIGHT changes it"
         parts.append(
-            "LEFT or BACK goes up a level"
+            "B/BACK goes back"
             if len(self._stack) > 1
-            else "LEFT or BACK returns to the sections"
+            else "B/BACK returns to sections"
         )
+        parts.append("START goes home")
         self._legend.set_label("  ·  ".join(parts))

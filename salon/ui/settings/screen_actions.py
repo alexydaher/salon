@@ -3,6 +3,7 @@
 """Focused settings-screen workflow."""
 
 from salon.services.component import ServiceComponent
+from salon.ui.settings.navigation_policy import is_settings_back, section_target
 from salon.ui.settings.screen_shared import *
 
 
@@ -26,7 +27,11 @@ class SettingsActionController(ServiceComponent):
             self._update_legend()
             return
 
-        if action is Action.BACK:
+        if action in (Action.PREV_GROUP, Action.NEXT_GROUP):
+            self._step_section(action)
+            return
+
+        if is_settings_back(action):
             if self._pane is Pane.PANEL:
                 self._pop()
             else:
@@ -62,11 +67,11 @@ class SettingsActionController(ServiceComponent):
         elif action in (Action.RIGHT, Action.OK):
             self._enter_section(self._sections.selected_index)
         elif action is Action.LEFT:
-            # The section list is the left edge of the screen; there is
-            # nothing further left but the home screen it was opened from.
-            # Symmetrical with LEFT leaving a panel, and it means the way
-            # out is the same gesture at every depth.
-            self.close()
+            # BACK owns navigation history. A horizontal direction should
+            # never unexpectedly close a full-screen surface.
+            row = self._sections.selected_row
+            if row is not None:
+                row.flash_denied()
 
     def _handle_panel(self, action: Action) -> None:
         if action is Action.OK:
@@ -89,10 +94,33 @@ class SettingsActionController(ServiceComponent):
             self._enter_row()
             return
         if action is Action.LEFT:
-            # LEFT is how you leave — the same gesture that crosses panes in
-            # search, and now the same one at every depth of this screen.
-            # It never edits a row: values are chosen from a list.
-            self._pop()
+            # LEFT is deliberately not a second BACK button. Values are
+            # chosen from a visible list, so there is no hidden edit for it
+            # to perform here either.
+            row = self._panel_list.selected_row
+            if row is not None:
+                row.flash_denied()
+
+    def _step_section(self, action: Action) -> None:
+        """LB/RB (or the equivalent group actions) change category.
+
+        Keep whichever pane currently owns the cursor: from the section
+        list this previews the neighbouring category, and from a panel it
+        opens that category's root. A deep editor is left cleanly through
+        `_set_stack`, so discovery and other temporary work is stopped.
+        """
+        target = section_target(
+            self._sections.selected_index, len(self._section_panels), action
+        )
+        if target is None:
+            active = self._sections if self._pane is Pane.SECTIONS else self._panel_list
+            row = active.selected_row
+            if row is not None:
+                row.flash_denied()
+            return
+        self._sections.select(target)
+        self._set_stack([self._section_panels[target]])
+        self._rebuild_panel()
 
     def _activate_panel_row(self, index: int) -> None:
         """A click. Deliberately not the preview strip: entering preview

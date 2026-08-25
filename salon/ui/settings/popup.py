@@ -3,7 +3,7 @@
 
 Opened with OK on any row that has `choices` (see `widgets.py`), anchored on
 that row's value so it appears where the setting is written rather than in
-the middle of the screen. UP/DOWN walks it, OK picks, BACK or LEFT leaves it
+the middle of the screen. UP/DOWN walks it, OK picks, and BACK leaves it
 unchanged — the shape a games console uses for exactly this, and the reason
 is that it is the only one where the alternatives are *visible* before the
 choice is made. Stepping a value with a direction key shows one candidate at
@@ -41,6 +41,7 @@ from gi.repository import Gtk, Pango  # noqa: E402
 
 from salon.input.actions import Action  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
+from salon.ui.settings.navigation_policy import is_settings_back  # noqa: E402
 from salon.ui.settings.widgets import SettingsRow  # noqa: E402
 
 # How tall the list may get before it scrolls. Eight rows is enough for every
@@ -188,9 +189,7 @@ class ValuePopup(Gtk.Popover):
         if action is Action.OK:
             self._activate(self._selected)
             return
-        if action in (Action.BACK, Action.LEFT, Action.MENU):
-            # LEFT closes it for the same reason it leaves everything else
-            # in this screen: it is the "out" direction at every depth.
+        if is_settings_back(action) or action is Action.MENU:
             # MENU is handled here only so the list is gone before the
             # screen it belongs to closes underneath it.
             self.close()

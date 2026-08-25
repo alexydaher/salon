@@ -50,9 +50,12 @@ class HomeActionRouter(ServiceComponent):
                 self._return_from_child()
                 return
             if self._text_entry.get_visible():
-                # The keyboard is open on top of Settings. Closing Settings
-                # from under it would leave a text field editing a panel
-                # that is no longer on screen.
+                # Cancel the edit before closing Settings underneath it.
+                # START remains the global escape hatch even while the
+                # on-screen keyboard is open.
+                self._text_entry.handle_action(Action.BACK)
+                if self._settings_screen.get_visible():
+                    self._settings_screen.handle_action(action)
                 return
             if self._settings_screen.get_visible():
                 self._settings_screen.handle_action(action)

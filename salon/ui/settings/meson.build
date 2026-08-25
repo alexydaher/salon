@@ -16,6 +16,7 @@ python_sources = [
   'browser_panel.py',
   'input_panel.py',
   'network_panel.py',
+  'navigation_policy.py',
   'system_panel.py',
   'tiles.py',
   'add_tile_panels.py',
