@@ -48,7 +48,7 @@ jobs:
 
   flatpak:
     name: Build Flatpak (${{ matrix.variant.arch }})
-    if: startsWith(github.ref, 'refs/tags/v') || matrix.variant.arch == 'x86_64'
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: version
     strategy:
       fail-fast: false
@@ -102,7 +102,7 @@ jobs:
         with:
           # flatpak-builder@v6 names each artifact from the bundle and adds
           # the architecture, for example
-          # Salon-v0.2.1-x86_64-x86_64.flatpak.
+          # Salon-v0.2.2-x86_64-x86_64.flatpak.
           pattern: Salon-${{ github.ref_name }}-*.flatpak
           path: release
           merge-multiple: true
