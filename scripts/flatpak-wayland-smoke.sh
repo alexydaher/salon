@@ -51,7 +51,7 @@ caps = sandbox.capabilities()
 assert caps.sandboxed and caps.host_spawn
 assert not caps.control_center and not caps.network_configuration
 assert not caps.bluetooth_pairing and not caps.cec and not caps.host_power
-assert wpctl_argv("status")[:2] == ("flatpak-spawn", "--host")
+assert wpctl_argv("status")[:2] == ["flatpak-spawn", "--host"]
 assert detect_browser() == ("flatpak", "run", "com.google.Chrome")
 Gtk.init()
 class Context:
