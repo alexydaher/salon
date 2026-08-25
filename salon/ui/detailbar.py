@@ -110,12 +110,12 @@ class DetailBar(Gtk.Box):
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.px(
+        safe_margin = scale.px(
             tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
         )
-        self.set_margin_start(margin)
-        self.set_margin_end(margin)
-        self.set_margin_bottom(margin)
+        self.set_margin_start(safe_margin)
+        self.set_margin_end(safe_margin)
+        self.set_margin_bottom(scale.px(tokens.BOTTOM_CHROME_MARGIN_DU))
         self.set_size_request(scale.px(760.0), -1)
         # Clear air above the strip, and deliberately part of the widget's
         # own height: HomeView reserves whatever this measures, so keeping

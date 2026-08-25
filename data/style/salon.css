@@ -317,7 +317,7 @@ toast > label {
   border: var(--focus-ring) solid alpha(@text-primary, 0.06);
   outline: none;
   border-radius: var(--radius-pill);
-  padding: var(--pad-s);
+  padding: 0;
   color: @text-secondary;
   opacity: 0.82;
   box-shadow: 0 var(--focus-ring) var(--pad-s) alpha(@surface-0, 0.24);
@@ -338,6 +338,7 @@ toast > label {
   background-color: @accent;
   color: @surface-0;
   opacity: 1;
+  padding: 0 var(--pad-s);
 }
 
 /* An actively polling phone makes this dot appear on the phone glyph. It is

@@ -24,8 +24,10 @@ gi.require_version("Gtk", "4.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from salon.core import sandbox  # noqa: E402
 from salon.core.model import LaunchKind, LaunchSpec, Tile  # noqa: E402
 from salon.core.starter import StarterDiscovery  # noqa: E402
+from salon.services import host_appinfo  # noqa: E402
 
 # Namespaced so an installed app can never collide with a user's tile id —
 # they share an id space once both are in a search result list.
@@ -56,6 +58,17 @@ def scan_installed() -> list[Tile]:
 
 
 def _scan() -> list[Tile]:
+    if sandbox.in_flatpak():
+        try:
+            return _scan_host()
+        except (host_appinfo.HostScanError, ValueError, TypeError, KeyError):
+            # A host without Python (or an older Flatpak without host-spawn)
+            # still gets the entries Gio can see instead of losing the page.
+            pass
+    return _scan_local()
+
+
+def _scan_local() -> list[Tile]:
     tiles = [
         tile_for(app_info)
         for app_info in Gio.AppInfo.get_all()
@@ -66,6 +79,38 @@ def _scan() -> list[Tile]:
     ]
     tiles.sort(key=lambda tile: tile.title.casefold())
     return tiles
+
+
+def _scan_host() -> list[Tile]:
+    records = host_appinfo.scan()
+    tiles = [_tile_for_host_record(record) for record in records]
+    tiles.sort(key=lambda tile: tile.title.casefold())
+    return tiles
+
+
+def _tile_for_host_record(record: object) -> Tile:
+    if not isinstance(record, dict):
+        raise TypeError("host application inventory contained a non-object")
+    desktop_id = record["id"]
+    title = record["name"]
+    if not isinstance(desktop_id, str) or not isinstance(title, str):
+        raise TypeError("host application inventory contained an invalid id or name")
+    description = record.get("description")
+    icon = record.get("icon")
+    if description is not None and not isinstance(description, str):
+        raise TypeError("host application inventory contained an invalid description")
+    if icon is not None and not isinstance(icon, str):
+        raise TypeError("host application inventory contained an invalid icon")
+    return Tile(
+        id=f"{ID_PREFIX}{desktop_id}",
+        title=title,
+        subtitle=description,
+        launch=LaunchSpec(kind=LaunchKind.DESKTOP, target=desktop_id),
+        artwork=None,
+        icon_name=icon,
+        accent=None,
+        tags=("installed",),
+    )
 
 
 def list_installed_async(callback: Callable[[list[Tile]], None]) -> None:

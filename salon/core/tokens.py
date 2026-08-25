@@ -200,6 +200,12 @@ BROWSER_SCALE_MAX: float = 3.0
 
 REFERENCE_VIEWPORT_HEIGHT_PX: float = 1080.0
 
+# Bottom-corner chrome can sit closer to the panel edge than navigable
+# content. Keeping this separate from the safe area lets the rows and top
+# controls retain their television overscan protection while the two small
+# home-screen readouts use the otherwise empty bottom edge.
+BOTTOM_CHROME_MARGIN_DU: float = 22.0
+
 
 # Two lines of type plus the space around them: the bottom strip that says
 # what the cursor is on. Reserved in the home screen's bottom inset so the

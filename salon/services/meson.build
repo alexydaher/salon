@@ -1,6 +1,7 @@
 python_sources = [
   '__init__.py',
   'appinfo.py',
+  'host_appinfo.py',
   'artwork.py',
   'artwork_colors.py',
   'artwork_io.py',

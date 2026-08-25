@@ -115,29 +115,6 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         agrees about what colour the focused thing is."""
         return self._artwork.accent
 
-    @property
-    def artwork_source(self) -> tuple[Gdk.Paintable, bool] | None:
-        """Whatever this tile is drawing, for the backdrop to blur, paired
-        with whether it should fill the screen.
-
-        Real artwork does: a poster blurred across the whole panel is what
-        §7.4 asks for. An icon does not, and the flag is what stops it from
-        trying — a 64px favicon is transparent everywhere but the mark, so
-        cover-fitting it leaves a black screen. Icons light the backdrop's
-        bounded pool instead, which is the same footprint the accent colour
-        already used, now carrying the tile's own colours.
-
-        Only a symbolic icon is refused outright: those are single-colour
-        stencils and blur to a flat grey that says nothing.
-        """
-        if self._artwork.texture is not None:
-            return (self._artwork.texture, True)
-        if self._artwork.icon_texture is not None:
-            return (self._artwork.icon_texture, False)
-        if self._artwork.icon is not None and not self._artwork.icon_is_symbolic:
-            return (self._artwork.icon, False)
-        return None
-
     # --- geometry --------------------------------------------------------
 
     def do_measure(self, orientation: Gtk.Orientation, for_size: int) -> tuple[int, int, int, int]:

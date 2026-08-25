@@ -18,12 +18,7 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from salon.ui import motion, theme  # noqa: E402
-from salon.ui.backdrop_renderer import (  # noqa: E402
-    BackdropRenderer,
-    Blurred,
-    rgba,
-    same_color,
-)
+from salon.ui.backdrop_renderer import BackdropRenderer, rgba, same_color  # noqa: E402
 
 _FADE_MS = 280
 _DEBOUNCE_MS = 80
@@ -48,19 +43,6 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         self._focus_y = 0.42
         self._pending: Gdk.RGBA | None = None
         self._debounce_id: int | None = None
-
-        # The blurred artwork, cross-fading on the same clock as the accent
-        # so the colour and the picture never disagree about which tile the
-        # cursor is on.
-        self._from_art: Blurred | None = None
-        self._to_art: Blurred | None = None
-        self._pending_art: tuple[Gdk.Paintable, bool] | None = None
-        self._source_art: tuple[Gdk.Paintable, bool] | None = None
-        # Keyed by the source paintable's identity, and holding a
-        # reference to that source as well as the blur: without pinning it,
-        # a freed source could have its id reused by a different paintable
-        # and hand back the wrong backdrop.
-        self._blur_cache: dict[int, tuple[Gdk.Paintable, Gdk.Texture]] = {}
 
         self._wallpaper: Gdk.Texture | None = None
         self._wallpaper_dim = 0.72
@@ -137,52 +119,35 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         self._focus_y = y
         self.queue_draw()
 
-    def set_focus(
-        self, color: Gdk.RGBA | None, artwork: tuple[Gdk.Paintable, bool] | None = None
-    ) -> None:
-        """What the cursor is now on: its colour, and its picture if it has
-        one.
+    def set_focus(self, color: Gdk.RGBA | None) -> None:
+        """Change the wallpaper tint to the colour under the cursor.
 
-        Debounced by 150ms (§7.4): holding a direction to scroll across a
+        Debounced by 80ms: holding a direction to scroll across a
         row fires this once per tile, and cross-fading to every one of them
-        in turn both looks like a strobe and wastes the animation. The blur
-        is on the far side of the debounce too, so a held direction never
-        renders one.
+        in turn looks like a strobe.
         """
         target = color or theme.accent()
-        unchanged = same_color(target, self._to) and artwork == self._source_art
-        if unchanged and self._pending is None:
+        if same_color(target, self._to) and self._pending is None:
             return
         self._pending = target
-        self._pending_art = artwork
         if self._debounce_id is not None:
             GLib.source_remove(self._debounce_id)
         self._debounce_id = GLib.timeout_add(_DEBOUNCE_MS, self._apply_pending)
 
     def set_accent(self, color: Gdk.RGBA | None) -> None:
         """Colour only, for callers with no artwork to offer."""
-        self.set_focus(color, None)
+        self.set_focus(color)
 
     def _apply_pending(self) -> bool:
         self._debounce_id = None
         target = self._pending
-        source = self._pending_art
         self._pending = None
-        self._pending_art = None
         if target is None:
             return GLib.SOURCE_REMOVE
-        if same_color(target, self._to) and source == self._source_art:
+        if same_color(target, self._to):
             return GLib.SOURCE_REMOVE
         self._from = self._current()
         self._to = target
-        self._source_art = source
-        self._from_art = self._to_art
-        self._to_art = None
-        if source is not None:
-            paintable, full_bleed = source
-            blurred = self.blurred(paintable)
-            if blurred is not None:
-                self._to_art = Blurred(texture=blurred, full_bleed=full_bleed)
         self._animation.set_duration(motion.duration_ms(_FADE_MS))
         self._animation.reset()
         self._animation.play()

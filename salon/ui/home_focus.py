@@ -36,9 +36,7 @@ class HomeFocusController(ServiceComponent):
             self._owner._settings.set_string("last-focused-tile", tile.id)
             focused_widget = self._focused_widget()
             if focused_widget is not None:
-                self._owner._backdrop.set_focus(
-                    focused_widget.artwork_accent, focused_widget.artwork_source
-                )
+                self._owner._backdrop.set_focus(focused_widget.artwork_accent)
                 self._publish_active_descendant(focused_widget)
         self._update_backdrop_position()
         # Every row, not only the focused one: rows scroll independently and

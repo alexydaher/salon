@@ -97,15 +97,13 @@ class RemoteHint(Gtk.Box):
 
     def set_scale(self, scale: Scale) -> None:
         self.set_spacing(scale.px(10.0))
-        margin = scale.px(
+        safe_margin = scale.px(
             tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
         )
-        self.set_margin_end(margin)
-        # Above the detail strip, not on top of it. The strip spans the full
-        # width and this card would otherwise land in its empty right-hand
-        # end — which looks fine right up until a tile with a long title
-        # pushes text under the QR code.
-        self.set_margin_bottom(margin + scale.du(tokens.DETAIL_BAR_HEIGHT_DU))
+        self.set_margin_end(safe_margin)
+        # The detail strip has a bounded, ellipsized width on the left, so
+        # the two can share the bottom band without text reaching this card.
+        self.set_margin_bottom(scale.px(tokens.BOTTOM_CHROME_MARGIN_DU))
         # A third of the pairing screen's 320du. Big enough for a phone held
         # at arm's length in front of the television — which is where anyone
         # scanning this is standing — and small enough that it is a corner

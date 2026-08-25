@@ -8,6 +8,19 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.8 — 2026-08-25
+
+### Host apps and a calmer Home screen
+
+* Flatpak installations now discover the host's desktop applications, so the
+  All Apps page is no longer limited to entries visible inside the sandbox.
+* Home-screen shortcut buttons are compact when idle, without extra space
+  beside each icon, and generated tiles show application logos directly
+  without a second shape behind them.
+* Moving between apps now recolours the ambient wallpaper from each app's
+  accent while preserving the photo's light and texture; app logos are no
+  longer enlarged or blurred into the background.
+
 ## 0.2.7 — 2026-08-25
 
 ### A more cohesive Home screen
