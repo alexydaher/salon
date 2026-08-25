@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Flatpak release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flatpak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Check release metadata
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version consistency
+        run: python3 scripts/prepare-flatpak-release.py
+
+      - name: Prepare the commit-pinned Flathub manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          release_commit="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          python3 scripts/prepare-flatpak-release.py \
+            --tag "$GITHUB_REF_NAME" \
+            --commit "$release_commit" \
+            --output "release/io.github.alexydaher.Salon.yaml"
+
+      - name: Upload the prepared Flathub manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: flathub-manifest-${{ github.ref_name }}
+          path: release/io.github.alexydaher.Salon.yaml
+          if-no-files-found: error
+
+  flatpak:
+    name: Build Flatpak (${{ matrix.variant.arch }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.variant.runner }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: io.github.alexydaher.Salon.yaml
+          bundle: Salon-${{ github.ref_name }}-${{ matrix.variant.arch }}.flatpak
+          arch: ${{ matrix.variant.arch }}
+          cache-key: flatpak-builder-${{ github.sha }}
+          artifact-name: salon-${{ github.ref_name }}-${{ matrix.variant.arch }}
+          verbose: true
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - version
+      - flatpak
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download prepared manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: flathub-manifest-${{ github.ref_name }}
+          path: release
+
+      - name: Download Flatpak bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: salon-${{ github.ref_name }}-*
+          path: release
+          merge-multiple: true
+
+      - name: Write checksums
+        run: |
+          cd release
+          sha256sum -- *.flatpak io.github.alexydaher.Salon.yaml > SHA256SUMS
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* \
+              --verify-tag \
+              --title "Salon ${GITHUB_REF_NAME#v}" \
+              --generate-notes
+          fi

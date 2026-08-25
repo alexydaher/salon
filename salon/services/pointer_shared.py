@@ -68,6 +68,8 @@ gi.require_version("Gdk", "4.0")
 
 from gi.repository import Gdk, Gio, GLib  # noqa: E402
 
+from salon.core import sandbox  # noqa: E402
+
 _BUS_NAME = "org.freedesktop.portal.Desktop"
 _OBJECT_PATH = "/org/freedesktop/portal/desktop"
 _RD_IFACE = "org.freedesktop.portal.RemoteDesktop"
@@ -186,9 +188,12 @@ def set_onscreen_keyboard_enabled(enabled: bool) -> None:
     gamepad-driven cursor from PointerInjector can then click its keys
     like a real mouse.
 
-    This is one of the two host keys the Flatpak needs direct dconf access
-    for; see the finish-args note in the manifest.
+    Native Salon sessions use the host key. The Flatpak deliberately omits
+    direct dconf access and offers phone typing instead.
     """
+    if not sandbox.host_settings_available():
+        print("[pointer] Host on-screen keyboard control is disabled in the Flatpak.")
+        return
     settings = _a11y_settings()
     if settings is None:
         print("[pointer] No GNOME a11y schema here; leaving the on-screen keyboard alone.")
@@ -197,8 +202,17 @@ def set_onscreen_keyboard_enabled(enabled: bool) -> None:
 
 
 def onscreen_keyboard_enabled() -> bool:
+    if not sandbox.host_settings_available():
+        return False
     settings = _a11y_settings()
     return bool(settings.get_boolean(_OSK_KEY)) if settings is not None else False
+
+
+def onscreen_keyboard_available(sandboxed: bool | None = None) -> bool:
+    """Whether the Y-button shortcut can control GNOME's shell keyboard."""
+    if not sandbox.host_settings_available(sandboxed):
+        return False
+    return _a11y_settings() is not None
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

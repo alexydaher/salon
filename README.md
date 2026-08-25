@@ -135,6 +135,12 @@ applications, so the manifest asks for host-spawn access, which is not
 meaningfully a sandbox. A distribution package or a Meson install is the
 more honest option.
 
+The Flatpak requires Flatpak 1.16 or newer for input-device-only gamepad
+access. It deliberately omits direct host dconf and logind access: the
+GNOME shell keyboard shortcut and suspend/restart/shut-down actions are not
+offered there. Phone typing still uses the RemoteDesktop portal, and native
+installs retain all of those host-integration features.
+
 ## Running it as the session
 
 Installing puts a session entry in `wayland-sessions`, so **Salon** can be
@@ -240,6 +246,32 @@ Two rules matter more than the rest:
   resolution and the provider runner testable without a display.
 * Don't unit-test GTK widgets. Test the pure layers; verify the widgets by
   running the app and looking at it.
+
+### Preparing a Flatpak release
+
+The Flatpak release workflow checks every push and pull request with
+`scripts/prepare-flatpak-release.py`. It rejects a change unless the Meson,
+Python, AppStream, changelog, screenshot and manifest versions all agree.
+
+A tag matching that checked version triggers the release build. For example,
+after the 0.2.1 changes have been committed and pushed:
+
+```sh
+git tag -a v0.2.1 -m "Salon 0.2.1"
+git push origin v0.2.1
+```
+
+GitHub Actions builds x86-64 and ARM64 Flatpak bundles, pins the Salon source
+to the tag's exact commit in a separate manifest, writes checksums, and creates
+a GitHub release containing those files. Pushing `main` alone does not create a
+tag or publish a release, so choosing and recording the semantic version stays
+intentional.
+
+The first Flathub submission is still manual: copy the prepared manifest from
+the GitHub release into the Flathub submission and request the documented
+host-spawn and Wayland-only exceptions during review. After acceptance,
+Flathub publishes merges to its app repository; the manifest's external-data
+checker watches Salon release tags and opens later update pull requests there.
 
 ## Logs
 

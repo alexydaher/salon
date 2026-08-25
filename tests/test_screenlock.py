@@ -37,6 +37,16 @@ def test_a_guest_in_someone_elses_desktop_changes_nothing() -> None:
     assert settings.values["lock-enabled"] is True
 
 
+def test_a_flatpak_never_changes_the_host_screen_lock() -> None:
+    settings = FakeSettings(lock_enabled=True)
+    policy = ScreenLockPolicy(settings, active=True, sandboxed=True)
+
+    policy.apply()
+
+    assert settings.writes == []
+    assert settings.values["lock-enabled"] is True
+
+
 def test_the_session_suppresses_the_lock_and_puts_it_back() -> None:
     settings = FakeSettings(lock_enabled=True)
     policy = ScreenLockPolicy(settings, active=True)

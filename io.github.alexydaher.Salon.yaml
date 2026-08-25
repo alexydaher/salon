@@ -21,9 +21,9 @@
 # still the easiest way to hand someone a build.
 #
 # ---------------------------------------------------------------------
-# For a Flathub submission: five linter errors survive here on purpose.
-# `flatpak-builder-lint manifest` reports them; each is answered below,
-# and these are the paragraphs to paste into the submission PR.
+# For a Flathub submission: two linter errors survive here on purpose.
+# `flatpak-builder-lint manifest` reports them. Both need exceptions whose
+# explanations must be written and submitted by the maintainer.
 #
 # finish-args-flatpak-spawn-access
 #   Salon is a launcher. Starting host applications is not a feature it
@@ -38,23 +38,6 @@
 #   a silent X11 fallback would start, look right, and then behave wrongly
 #   in ways a user could not diagnose. Refusing to run is the honest
 #   outcome, and adding the socket to quiet a linter would be a lie.
-#
-# finish-args-direct-dconf-path / finish-args-dconf-talk-name
-#   Two host GSettings keys, both *written*, both named in the finish-args
-#   comment below. `org.freedesktop.portal.Settings` serves reads only, so
-#   there is no portal that can replace a write. One of the two is
-#   appliance-critical: a television that locks to a password prompt is a
-#   television nobody on a sofa can unlock. Dropping the grant does not
-#   fail loudly, it makes both features no-ops against the sandbox's own
-#   dconf database, which is worse than asking for the permission.
-#
-# finish-args-login1-system-talk-name
-#   Suspend, restart and shut down. `org.gnome.SessionManager` was the
-#   obvious alternative and does not work here: it has no Suspend method
-#   at all, it collapses CanReboot and CanPowerOff into a single
-#   CanShutdown, and its Shutdown()/Reboot() raise GNOME's confirmation
-#   dialog — a prompt rendered underneath a fullscreen kiosk, which is the
-#   exact failure services/power.py's error reporting was written to fix.
 # ---------------------------------------------------------------------
 app-id: io.github.alexydaher.Salon
 runtime: org.gnome.Platform
@@ -63,32 +46,28 @@ sdk: org.gnome.Sdk
 command: salon
 
 finish-args:
+  # Direct input-device access is available from Flatpak 1.16. Unlike the
+  # old --device=all grant this exposes gamepads without granting every
+  # device node on the host.
+  - --require-version=1.16.0
+
   # Display, GPU and audio. No --socket=fallback-x11: Salon is Wayland-only
   # by design (§2) and a silent X11 fallback would hide that.
   - --socket=wayland
   - --device=dri
   - --socket=pulseaudio
 
-  # Gamepads. libmanette reads evdev directly, so this needs the raw input
-  # devices; --device=all is the only Flatpak grant that includes them.
-  - --device=all
+  # Gamepads. libmanette reads evdev directly, so this needs host input
+  # devices but nothing broader.
+  - --device=input
 
   # Artwork fetching (§7.4) and the phone-keyboard pairing server (§6.12),
   # which listens on the LAN while search is open.
   - --share=network
   - --share=ipc
 
-  # Suspend/restart/shut down (§6.7) go to logind on the system bus. Salon
-  # never shells out to systemctl.
-  - --system-talk-name=org.freedesktop.login1
-
-  # The screensaver inhibit taken around a launch (§6.4). No talk-name for
-  # org.freedesktop.portal.Desktop: a sandboxed app can always reach the
-  # portals, so asking for it is noise that a reviewer has to rule out.
-  # Gamepad pointer control (§6.5) goes over the RemoteDesktop portal and
-  # needs nothing here either.
-  - --talk-name=org.gnome.SessionManager
-  - --talk-name=org.freedesktop.ScreenSaver
+  # Screensaver inhibition and gamepad pointer control use desktop portals,
+  # which sandboxed apps can reach without explicit bus grants.
 
   # The one that matters: launching host applications through
   # `flatpak-spawn --host`. See the note at the top of this file. This is
@@ -115,31 +94,11 @@ finish-args:
   # Flatpak gets the consent dialog, once, as it should. Nothing needs to
   # be configured for this; the absence of the line *is* the configuration.
 
-  # Two host GSettings keys, and both are *written*, which is why the
-  # Settings portal cannot replace this and Flathub's linter complaint
-  # about direct dconf has to be answered with a justification instead:
-  #
-  #   org.gnome.desktop.screensaver lock-enabled      services/screenlock.py
-  #   org.gnome.desktop.a11y.applications
-  #                     screen-keyboard-enabled       services/pointer_injector.py
-  #
-  # The first is the appliance one. A television that locks to a password
-  # prompt is a television nobody on a sofa can unlock, so Salon clears
-  # `lock-enabled` while it owns the session and puts it back on shutdown.
-  # The second is the "Y = keyboard" affordance in gamepad pointer mode:
-  # Salon cannot draw an OSK above another app's Wayland surface, so it
-  # borrows GNOME's shell-level one and clicks it with the injected cursor.
-  #
-  # `org.freedesktop.portal.Settings` serves reads and only reads, so
-  # without these four lines both features become silent no-ops against
-  # the sandbox's own dconf database. Reduced motion, which this comment
-  # used to claim as the reason, needs nothing here: it comes from Salon's
-  # own schema plus `Gtk.Settings:gtk-enable-animations`, which GTK already
-  # feeds from the Settings portal inside a sandbox.
-  - --filesystem=xdg-run/dconf
-  - --filesystem=~/.config/dconf:ro
-  - --talk-name=ca.desrt.dconf
-  - --env=DCONF_USER_CONFIG_DIR=.config/dconf
+  # Deliberately absent: direct host dconf and logind access. A native Salon
+  # session can suppress GNOME's lock screen, toggle the shell keyboard and
+  # expose suspend/restart/shutdown. The Flatpak is an ordinary application,
+  # cannot install that login session, and disables those host-wide features
+  # instead of weakening the sandbox further.
 
   # Nothing for xdg-config/salon, xdg-data/salon or xdg-cache/salon. A
   # sandboxed app already owns its own XDG dirs, so those three grants only
@@ -184,4 +143,9 @@ modules:
       # one stays tag-only, for building the app from a clean checkout.
       - type: git
         url: https://github.com/alexydaher/salon.git
-        tag: v0.2.0
+        tag: v0.2.1
+        # Once the manifest lives in Flathub's repository, the external-data
+        # checker watches for release tags and opens the next update PR.
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$

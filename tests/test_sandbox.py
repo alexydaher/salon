@@ -32,6 +32,13 @@ def test_in_flatpak_is_decided_by_the_marker_file(tmp_path: Path) -> None:
     assert sandbox.in_flatpak(marker) is True
 
 
+def test_host_integration_is_disabled_only_inside_flatpak() -> None:
+    assert sandbox.host_settings_available(sandboxed=False) is True
+    assert sandbox.host_settings_available(sandboxed=True) is False
+    assert sandbox.host_power_available(sandboxed=False) is True
+    assert sandbox.host_power_available(sandboxed=True) is False
+
+
 def test_command_launch_goes_through_the_host() -> None:
     spec = LaunchSpec(kind=LaunchKind.COMMAND, target="steam", args=("-tenfoot",))
     assert resolve(spec, host_prefix=HOST) == [

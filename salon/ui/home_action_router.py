@@ -153,7 +153,12 @@ class HomeActionRouter(ServiceComponent):
                     # — the text field the user is aiming at belongs to
                     # Chrome, so SEARCH toggles GNOME's on-screen keyboard
                     # for it instead.
-                    set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+                    if onscreen_keyboard_available():
+                        set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+                    else:
+                        self._toast(
+                            "The desktop keyboard isn't available; use the phone's Type tab."
+                        )
                 elif action is Action.OK:
                     self._pointer.click()
                 elif action is Action.BACK:

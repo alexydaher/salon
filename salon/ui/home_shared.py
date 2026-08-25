@@ -85,6 +85,7 @@ from salon.services.mpris import NowPlayingWatcher  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.services.pointer_injector import (  # noqa: E402
     PointerInjector,
+    onscreen_keyboard_available,
     onscreen_keyboard_enabled,
     set_onscreen_keyboard_enabled,
 )

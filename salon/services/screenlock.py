@@ -28,7 +28,7 @@ gi.require_version("Gtk", "4.0")
 
 from gi.repository import Gio  # noqa: E402
 
-from salon.core import session  # noqa: E402
+from salon.core import sandbox, session  # noqa: E402
 from salon.logs import logger  # noqa: E402
 
 _SCHEMA = "org.gnome.desktop.screensaver"
@@ -48,8 +48,10 @@ class ScreenLockPolicy:
         settings: Gio.Settings | None = None,
         *,
         active: bool | None = None,
+        sandboxed: bool | None = None,
     ) -> None:
-        self._active = session.is_session() if active is None else active
+        session_active = session.is_session() if active is None else active
+        self._active = session_active and sandbox.host_settings_available(sandboxed)
         self._settings = settings
         self._previous: bool | None = None
 

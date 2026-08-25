@@ -39,3 +39,27 @@ def host_prefix(sandboxed: bool | None = None) -> tuple[str, ...]:
 
 def app_id() -> str:
     return os.environ.get("FLATPAK_ID", "")
+
+
+def host_settings_available(sandboxed: bool | None = None) -> bool:
+    """Whether Salon may change desktop-wide settings.
+
+    The Flatpak deliberately has no direct host-dconf access. Native builds
+    can still manage the GNOME screen lock and shell keyboard when Salon is
+    installed as the television session.
+    """
+    if sandboxed is None:
+        sandboxed = in_flatpak()
+    return not sandboxed
+
+
+def host_power_available(sandboxed: bool | None = None) -> bool:
+    """Whether direct logind power and logout controls are enabled.
+
+    The Flatpak omits the system-bus permission rather than asking Flathub
+    for a broad host-power exception. Native installations retain the full
+    kiosk power menu.
+    """
+    if sandboxed is None:
+        sandboxed = in_flatpak()
+    return not sandboxed

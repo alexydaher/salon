@@ -6,7 +6,7 @@
   <project_license>GPL-3.0-or-later</project_license>
 
   <name>Salon</name>
-  <summary>A ten-foot launcher for GNOME</summary>
+  <summary>Launch apps from the sofa</summary>
 
   <description>
     <p>
@@ -28,7 +28,7 @@
       the same layout reads correctly on a 1080p set and a 4K one.</li>
       <li>Search with an on-screen keyboard, or by typing on a phone on the
       same network.</li>
-      <li>Settings, the tile editor and the power menu are all reachable
+      <li>Settings and the tile editor are reachable
       without a keyboard or a mouse.</li>
       <li>A gamepad can drive the pointer, so browser-hosted streaming
       services that expect a mouse still work.</li>
@@ -39,6 +39,12 @@
       Salon does not configure the system. Wi-Fi, displays, date and time and
       the rest are handed to GNOME Settings, because a launcher has no
       business re-implementing them for a D-pad.
+    </p>
+    <p>
+      The Flatpak runs Salon as a fullscreen application. Flatpak cannot add
+      a Salon or Salon Kiosk choice to the login screen, and this build does
+      not change host GNOME settings or expose host power actions. Install
+      Salon as a native system package for the dedicated television session.
     </p>
   </description>
 
@@ -87,32 +93,43 @@
     <name>Alexy Daher</name>
   </developer>
 
-  <!-- Pinned to the v0.2.0 tag rather than to main: a software centre
+  <branding>
+    <color type="primary" scheme_preference="light">#C47712</color>
+    <color type="primary" scheme_preference="dark">#E8A33D</color>
+  </branding>
+
+  <!-- Pinned to the v0.2.1 tag rather than to main: a software centre
        showing this release should show the screenshots that release shipped
        with, and a moving branch would let them drift. Bump these with the
        version. -->
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.0/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.1/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.0/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.1/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.0/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.1/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.0/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.1/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.1" date="2026-08-25">
+      <description>
+        <p>Settings now follow controller-first navigation, and the status bar shows connected controllers and phones.</p>
+        <p>The Flatpak uses input-device-only access and no longer requests host dconf or power permissions.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-08-25">
       <description>
         <p>The phone remote is now a second screen with the catalogue, a D-pad, a trackpad, a keyboard, volume and playback controls.</p>

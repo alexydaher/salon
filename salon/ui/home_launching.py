@@ -154,8 +154,11 @@ class HomeLaunchController(ServiceComponent):
         if self._current_launch_is_browser and self._settings.get_boolean("gamepad-pointer"):
             self._pointer_mode = True
             self._start_pointer_session()
+            controls = "Right stick = cursor, A = click"
+            if onscreen_keyboard_available():
+                controls += ", Y = keyboard"
             self._toast(
-                "Right stick = cursor, A = click, Y = keyboard, "
+                controls + ", "
                 + ("START or phone Menu" if self._pairing.connected else "START")
                 + " = close and come back"
             )

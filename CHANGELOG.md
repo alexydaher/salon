@@ -8,6 +8,23 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.1 — 2026-08-25
+
+### Improved
+
+* Settings now use controller-first navigation: RIGHT enters a section or
+  control, B alone goes back, and LB/RB move between top-level sections.
+* The status bar shows when a controller or phone is connected and exposes
+  that state to assistive technology.
+* The Flatpak now grants input-device access instead of every host device,
+  and disables host power and GNOME host-setting controls rather than
+  requesting direct logind and dconf permissions.
+* The Flathub listing has brand colours, a shorter user-facing summary and
+  an explicit explanation of the Flatpak's login-session limitations.
+* Pushes now verify release-version consistency; a matching version tag builds
+  both Flatpak architectures and publishes a GitHub release with a
+  commit-pinned Flathub manifest.
+
 ## 0.2.0 — 2026-08-25
 
 ### The phone is a second screen

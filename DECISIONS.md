@@ -2091,3 +2091,21 @@ two runs lying, because `sys.path` had `build/` ahead of the source tree and
 it was importing meson's *copy* of the module — the same "installed tree
 goes stale silently" trap CLAUDE.md already documents, one directory closer
 to home than expected.
+
+## 2026-08-25 — the Flathub build is an application, not the appliance
+
+**The Flatpak gives up three native host integrations instead of requesting
+their permissions.** It no longer writes GNOME's screen-lock and shell-OSK
+keys through host dconf, and it no longer calls logind for logout, suspend,
+restart or shutdown. Those are coherent features of the native Salon login
+session, but Flatpak cannot install that session in the first place. Inside
+the sandbox the power rows are absent and Y points users to the phone's Type
+tab; native and distro installs keep the existing behavior. This removes
+three Flathub exception requests without disguising a sandbox escape as a
+portal.
+
+**Gamepads get input devices, not every device.** Flatpak 1.16 added the
+`input` device class, so the manifest now requires 1.16 and uses
+`--device=input` instead of `--device=all`. libmanette still receives evdev
+controllers while disks, cameras and unrelated device nodes remain outside
+the sandbox.

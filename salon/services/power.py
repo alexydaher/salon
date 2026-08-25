@@ -1,20 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""System power actions (§8) — logind and gnome-session, never `systemctl`.
+"""System power actions through logind, with gnome-session used for logout.
 
-Talks to org.freedesktop.login1.Manager on the *system* bus (not session).
-Suspend/Reboot/PowerOff take an "interactive" flag that lets polkit show
-its own auth prompt if the calling user isn't otherwise allowed; True is
-the right default for a desktop app running as a normal logged-in user.
-
-Every call reports its result. These used to be dispatched fire-and-forget
-with a NULL callback, which meant a refusal — an inhibitor holding a block
-lock, a polkit prompt the user can't see because Salon is fullscreen over
-it, a missing authorisation — arrived as nothing at all: the menu closed and
-the machine carried on running. On a device with no visible desktop
-underneath, a power button that fails silently is indistinguishable from one
-that isn't wired up.
-
-Logging out is the exception to "logind, always": see `log_out`.
+Calls are interactive so polkit can authorize them, asynchronous so a prompt
+cannot freeze Salon, and reported so a refusal never looks like a dead button.
+The Flatpak build omits host-power access entirely.
 """
 
 from __future__ import annotations
@@ -26,6 +15,8 @@ import gi
 gi.require_version("Gio", "2.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
+
+from salon.core import sandbox  # noqa: E402
 
 _BUS_NAME = "org.freedesktop.login1"
 _OBJECT_PATH = "/org/freedesktop/login1"
@@ -107,27 +98,41 @@ def _can(method: str) -> bool:
 
 
 def can_suspend() -> bool:
-    return _can("CanSuspend")
+    return sandbox.host_power_available() and _can("CanSuspend")
 
 
 def can_reboot() -> bool:
-    return _can("CanReboot")
+    return sandbox.host_power_available() and _can("CanReboot")
 
 
 def can_power_off() -> bool:
-    return _can("CanPowerOff")
+    return sandbox.host_power_available() and _can("CanPowerOff")
 
 
 def suspend(on_error: Callable[[str], None] | None = None) -> None:
-    _call("Suspend", on_error=on_error)
+    _power_action("Suspend", on_error)
 
 
 def reboot(on_error: Callable[[str], None] | None = None) -> None:
-    _call("Reboot", on_error=on_error)
+    _power_action("Reboot", on_error)
 
 
 def power_off(on_error: Callable[[str], None] | None = None) -> None:
-    _call("PowerOff", on_error=on_error)
+    _power_action("PowerOff", on_error)
+
+
+def _power_action(method: str, on_error: Callable[[str], None] | None) -> None:
+    if _flatpak_power_blocked(on_error):
+        return
+    _call(method, on_error=on_error)
+
+
+def _flatpak_power_blocked(on_error: Callable[[str], None] | None) -> bool:
+    if sandbox.host_power_available():
+        return False
+    if on_error is not None:
+        on_error("Host power controls are unavailable in the Flatpak build.")
+    return True
 
 
 def _session_connection() -> Gio.DBusConnection | None:
@@ -141,14 +146,9 @@ def _session_connection() -> Gio.DBusConnection | None:
 
 
 def can_log_out() -> bool:
-    """True unless there is nothing to log out *of*.
-
-    Deliberately permissive, like `_can` above: a session bus with no
-    gnome-session on it still has a logind session to terminate, and the
-    only case worth hiding the row for is a Salon started outside a session
-    altogether — a bare Xvfb, a test harness — where both routes are
-    missing.
-    """
+    """True when gnome-session or the current logind session can end."""
+    if not sandbox.host_power_available():
+        return False
     session = _session_connection()
     if session is not None and _owns_name(session, _SESSION_BUS_NAME):
         return True
@@ -195,6 +195,9 @@ def log_out(on_error: Callable[[str], None] | None = None) -> None:
     machine that is running Salon as a plain application under some other
     desktop may have no org.gnome.SessionManager on the bus at all.
     """
+
+    if _flatpak_power_blocked(on_error):
+        return
 
     def finished(connection: Gio.DBusConnection, result: Gio.AsyncResult) -> None:
         try:

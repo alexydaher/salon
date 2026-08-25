@@ -457,7 +457,9 @@ verified.** What remains is hardware that isn't attached to this machine
   `flatpak-spawn --host`, a gnome-session definition and `wayland-sessions`
   entry, the autostart toggle, HDMI-CEC in both directions, and
   `ui/onboarding.py`. Verified by staging a `DESTDIR` install and running
-  *that* copy.
+  *that* copy. As of 0.2.1 the Flatpak requires Flatpak 1.16 and grants
+  `--device=input`, not `--device=all`; it deliberately omits host dconf and
+  logind, so shell-OSK and power controls remain native-session features.
 - **M11 (polish) — done.** Error-copy pass (no Python reprs, no bare
   exceptions, every launch failure names its tile), README with the honest
   DRM section, screenshots in `docs/screenshots/`.
