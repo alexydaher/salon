@@ -98,32 +98,38 @@
     <color type="primary" scheme_preference="dark">#E8A33D</color>
   </branding>
 
-  <!-- Pinned to the v0.2.5 tag rather than to main: a software centre
+  <!-- Pinned to the v0.2.6 tag rather than to main: a software centre
        showing this release should show the screenshots that release shipped
        with, and a moving branch would let them drift. Bump these with the
        version. -->
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.5/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.6/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.5/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.6/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.5/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.6/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.5/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.6/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.6" date="2026-08-25">
+      <description>
+        <p>Confirmation-first destructive actions, direct keyboard input, consistent controls, contextual hints and unified tile actions make Salon safer and easier to operate from every input source.</p>
+        <p>Search, Settings, reordering, phone controls, scrolling, file selection and configuration testing now provide clearer state and more predictable navigation.</p>
+      </description>
+    </release>
     <release version="0.2.5" date="2026-08-25">
       <description>
         <p>Appearance settings now scroll completely to the final row even when text and padding make rows taller than their nominal size.</p>

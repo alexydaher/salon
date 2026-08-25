@@ -13,6 +13,7 @@ from salon.ui.home_shared import (
     editing,
     favourites,
     pointer_injector,
+    replace,
     to_hex,
 )
 
@@ -77,6 +78,16 @@ class HomePhoneCatalogController(ServiceComponent):
             self._owner._refresh_catalog(preserve_focus=True)
             return f"{tile.title} {'pinned to' if what == 'pin' else 'removed from'} Favourites"
         located = self._owner._locate_in_config(tile_id)
+        if what == "add":
+            if located is not None:
+                return f"{tile.title} is already on the home screen."
+            if not self._owner._config.rows:
+                return "Add a row in Settings before adding apps to Home."
+            row = self._owner._config.rows[0]
+            if editing.add_tile(self._owner._config, row.id, replace(tile)) is None:
+                return f"{tile.title} couldn't be added."
+            self._owner._save_config()
+            return f"{tile.title} added to {row.title or 'the first row'}."
         if located is None:
             # Recents, Favourites and the apps grid all produce tiles that
             # no row in tiles.json contains; there is nothing to edit or
@@ -174,5 +185,5 @@ class HomePhoneCatalogController(ServiceComponent):
     def _on_phone_locked(self) -> None:
         self._owner._toast(
             "Phone remote locked — too many wrong codes. "
-            "Turn it off and on again in Settings for a new code."
+            "Restart the phone remote in Settings for a new code."
         )

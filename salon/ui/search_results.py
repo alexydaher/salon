@@ -21,6 +21,7 @@ _MAX_RESULTS = 60
 class SearchResultsController:
     def _on_installed_scanned(self, tiles: list[Tile]) -> None:
         self._installed_tiles = tiles
+        self._installed_loading = False
         if self.get_visible():
             self._refresh_results()
 
@@ -52,17 +53,23 @@ class SearchResultsController:
 
     def _update_hint(self) -> None:
         pairing_hint = self._keyboard.pairing_hint()
+        status: list[str] = []
         if pairing_hint:
-            self._hint_label.set_label(pairing_hint)
-            return
+            status.append(pairing_hint)
+        if self._installed_loading:
+            status.append("Checking installed apps…")
         if self._results:
-            self._hint_label.set_label("")
+            count = len(self._results)
+            status.append(f"{count} result{'s' if count != 1 else ''}")
+            status.append("RIGHT enters results · OPTIONS shows actions")
+            self._hint_label.set_label(" · ".join(status))
             return
         if self._keyboard.text.strip():
             # §6.11: say what happened and what to do about it.
-            self._hint_label.set_label("Nothing matched. Try fewer letters.")
+            status.append("Nothing matched. Try fewer letters.")
         else:
-            self._hint_label.set_label("Type to search your tiles and installed apps.")
+            status.append("Type to search your tiles and installed apps.")
+        self._hint_label.set_label(" · ".join(status))
 
     def _row_lengths(self) -> list[int]:
         rows, remainder = divmod(len(self._results), RESULT_COLUMNS)
@@ -118,6 +125,24 @@ class SearchResultsController:
         if self._pane is Pane.RESULTS and not self._results:
             self._pane = Pane.KEYBOARD
         self._update_selection(animate=False)
+
+    def _click_result(self, index: int) -> None:
+        if not (0 <= index < len(self._results)):
+            return
+        self._pane = Pane.RESULTS
+        self._results_focus.jump_to(*divmod(index, RESULT_COLUMNS))
+        self._update_selection()
+        self._launch_focused()
+
+    def _hover_result(self, index: int) -> None:
+        if not self._pointer_active or not (0 <= index < len(self._results)):
+            return
+        position = divmod(index, RESULT_COLUMNS)
+        if self._pane is Pane.RESULTS and self._results_focus.position == position:
+            return
+        self._pane = Pane.RESULTS
+        self._results_focus.jump_to(*position)
+        self._update_selection()
 
     def _update_selection(self, *, animate: bool = True) -> None:
         index = self._focused_index()

@@ -13,7 +13,7 @@ from gi.repository import Gio, GLib  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
 from salon.core import sandbox  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
     RangeRow,
@@ -113,18 +113,62 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             rows.append(
                 ActionRow(
                     "Log out",
-                    lambda: power.log_out(fail("Log out")),
+                    lambda: context.push(
+                        confirm_panel(
+                            context,
+                            "Log out and end this session?",
+                            "Log out",
+                            lambda: power.log_out(fail("Log out")),
+                        )
+                    ),
                     detail="Ends the session and returns to the login screen",
                     danger=True,
                 )
             )
         if power.can_reboot():
-            rows.append(ActionRow("Restart", lambda: power.reboot(fail("Restart")), danger=True))
+            rows.append(
+                ActionRow(
+                    "Restart",
+                    lambda: context.push(
+                        confirm_panel(
+                            context,
+                            "Restart the computer?",
+                            "Restart",
+                            lambda: power.reboot(fail("Restart")),
+                        )
+                    ),
+                    danger=True,
+                )
+            )
         if power.can_power_off():
             rows.append(
-                ActionRow("Shut Down", lambda: power.power_off(fail("Shut down")), danger=True)
+                ActionRow(
+                    "Shut Down",
+                    lambda: context.push(
+                        confirm_panel(
+                            context,
+                            "Shut down the computer?",
+                            "Shut Down",
+                            lambda: power.power_off(fail("Shut down")),
+                        )
+                    ),
+                    danger=True,
+                )
             )
-        rows.append(ActionRow("Exit to desktop", context.quit_app, danger=True))
+        rows.append(
+            ActionRow(
+                "Exit to desktop",
+                lambda: context.push(
+                    confirm_panel(
+                        context,
+                        "Exit Salon and return to the desktop?",
+                        "Exit Salon",
+                        context.quit_app,
+                    )
+                ),
+                danger=True,
+            )
+        )
         return rows
 
     return Panel(

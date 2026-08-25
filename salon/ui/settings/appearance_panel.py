@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 import gi
 
@@ -129,6 +130,21 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 lambda: _edit_wallpaper(context, settings),
                 detail="A picture, or a folder of them to rotate. Leave empty for none.",
             ),
+            ActionRow(
+                "Choose background image…",
+                lambda: _choose_wallpaper(context, settings, folder=False),
+                detail="Open a file picker for pointer or mouse users",
+            ),
+            ActionRow(
+                "Choose background folder…",
+                lambda: _choose_wallpaper(context, settings, folder=True),
+                detail="Rotate through the images in a folder",
+            ),
+            ActionRow(
+                "Check background path",
+                lambda: _check_wallpaper(context, settings),
+                detail="Verify that the current image or folder can be found",
+            ),
             RangeRow(
                 "Background dimming",
                 lambda: settings.get_double("wallpaper-dim"),
@@ -176,6 +192,27 @@ def _edit_wallpaper(context: SettingsContext, settings: Gio.Settings) -> None:
         settings.get_string("wallpaper-path"),
         done,
     )
+
+
+def _choose_wallpaper(context: SettingsContext, settings: Gio.Settings, *, folder: bool) -> None:
+    def done(value: str | None) -> None:
+        if value:
+            settings.set_string("wallpaper-path", value)
+            context.rebuild()
+
+    context.choose_path(
+        "Choose a background folder" if folder else "Choose a background image", folder, done
+    )
+
+
+def _check_wallpaper(context: SettingsContext, settings: Gio.Settings) -> None:
+    value = settings.get_string("wallpaper-path").strip()
+    if not value:
+        context.toast("No background image is configured.")
+    elif Path(value).exists():
+        context.toast("Background path is available.")
+    else:
+        context.toast("Background path could not be found.")
 
 
 def _forget_site_icons(context: SettingsContext) -> None:

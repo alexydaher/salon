@@ -40,6 +40,14 @@ class SettingsActionController(ServiceComponent):
             self._step_section(action)
             return
 
+        if action is Action.OPTIONS and self._owner._pane is Pane.PANEL:
+            row = self._owner._panel_list.selected_row
+            if row is not None and row.previewable:
+                self._owner._enter_preview(row)
+            elif row is not None:
+                row.flash_denied()
+            return
+
         if is_settings_back(action):
             if self._owner._pane is Pane.PANEL:
                 self._owner._pop()
@@ -87,9 +95,6 @@ class SettingsActionController(ServiceComponent):
     def _handle_panel(self, action: Action) -> None:
         if action is Action.OK:
             row = self._owner._panel_list.selected_row
-            if row is not None and row.previewable:
-                self._owner._enter_preview(row)
-                return
             if row is not None and row.choices:
                 self._open_values(row)
                 return

@@ -21,6 +21,7 @@ python_sources = [
   'tiles.py',
   'add_tile_panels.py',
   'row_panels.py',
+  'reorder_panels.py',
   'tile_details.py',
   'tile_panel.py',
   'providers.py',

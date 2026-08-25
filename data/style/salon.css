@@ -24,7 +24,7 @@ window {
   font-size: var(--font-row-heading);
   font-weight: var(--weight-row-heading);
   letter-spacing: 0.01em;
-  opacity: 0.45;
+  opacity: 0.68;
   transition: opacity 180ms ease;
 }
 
@@ -297,6 +297,14 @@ toast > label {
   color: @text-secondary;
 }
 
+.salon-scroll-indicator {
+  color: @text-primary;
+  background-color: alpha(@surface-0, 0.88);
+  font-size: var(--font-tile-subtitle);
+  border-radius: var(--radius-pill);
+  opacity: 0.86;
+}
+
 /* The only visible entry points to Settings and the power menu. A
    controller reaches both through MENU; a mouse has nothing to press
    unless they are on screen. Dim until hovered, so they read as
@@ -469,6 +477,12 @@ toast > label {
   color: @text-secondary;
   font-size: var(--font-settings-body);
   font-weight: var(--weight-settings-body);
+}
+
+.salon-detail-actions {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
+  opacity: 0.72;
 }
 
 /* The standing pairing card (ui/remotehint.py). Shown only when there is

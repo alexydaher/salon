@@ -98,6 +98,7 @@ class HomeSurfaceSetup(ServiceComponent):
             self._owner._artwork,
             self._owner._pairing,
             on_launch=self._owner._launch_tile,
+            on_options=lambda tile: self._owner._open_tile_menu(tile, from_grid=True),
             on_close=self._owner.grab_focus,
         )
         self._owner._overlay.add_overlay(self._owner._search)

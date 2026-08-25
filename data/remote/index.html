@@ -781,6 +781,7 @@
     <div id="sheet-title"></div>
     <button id="sheet-open">Open</button>
     <button id="sheet-pin">Pin to Favourites</button>
+    <button id="sheet-add">Add to Home</button>
     <button id="sheet-edit">Edit on the television…</button>
     <button id="sheet-remove" class="danger">Remove from the home screen</button>
     <button id="sheet-cancel" class="cancel">Cancel</button>
@@ -789,8 +790,8 @@
 
 <nav hidden id="tabs">
   <button data-tab="apps" class="on"><span class="glyph">&#9638;</span>Apps</button>
-  <button data-tab="remote"><span class="glyph">&#9678;</span>Remote</button>
-  <button data-tab="pad"><span class="glyph">&#9633;</span>Pad</button>
+  <button data-tab="remote"><span class="glyph">&#9678;</span>Buttons</button>
+  <button data-tab="pad"><span class="glyph">&#9633;</span>Pointer</button>
   <button data-tab="type"><span class="glyph">&#9000;</span>Type</button>
 </nav>
 
@@ -1462,6 +1463,7 @@ function openSheet(tile) {
   // offering it would open an editor for a row that does not exist.
   $("sheet-edit").hidden = !tile.removable;
   $("sheet-remove").hidden = !tile.removable;
+  $("sheet-add").hidden = tile.removable;
   $("sheet").classList.add("on");
 }
 
@@ -1489,6 +1491,7 @@ $("sheet-open").addEventListener("click", () => {
 
 for (const [id, what] of [
   ["sheet-pin", "pin"],
+  ["sheet-add", "add"],
   ["sheet-edit", "edit"],
   ["sheet-remove", "remove"],
 ]) {
@@ -1496,6 +1499,9 @@ for (const [id, what] of [
     const tile = sheetTile;
     closeSheet();
     if (!tile) return;
+    if (what === "remove" && !window.confirm(`Remove ${tile.title} from the home screen?`)) {
+      return;
+    }
     buzz(10);
     // "pin" on something already pinned is the unpin: the label said so.
     const action = what === "pin" && tile.pinned ? "unpin" : what;

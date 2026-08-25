@@ -6,6 +6,7 @@ from __future__ import annotations
 from salon.core import editing
 from salon.core.model import LaunchKind, Tile
 from salon.ui.settings.context import Panel, SettingsContext, confirm_panel
+from salon.ui.settings.reorder_panels import reorder_rows_panel, reorder_tiles_panel
 from salon.ui.settings.widgets import (
     ActionRow,
     ChoiceRow,
@@ -30,6 +31,15 @@ def rows_panel(context: SettingsContext) -> Panel:
 
     def build() -> list[SettingsRow]:
         rows: list[SettingsRow] = []
+        if len(context.config.rows) > 1:
+            rows.append(
+                ActionRow(
+                    "Reorder rows",
+                    lambda: context.push(reorder_rows_panel(context)),
+                    detail="Choose a row, then its new position",
+                    value="›",
+                )
+            )
         for row in context.config.rows:
             count = len(row.tiles)
             captured = row.id
@@ -84,9 +94,16 @@ def row_panel(context: SettingsContext, row_id: str) -> Panel:
                 lambda: row.tile_aspect,
                 lambda value: _set_aspect(context, row_id, value),
             ),
-            ActionRow("Move row up", lambda: _move_row(context, row_id, -1), value="▲"),
-            ActionRow("Move row down", lambda: _move_row(context, row_id, 1), value="▼"),
         ]
+        if len(row.tiles) > 1:
+            rows.append(
+                ActionRow(
+                    "Reorder tiles",
+                    lambda: context.push(reorder_tiles_panel(context, row_id)),
+                    detail="Choose a tile, then its new position",
+                    value="›",
+                )
+            )
         for tile in row.tiles:
             captured = tile.id
             rows.append(

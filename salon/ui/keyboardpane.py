@@ -88,6 +88,20 @@ class KeyboardPane(Gtk.Box):
     def refresh(self) -> None:
         self._keyboard.refresh()
 
+    def insert_text(self, text: str) -> bool:
+        changed = self.model.insert_text(text)
+        if changed:
+            self._keyboard.refresh()
+            self._on_text_changed()
+        return changed
+
+    def backspace(self) -> bool:
+        changed = self.model.backspace()
+        if changed:
+            self._keyboard.refresh()
+            self._on_text_changed()
+        return changed
+
     # --- chrome ----------------------------------------------------------
 
     def set_scale(self, scale: Scale) -> None:

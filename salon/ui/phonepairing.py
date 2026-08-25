@@ -36,12 +36,10 @@ from salon.input.actions import Action  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui import motion  # noqa: E402
 from salon.ui.overlays import point_at  # noqa: E402
+from salon.ui.phone_pairing_actions import PhonePairingActions  # noqa: E402
 from salon.ui.phone_pairing_card import PhonePairingCard  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
-# How often the "is a phone actually talking to us" line is refreshed. Slow
-# enough to be free, fast enough that scanning the code and watching the
-# line change reads as cause and effect.
 _STATUS_POLL_MS = 1000
 
 # How long "A phone is connected." stays on screen before the card gets out
@@ -51,7 +49,7 @@ _STATUS_POLL_MS = 1000
 _CONNECTED_DWELL_MS = 1600
 
 
-class PhonePairing(Gtk.Box, motion.FadesIn):
+class PhonePairing(Gtk.Box, motion.FadesIn, PhonePairingActions):
     """Scrim, card, QR code. Navigated with LEFT/RIGHT and OK like the
     system menu it is opened from, and clickable throughout because the
     mouse is a first-class input here."""
@@ -85,6 +83,7 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
         self._dismiss_id: int | None = None
         self._selected = 0
         self._hover_enabled = False
+        self._confirming_stop = False
 
         self._card = PhonePairingCard(scale)
         self.append(self._card)
@@ -94,17 +93,17 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
         self._buttons = self._card.buttons
 
         self._rows: list[Gtk.Button] = []
-        for index, (label, handler, danger) in enumerate(
+        for index, (label, danger) in enumerate(
             (
-                ("Done", self.close, False),
-                ("Turn it off", self._stop, True),
+                ("Done", False),
+                ("Stop phone remote", True),
             )
         ):
             button = Gtk.Button(label=label)
             button.add_css_class("salon-system-menu-item")
             if danger:
                 button.add_css_class("danger")
-            button.connect("clicked", lambda _b, run=handler: run())
+            button.connect("clicked", lambda _b, i=index: self._activate(i))
             motion = Gtk.EventControllerMotion()
             motion.connect("motion", lambda *_, i=index: self._on_hover(i))
             button.add_controller(motion)
@@ -131,6 +130,8 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
         if not self._on_start():
             return False
         self._selected = 0
+        self._confirming_stop = False
+        self._restore_buttons()
         self._update_selection()
         self._refresh()
         self.set_visible(True)
@@ -173,7 +174,7 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
         if self._pairing.locked:
             self._qr.set_text("")
             self._address.set_label("Too many wrong codes.")
-            self._status.set_label("Turn it off and on again for a fresh code.")
+            self._status.set_label("Restart the phone remote for a fresh code.")
             return
 
         url = self._pairing.url
@@ -212,7 +213,7 @@ class PhonePairing(Gtk.Box, motion.FadesIn):
         elif action is Action.OK:
             self._rows[self._selected].emit("clicked")
         elif action is Action.BACK:
-            self.close()
+            self._cancel_stop() if self._confirming_stop else self.close()
 
     def set_hover_enabled(self, enabled: bool) -> None:
         """Hover only moves the selection once the pointer is genuinely in

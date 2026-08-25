@@ -105,6 +105,22 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     "The desktop asks for permission once."
                 ),
             ),
+            ActionRow(
+                "Advanced input",
+                lambda: context.push(_advanced_input_panel(context, settings)),
+                detail="Injection backend, permissions and HDMI-CEC",
+                value="›",
+            ),
+        ]
+
+    return Panel(title="Input", build=build, panel_id="input", icon_name="input-gaming-symbolic")
+
+
+def _advanced_input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
+    caps = sandbox.capabilities()
+
+    def build() -> list[SettingsRow]:
+        return [
             ChoiceRow(
                 "Input injection",
                 (
@@ -119,6 +135,13 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 lambda: settings.get_string("input-injection"),
                 lambda value: settings.set_string("input-injection", value),
                 detail=_injection_detail(context, settings),
+            ),
+            ActionRow(
+                "Test pointer configuration",
+                lambda: context.toast(
+                    f"Pointer backend: {context.pointer_backend() or 'not active yet'}"
+                ),
+                detail="Reports the backend currently controlling browser tiles",
             ),
             ActionRow(
                 "Forget remote-control permission",
@@ -147,7 +170,7 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
         ]
 
-    return Panel(title="Input", build=build, panel_id="input", icon_name="input-gaming-symbolic")
+    return Panel(title="Advanced input", build=build)
 
 
 def _set_phone_remote(context: SettingsContext, enabled: bool) -> None:

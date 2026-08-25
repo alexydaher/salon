@@ -55,7 +55,7 @@ def test_done_reports_done_without_changing_text() -> None:
 
 
 def test_vertical_movement_is_spatial_not_by_index() -> None:
-    """"b" is the fifth key of its row but sits over grid cell 4, which is
+    """ "b" is the fifth key of its row but sits over grid cell 4, which is
     inside Space's 2-5 span. Moving by index instead would clamp to the last
     key of the four-key bottom row — Done — which is nowhere near it."""
     model = KeyboardModel()
@@ -66,7 +66,7 @@ def test_vertical_movement_is_spatial_not_by_index() -> None:
 
 
 def test_vertical_movement_lands_under_the_cursor_not_under_the_row() -> None:
-    """"m" is index 6 and lands on Backspace, which is index 2 — the two
+    """ "m" is index 6 and lands on Backspace, which is index 2 — the two
     numbers have nothing to do with each other, which is the point."""
     model = KeyboardModel()
     model.jump_to(3, 6)  # "m", over grid cell 6
@@ -106,3 +106,17 @@ def test_set_text_replaces_without_moving_the_cursor() -> None:
     model.set_text("from phone")
     assert model.text == "from phone"
     assert model.position == before
+
+
+def test_hardware_text_can_be_inserted_and_deleted() -> None:
+    model = KeyboardModel("hello")
+    assert model.insert_text(" world") is True
+    assert model.text == "hello world"
+    assert model.backspace() is True
+    assert model.text == "hello worl"
+
+
+def test_hardware_text_empty_edits_are_harmless() -> None:
+    model = KeyboardModel()
+    assert model.insert_text("") is False
+    assert model.backspace() is False

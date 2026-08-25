@@ -98,6 +98,13 @@ class DetailBar(Gtk.Box):
         self._detail.set_ellipsize(Pango.EllipsizeMode.END)
         self.append(self._detail)
 
+        self._activity = Gtk.Label()
+        self._activity.add_css_class("salon-detail-actions")
+        self._activity.set_halign(Gtk.Align.START)
+        self._activity.set_xalign(0.0)
+        self._activity.set_ellipsize(Pango.EllipsizeMode.END)
+        self.append(self._activity)
+
         self._tile: Tile | None = None
         self._override: tuple[str, str] | None = None
         self.set_scale(scale)
@@ -132,19 +139,19 @@ class DetailBar(Gtk.Box):
         self._refresh()
 
     def _refresh(self) -> None:
-        if self._override is not None:
-            title, detail = self._override
-            self._title.set_label(title)
-            self._detail.set_label(detail)
-            self.set_visible(True)
-            return
         tile = self._tile
         if tile is None:
             # Empty rather than hidden: a strip that comes and goes moves
             # every row on the screen by its own height as it does.
             self._title.set_label("")
             self._detail.set_label("")
+            self._activity.set_label("")
             return
         self._title.set_label(tile.title)
         parts = [part for part in (tile.subtitle, describe(tile)) if part]
         self._detail.set_label(" · ".join(parts))
+        actions = "OK Open · OPTIONS More · UP Shortcuts"
+        if self._override is not None:
+            title, detail = self._override
+            actions = f"OK Open · OPTIONS More · Now playing: {title} — {detail}"
+        self._activity.set_label(actions)

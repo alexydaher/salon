@@ -20,6 +20,7 @@ from salon.services import appinfo  # noqa: E402
 from salon.services.artwork import ArtworkResolver  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui import motion  # noqa: E402
+from salon.ui.hardware_text import HardwareTextInput  # noqa: E402
 from salon.ui.keyboardpane import KeyboardPane  # noqa: E402
 from salon.ui.motion import AxisSpring, SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
@@ -34,7 +35,7 @@ _BUMP_DISTANCE_DU = 26.0
 _KEY_CELL_DU = 64.0
 
 
-class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
+class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTextInput):
     def __init__(
         self,
         scale: Scale,
@@ -42,6 +43,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
         pairing: PairingServer,
         *,
         on_launch: Callable[[Tile], None],
+        on_options: Callable[[Tile], None],
         on_close: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
@@ -54,6 +56,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
         self._scale = scale
         self._artwork = artwork
         self._on_launch = on_launch
+        self._on_options = on_options
         self._on_close = on_close
 
         self._catalog_tiles: list[Tile] = []
@@ -63,6 +66,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
         self._result_widgets: list[TileWidget] = []
         self._pane = Pane.KEYBOARD
         self._pointer_active = False
+        self._installed_loading = False
 
         self._results_focus = FocusModel([])
 
@@ -131,6 +135,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
         self._results_focus = FocusModel([])
         self._pane = Pane.KEYBOARD
         self.set_visible(True)
+        self._installed_loading = True
         self._begin_fade()
         self._refresh_results()
         # Scanning every .desktop file on the system is far too slow for the
@@ -177,6 +182,11 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
                 self._press_key()
             else:
                 self._launch_focused()
+            return
+        if action is Action.OPTIONS:
+            tile = self.focused_tile
+            if self._pane is Pane.RESULTS and tile is not None:
+                self._on_options(tile)
             return
         if self._pane is Pane.KEYBOARD:
             self._handle_keyboard_direction(action)
@@ -227,20 +237,13 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController):
             self.close()
             self._on_launch(tile)
 
-    def _click_result(self, index: int) -> None:
-        if not (0 <= index < len(self._results)):
-            return
-        self._pane = Pane.RESULTS
-        self._results_focus.jump_to(*divmod(index, RESULT_COLUMNS))
-        self._update_selection()
-        self._launch_focused()
+    @property
+    def focused_tile(self) -> Tile | None:
+        index = self._focused_index()
+        return self._results[index] if 0 <= index < len(self._results) else None
 
-    def _hover_result(self, index: int) -> None:
-        if not self._pointer_active or not (0 <= index < len(self._results)):
-            return
-        position = divmod(index, RESULT_COLUMNS)
-        if self._pane is Pane.RESULTS and self._results_focus.position == position:
-            return
-        self._pane = Pane.RESULTS
-        self._results_focus.jump_to(*position)
-        self._update_selection()
+    def _hardware_submit(self) -> None:
+        if self._results:
+            self._pane = Pane.RESULTS
+            self._results_focus.jump_to(0, 0)
+            self._launch_focused()

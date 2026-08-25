@@ -8,6 +8,35 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.6 — 2026-08-25
+
+### Safer and easier to control
+
+* Destructive system, Bluetooth and phone-remote actions now require an
+  explicit confirmation, with the safe choice focused first.
+* Physical keyboards can type, paste, erase and submit directly in Search and
+  text editors; Search also opens from All Apps and exposes tile options.
+* Onboarding and action hints use one consistent OK, BACK, MENU, OPTIONS,
+  SEARCH and GROUP vocabulary.
+
+### More predictable navigation
+
+* Home, Search and All Apps share contextual tile actions, while persistent
+  hints explain what the current buttons do and Search reports loading and
+  result counts.
+* Settings uses OK consistently for opening controls, reserves OPTIONS for
+  live preview, separates advanced controls, and makes hidden scrolling clear.
+* Rows and tiles can be reordered from dedicated controller-friendly flows.
+
+### Better setup and context
+
+* Pointer users get native file and folder pickers plus browser and input
+  configuration tests.
+* The selected tile remains described while media is playing, and unfocused
+  row headings remain more legible on television panels.
+* The phone remote uses the same Add to Home action and confirms before the
+  sole active remote is stopped.
+
 ## 0.2.5 — 2026-08-25
 
 ### Fixed

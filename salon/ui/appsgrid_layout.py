@@ -11,7 +11,6 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
 from salon.core.model import Tile  # noqa: E402
-from salon.input.actions import Action  # noqa: E402
 from salon.ui.tile import TileMetrics, TileWidget, metrics_for  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
@@ -106,12 +105,7 @@ class AppsGridLayout:
             # bottom edge and its bloom cut off there instead.
             max(1, round(top + len(lengths) * self._row_pitch(metrics) + metrics.bleed)),
         )
-        self._legend.set_label(
-            f"{len(self._tiles)} apps · OK opens · {Action.OPTIONS.value.upper()} "
-            "pins one to Favourites · L1/R1 jumps a letter · BACK returns"
-            if self._tiles
-            else ""
-        )
+        self._update_legend()
         if not self._tiles:
             self._set_hint("No applications were found on this machine.")
         self._rebuild_rail()
@@ -204,6 +198,7 @@ class AppsGridLayout:
         if tile is not None:
             self._set_hint(f"{tile.title} · {tile.subtitle}" if tile.subtitle else tile.title)
         self._update_rail()
+        self._update_legend()
         if 0 <= index < len(self._widgets):
             # Same aria-activedescendant pattern as the home screen: the
             # tiles never take GTK focus, so the container has to say which
@@ -212,6 +207,16 @@ class AppsGridLayout:
                 [Gtk.AccessibleRelation.ACTIVE_DESCENDANT], [self._widgets[index]]
             )
         self._scroll_to_focused(animate=animate)
+
+    def _update_legend(self) -> None:
+        if not self._tiles:
+            self._legend.set_label("")
+            return
+        index = max(0, min(self._focused_index(), len(self._tiles) - 1))
+        self._legend.set_label(
+            f"{index + 1} of {len(self._tiles)} · OK opens · OPTIONS shows actions · "
+            "SEARCH searches · GROUP jumps a letter · BACK returns"
+        )
 
     def _scroll_to_focused(self, *, animate: bool) -> None:
         if not self._widgets or self._viewport_height <= 0:

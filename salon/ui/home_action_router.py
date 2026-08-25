@@ -113,7 +113,10 @@ class HomeActionRouter(ServiceComponent):
             return
 
         if self._owner._apps_grid.get_visible():
-            if action is Action.OPTIONS:
+            if action is Action.SEARCH:
+                self._owner._apps_grid.close()
+                self._owner._open_search()
+            elif action is Action.OPTIONS:
                 self._owner._open_tile_menu(self._owner._apps_grid.focused_tile, from_grid=True)
             else:
                 self._owner._apps_grid.handle_action(action)

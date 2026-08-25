@@ -10,6 +10,8 @@ from salon.ui.home_shared import (
     Catalog,
     CatalogBuild,
     ConfigError,
+    Gio,
+    Gtk,
     sanitize,
     tile_config,
 )
@@ -69,6 +71,28 @@ class HomeCatalogController(ServiceComponent):
 
     def _edit_text(self, title: str, initial: str, on_done: Callable[[str | None], None]) -> None:
         self._owner._text_entry.open(title=title, initial=initial, on_done=on_done)
+
+    def _choose_path(self, title: str, folder: bool, on_done: Callable[[str | None], None]) -> None:
+        """Pointer-friendly file/folder chooser; remote users keep the text path editor."""
+        dialog = Gtk.FileDialog()
+        dialog.set_title(title)
+        root = self._owner.get_root()
+        parent = root if isinstance(root, Gtk.Window) else None
+
+        def chosen(source: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
+            try:
+                selected = (
+                    source.select_folder_finish(result) if folder else source.open_finish(result)
+                )
+            except Exception:
+                on_done(None)
+                return
+            on_done(selected.get_path())
+
+        if folder:
+            dialog.select_folder(parent, None, chosen)
+        else:
+            dialog.open(parent, None, chosen)
 
     def _show_system_menu(self) -> None:
         self._owner._rebuild_system_menu()

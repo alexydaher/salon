@@ -42,7 +42,7 @@ class SettingsPreviewController(ServiceComponent):
         self._owner._preview_label.set_label(row.label_text)
         self._owner._preview_value.set_label(f"‹  {row.value_text}  ›")
         self._owner._preview_hint.set_label(
-            "LEFT/RIGHT adjusts  ·  UP/DOWN changes setting  ·  B/BACK back  ·  START home"
+            "LEFT/RIGHT adjusts · UP/DOWN changes setting · OK/BACK returns · MENU home"
         )
 
     def _previewable_indices(self) -> list[int]:

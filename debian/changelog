@@ -1,3 +1,9 @@
+salon (0.2.6-1) unstable; urgency=medium
+
+  * Improve safety, input consistency, search, tile actions, and Settings UX.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Tue, 25 Aug 2026 18:05:00 +0200
+
 salon (0.2.5-1) unstable; urgency=medium
 
   * Fix scrolling to the final rows in Appearance settings.

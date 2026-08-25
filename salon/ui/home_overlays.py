@@ -4,6 +4,7 @@
 
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
+    Callable,
     SystemMenuItem,
     Tile,
     editing,
@@ -13,6 +14,17 @@ from salon.ui.home_shared import (
 
 
 class HomeOverlayController(ServiceComponent):
+    def _confirm_system_action(self, label: str, action: Callable[[], None]) -> None:
+        """Require a second deliberate OK, with Cancel selected first."""
+        self._owner._system_menu.set_items(
+            [
+                SystemMenuItem("Cancel", lambda: None),
+                SystemMenuItem(label, action, danger=True),
+            ],
+            title=f"{label}?",
+        )
+        self._owner._system_menu.show()
+
     def _open_search(self) -> None:
         self._owner._set_nav_focused(False)
         self._owner._search.open(self._searchable_tiles())
@@ -65,24 +77,25 @@ class HomeOverlayController(ServiceComponent):
                 lambda: self._toggle_favourite(tile),
             )
         )
-        if from_grid and self._owner._config.rows:
-            items.append(SystemMenuItem("Add to Home", lambda: self._add_tile_to_home(tile)))
-        if not from_grid:
-            # Straight to *this* tile's editor. Landing on the section list
-            # instead — which is what this did — means four more navigations
-            # to reach the thing the user already had the cursor on.
-            located = self._owner._locate_in_config(tile.id)
-            if located is not None:
-                row_id, tile_id = located
-                items.append(
-                    SystemMenuItem(
-                        f"Edit {tile.title}…",
-                        lambda: self._owner._settings_screen_open_tile(row_id, tile_id),
-                    )
-                )
+        located = self._owner._locate_in_config(tile.id)
+        if located is None and self._owner._config.rows:
+            first = self._owner._config.rows[0]
             items.append(
-                SystemMenuItem("Edit tiles…", lambda: self._owner._open_settings("tiles"))
+                SystemMenuItem(
+                    f"Add to {first.title or 'first row'}",
+                    lambda: self._add_tile_to_home(tile),
+                )
             )
+        if located is not None:
+            row_id, tile_id = located
+            items.append(
+                SystemMenuItem(
+                    f"Edit {tile.title}…",
+                    lambda: self._owner._settings_screen_open_tile(row_id, tile_id),
+                )
+            )
+        if not from_grid:
+            items.append(SystemMenuItem("Edit tiles…", lambda: self._owner._open_settings("tiles")))
         items.append(SystemMenuItem("Cancel", lambda: None))
         self._owner._tile_menu.set_items(items, title=tile.title)
         self._owner._tile_menu.show()

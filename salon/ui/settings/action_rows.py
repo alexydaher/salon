@@ -42,7 +42,7 @@ class ActionRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "A/OK or RIGHT opens it" if self._opens else "A/OK runs it"
+        return "OK or RIGHT opens it" if self._opens else "OK runs it"
 
     def activate_row(self) -> None:
         self._on_activate()
@@ -87,7 +87,7 @@ class ToggleRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "A/OK or RIGHT switches it"
+        return "OK or RIGHT switches it"
 
     def refresh(self) -> None:
         self.set_value("On" if self._get() else "Off")

@@ -60,6 +60,14 @@ class SettingsList(Gtk.Fixed):
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.put(self._content, 0, 0)
         self._scroll = AxisSpring(self, self._content, vertical=True)
+        self._top_more = Gtk.Label(label="▲ More")
+        self._bottom_more = Gtk.Label(label="▼ More")
+        for indicator in (self._top_more, self._bottom_more):
+            indicator.add_css_class("salon-scroll-indicator")
+            indicator.set_halign(Gtk.Align.FILL)
+            indicator.set_can_target(False)
+            indicator.set_visible(False)
+            self.put(indicator, 0, 0)
 
     def on_resize(self, width: int, height: int) -> None:
         """Fed by the `SizeReporter` this list is wrapped in.
@@ -72,6 +80,13 @@ class SettingsList(Gtk.Fixed):
         self._allocated_width = width
         self._allocated_height = height
         self._content.set_size_request(width, -1)
+        indicator_height = self._scale.px(34.0)
+        indicator_width = min(width, self._scale.px(112.0))
+        self._top_more.set_size_request(indicator_width, indicator_height)
+        self._bottom_more.set_size_request(indicator_width, indicator_height)
+        indicator_x = max(0, width - indicator_width)
+        Gtk.Fixed.move(self, self._top_more, indicator_x, 0)
+        Gtk.Fixed.move(self, self._bottom_more, indicator_x, max(0, height - indicator_height))
         # And only now is there a height to scroll within: set_rows runs
         # before the first allocation, so without this the list opens
         # unscrolled however far down the selection sits.
@@ -193,8 +208,7 @@ class SettingsList(Gtk.Fixed):
         # Measure at the viewport width so this stays correct for every
         # theme, text scale, and row subtype.
         row_heights = [
-            row.measure(Gtk.Orientation.VERTICAL, self._allocated_width)[1]
-            for row in self._rows
+            row.measure(Gtk.Orientation.VERTICAL, self._allocated_width)[1] for row in self._rows
         ]
         offset = _selection_offset(
             row_heights,
@@ -202,4 +216,9 @@ class SettingsList(Gtk.Fixed):
             viewport_height,
             self._content.get_spacing(),
         )
+        content_height = sum(row_heights) + self._content.get_spacing() * max(
+            0, len(row_heights) - 1
+        )
+        self._top_more.set_visible(offset < -1.0)
+        self._bottom_more.set_visible(content_height + offset > viewport_height + 1.0)
         self._scroll.animate_to(offset) if animate else self._scroll.jump_to(offset)

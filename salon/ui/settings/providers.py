@@ -57,6 +57,8 @@ def providers_panel(
             ),
         ]
         for provider in registry.all_providers():
+            if provider.id not in registry.builtin_ids:
+                continue
             outcome = by_id.get(provider.id)
             rows.append(
                 ToggleRow(
@@ -69,26 +71,14 @@ def providers_panel(
                 )
             )
 
-        # Modules that failed to *import* never became providers, so they
-        # aren't in all_providers() — without this they would be invisible
-        # here, which is the exact failure this panel exists to prevent.
-        known = {provider.id for provider in registry.all_providers()}
-        for outcome in outcomes():
-            if outcome.provider_id not in known:
-                rows.append(InfoRow(outcome.title, "Failed", detail=outcome.failure or ""))
-
         rows.append(
             ActionRow(
-                "Reload providers",
-                lambda: _reload(context, registry, reload_catalog),
-                detail=f"Re-imports every .py in {provider_dir()}",
-            )
-        )
-        rows.append(
-            ActionRow(
-                "Open the provider folder",
-                lambda: _open_folder(context),
-                detail="Drop a .py file with a provider() function here",
+                "Developer providers",
+                lambda: context.push(
+                    _developer_providers_panel(context, registry, outcomes, reload_catalog)
+                ),
+                detail="Local Python extensions that run code on this computer",
+                value="›",
             )
         )
         return rows
@@ -99,6 +89,60 @@ def providers_panel(
         panel_id="providers",
         icon_name="application-x-addon-symbolic",
     )
+
+
+def _developer_providers_panel(
+    context: SettingsContext,
+    registry: ProviderRegistry,
+    outcomes: Callable[[], tuple[ProviderOutcome, ...]],
+    reload_catalog: Callable[[], None],
+) -> Panel:
+    def build() -> list[SettingsRow]:
+        by_id = {outcome.provider_id: outcome for outcome in outcomes()}
+        rows: list[SettingsRow] = [
+            InfoRow(
+                "Local code",
+                "Use trusted files only",
+                detail="Provider files execute with the same access as Salon.",
+            )
+        ]
+        external = [
+            provider
+            for provider in registry.all_providers()
+            if provider.id not in registry.builtin_ids
+        ]
+        for provider in external:
+            rows.append(
+                ToggleRow(
+                    provider.title,
+                    lambda pid=provider.id: pid not in registry.disabled(),
+                    lambda enabled, pid=provider.id: _set_enabled(
+                        context, registry, reload_catalog, pid, enabled
+                    ),
+                    detail=_describe(by_id.get(provider.id)),
+                )
+            )
+        known = {provider.id for provider in registry.all_providers()}
+        for outcome in outcomes():
+            if outcome.provider_id not in known:
+                rows.append(InfoRow(outcome.title, "Failed", detail=outcome.failure or ""))
+        rows.extend(
+            [
+                ActionRow(
+                    "Reload developer providers",
+                    lambda: _reload(context, registry, reload_catalog),
+                    detail=f"Re-imports every .py in {provider_dir()}",
+                ),
+                ActionRow(
+                    "Open provider folder",
+                    lambda: _open_folder(context),
+                    detail="Add only Python provider files you trust",
+                ),
+            ]
+        )
+        return rows
+
+    return Panel(title="Developer providers", build=build)
 
 
 def _set_row(

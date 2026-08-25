@@ -70,25 +70,22 @@ class SettingsNavigationController(ServiceComponent):
         """
         if self._owner._pane is Pane.SECTIONS:
             self._owner._legend.set_label(
-                "A/OK or RIGHT opens  ·  B/BACK returns home  ·  LB/RB changes section"
+                "OK or RIGHT opens · BACK returns home · GROUP changes section"
             )
             return
         row = self._owner._panel_list.selected_row
         if self._owner._popup.is_open and row is not None:
-            self._owner._legend.set_label(
-                "UP/DOWN picks  ·  A/OK sets  ·  B/BACK cancels  ·  START goes home"
-            )
+            self._owner._legend.set_label("UP/DOWN picks · OK sets · BACK cancels · MENU goes home")
             return
-        parts = [row.hint if row is not None else "A/OK selects"]
+        parts = [row.hint if row is not None else "OK selects"]
         if row is not None and row.previewable:
             # OK is spoken for on these: it collapses to the preview strip,
             # which is the only way to judge an accent or a tile size. The
             # list is still there on RIGHT for anyone who knows the value
             # they want.
-            parts.append("A/OK previews")
-            parts[0] = "RIGHT lists values" if row.choices else "RIGHT changes it"
+            parts.append("OPTIONS previews")
         parts.append(
-            "B/BACK goes back" if len(self._owner._stack) > 1 else "B/BACK returns to sections"
+            "BACK goes back" if len(self._owner._stack) > 1 else "BACK returns to sections"
         )
-        parts.append("START goes home")
+        parts.append("MENU goes home")
         self._owner._legend.set_label("  ·  ".join(parts))

@@ -53,6 +53,7 @@ class SettingsContext:
     save_config: Callable[[], None]
     toast: Callable[[str], None]
     edit_text: Callable[[str, str, Callable[[str | None], None]], None]
+    choose_path: Callable[[str, bool, Callable[[str | None], None]], None]
     push: Callable[[Panel], None]
     pop: Callable[[], None]
     rebuild: Callable[[], None]

@@ -168,6 +168,19 @@ class HomeReloadAndPointerController(ServiceComponent):
         state: object,
     ) -> bool:
         if keyval == Gdk.KEY_Escape:
+            overlays = (
+                self._owner._onboarding,
+                self._owner._phone_pairing,
+                self._owner._system_menu,
+                self._owner._tile_menu,
+                self._owner._text_entry,
+                self._owner._settings_screen,
+                self._owner._apps_grid,
+                self._owner._search,
+            )
+            if any(surface.get_visible() for surface in overlays):
+                self._owner._handle_action(Action.BACK)
+                return True
             # Dev-only quit shortcut, deliberately outside the Action
             # pipeline — a real TV launcher shouldn't be closeable by a
             # single button, and this must never be reachable from the
@@ -178,6 +191,12 @@ class HomeReloadAndPointerController(ServiceComponent):
             return True
         if self._owner._binding_capture is not None:
             self._owner._on_raw_input(KEYBOARD, keyval)
+            return True
+        if self._owner._text_entry.get_visible() and self._owner._text_entry.handle_keyval(
+            keyval, state
+        ):
+            return True
+        if self._owner._search.get_visible() and self._owner._search.handle_keyval(keyval, state):
             return True
         action = action_for_keyval(keyval, self._owner._bindings)
         if action is None:

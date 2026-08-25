@@ -135,6 +135,19 @@ class KeyboardModel:
         cursor knows nothing about."""
         self._text = text
 
+    def insert_text(self, text: str) -> bool:
+        """Insert text supplied by a hardware keyboard, paste, or phone."""
+        if not text:
+            return False
+        self._text += text
+        return True
+
+    def backspace(self) -> bool:
+        if not self._text:
+            return False
+        self._text = self._text[:-1]
+        return True
+
     def jump_to(self, row: int, col: int) -> None:
         """Point the cursor straight at a key — how a mouse click or a
         pointer hover moves it, since neither arrives as a direction."""

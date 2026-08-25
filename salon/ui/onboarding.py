@@ -44,7 +44,8 @@ PAGES: tuple[Page, ...] = (
         title="Welcome to Salon",
         body=(
             "Everything here is built for a remote or a controller across a "
-            "room. Move with the direction pad, choose with OK, go back with B."
+            "room. Move with the direction pad, choose with OK, and use Back "
+            "to return. The labels stay the same whichever remote you use."
         ),
         hint="Press OK to continue",
     ),
@@ -53,25 +54,26 @@ PAGES: tuple[Page, ...] = (
         body=(
             "Press UP from the first row to reach search, all your apps, "
             "Settings and power. Search looks through your tiles and every "
-            "application on this machine at once — type with the on-screen "
-            "keyboard, or open the address it shows on your phone."
+            "application on this machine at once. Type with a keyboard, the "
+            "on-screen keys, or a phone connected from the top bar."
         ),
         hint="Press OK to continue",
     ),
     Page(
         title="Getting back",
         body=(
-            "When something you started is filling the screen, press START on "
-            "the controller to close it and come back to Salon. Salon can "
-            "always hear the controller, even when it can't see the screen."
+            "When something you started is filling the screen, press Menu to "
+            "close it and come back to Salon. On many controllers Menu is the "
+            "Start button. Salon can still hear it behind the app."
         ),
         hint="Press OK to continue",
     ),
     Page(
         title="Make it yours",
         body=(
-            "X over any tile pins it to Favourites or edits it. MENU opens "
-            "Settings and power from anywhere. Settings is where you add "
+            "Options over any tile opens its actions: pin it, add it to Home, "
+            "or edit it. Menu opens system controls from Home, closes Settings, "
+            "and always brings you back from an app. Settings is where you add "
             "tiles, group them into rows, drop in your own artwork, and "
             "change how big everything is — with the home screen live behind "
             "you while you do it."

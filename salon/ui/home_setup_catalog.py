@@ -40,6 +40,7 @@ class HomeCatalogSetup(ServiceComponent):
             save_config=self._owner._save_config,
             toast=self._owner._toast,
             edit_text=self._owner._edit_text,
+            choose_path=self._owner._choose_path,
             installed_apps=appinfo.list_installed_async,
             provider_registry=self._owner._provider_registry,
             provider_outcomes=lambda: self._owner._provider_outcomes,

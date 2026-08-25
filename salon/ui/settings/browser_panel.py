@@ -13,6 +13,7 @@ from gi.repository import Gio, GLib  # noqa: E402
 from salon.services import launcher  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
+    ActionRow,
     InfoRow,
     SettingsRow,
     TextRow,
@@ -40,24 +41,19 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             launcher.BrowserAvailability.HOST_EXECUTION_FAILED: "Host browser detection failed.",
         }.get(resolution.availability, "")
         return [
-            TextRow(
-                "Browser command",
-                lambda: settings.get_string("browser-command"),
-                lambda: _edit_browser(context, settings),
-                placeholder="Autodetect",
-                detail=(" ".join(detected) if detected else failure_detail),
-            ),
             InfoRow(
                 "Detected",
                 " ".join(detected) if detected else "None",
                 detail="Chrome, then Chromium, then the Flatpak, in that order",
             ),
-            TextRow(
-                "Extra flags",
-                lambda: " ".join(settings.get_strv("browser-extra-flags")),
-                lambda: _edit_flags(context, settings),
-                placeholder="None",
-                detail="Appended after the flags Salon computes for each tile",
+            ActionRow(
+                "Test browser configuration",
+                lambda: context.toast(
+                    f"Browser ready: {' '.join(detected)}"
+                    if detected
+                    else failure_detail or "Browser check is still running."
+                ),
+                detail="Checks the command Salon would use without opening a window",
             ),
             InfoRow(
                 "Streaming quality",
@@ -67,9 +63,37 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     "others cap resolution. This is a licensing limit, not a setting."
                 ),
             ),
+            ActionRow(
+                "Advanced browser",
+                lambda: context.push(_advanced_browser_panel(context, settings)),
+                detail="Custom command and launch flags",
+                value="›",
+            ),
         ]
 
     return Panel(title="Browser", build=build, panel_id="browser", icon_name="web-browser-symbolic")
+
+
+def _advanced_browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
+    def build() -> list[SettingsRow]:
+        return [
+            TextRow(
+                "Browser command",
+                lambda: settings.get_string("browser-command"),
+                lambda: _edit_browser(context, settings),
+                placeholder="Autodetect",
+                detail="Leave empty to use Salon's detected browser",
+            ),
+            TextRow(
+                "Extra flags",
+                lambda: " ".join(settings.get_strv("browser-extra-flags")),
+                lambda: _edit_flags(context, settings),
+                placeholder="None",
+                detail="Appended after the flags Salon computes for each tile",
+            ),
+        ]
+
+    return Panel(title="Advanced browser", build=build)
 
 
 def _edit_browser(context: SettingsContext, settings: Gio.Settings) -> None:

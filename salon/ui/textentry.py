@@ -26,11 +26,12 @@ from gi.repository import Gtk, Pango  # noqa: E402
 from salon.core import tokens  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
+from salon.ui.hardware_text import HardwareTextInput  # noqa: E402
 from salon.ui.keyboardpane import KeyboardPane  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 
-class TextEntryOverlay(Gtk.Box):
+class TextEntryOverlay(Gtk.Box, HardwareTextInput):
     def __init__(self, scale: Scale, pairing: PairingServer) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("salon-search")  # same full-bleed field as search
@@ -142,3 +143,6 @@ class TextEntryOverlay(Gtk.Box):
             self._press_key()
             return
         self._keyboard.move(action)
+
+    def _hardware_submit(self) -> None:
+        self._finish(self._keyboard.text)

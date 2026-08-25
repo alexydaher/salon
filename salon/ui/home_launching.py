@@ -92,15 +92,7 @@ class HomeLaunchController(ServiceComponent):
             self._owner._toast(f"There's nothing behind the {target} tile yet.")
 
     def _build_system_menu_items(self) -> list[SystemMenuItem]:
-        # The reachable escape hatch on a fullscreen, keyboard-less kiosk:
-        # a way into Settings, a way to power the machine down, and a way
-        # out of Salon. Only the power actions logind says are available
-        # are offered.
-        # logind can refuse — an inhibitor holding a block lock, or a polkit
-        # prompt that lands behind Salon's fullscreen window. Those used to
-        # arrive as nothing at all: the menu closed and the machine carried
-        # on running, which is indistinguishable from a button that isn't
-        # wired up. Now the refusal is named.
+        # Name logind refusals instead of closing the menu with no result.
         def fail(what: str) -> Callable[[str], None]:
             return lambda message: self._owner._toast(f"{what} didn't happen: {message}")
 
@@ -115,24 +107,50 @@ class HomeLaunchController(ServiceComponent):
         ]
         if power.can_suspend():
             items.append(SystemMenuItem("Suspend", lambda: power.suspend(fail("Suspend"))))
-        # Between Suspend and Restart, and above them in consequence: it is
         # the way to get from Salon to another session — the desktop, a
         # different user — without powering the machine down. "Exit Salon"
         # below leaves the process; this leaves the session, which under the
         # Salon unit's Restart=always is the only one of the two that
         # actually ends up somewhere else.
         if power.can_log_out():
-            items.append(SystemMenuItem("Log Out", lambda: power.log_out(fail("Log out"))))
+            items.append(
+                SystemMenuItem(
+                    "Log Out",
+                    lambda: self._confirm_system_action(
+                        "Log Out", lambda: power.log_out(fail("Log out"))
+                    ),
+                )
+            )
         if power.can_reboot():
             items.append(
-                SystemMenuItem("Restart", lambda: power.reboot(fail("Restart")), danger=True)
+                SystemMenuItem(
+                    "Restart",
+                    lambda: self._confirm_system_action(
+                        "Restart", lambda: power.reboot(fail("Restart"))
+                    ),
+                    danger=True,
+                )
             )
         if power.can_power_off():
             items.append(
-                SystemMenuItem("Shut Down", lambda: power.power_off(fail("Shut down")), danger=True)
+                SystemMenuItem(
+                    "Shut Down",
+                    lambda: self._confirm_system_action(
+                        "Shut Down", lambda: power.power_off(fail("Shut down"))
+                    ),
+                    danger=True,
+                )
             )
         items.append(SystemMenuItem("About Salon", lambda: self._owner._open_settings("about")))
-        items.append(SystemMenuItem("Exit Salon", self._owner._application.quit))
+        items.append(
+            SystemMenuItem(
+                "Exit to Desktop",
+                lambda: self._confirm_system_action(
+                    "Exit to Desktop", self._owner._application.quit
+                ),
+                danger=True,
+            )
+        )
         items.append(SystemMenuItem("Cancel", lambda: None))
         return items
 
@@ -166,13 +184,17 @@ class HomeLaunchController(ServiceComponent):
         ):
             self._owner._pointer_mode = True
             self._owner._start_pointer_session()
-            controls = "Right stick = cursor, A = click"
+            controls = "Right stick = cursor, OK = click"
             if onscreen_keyboard_available():
-                controls += ", Y = keyboard"
+                controls += ", Search = keyboard"
             self._owner._toast(
                 controls
                 + ", "
-                + ("START or phone Menu" if self._owner._pairing.connected else "START")
+                + (
+                    "phone Menu or controller Menu/Start"
+                    if self._owner._pairing.connected
+                    else "Menu/Start"
+                )
                 + " = close and come back"
             )
         else:
@@ -220,8 +242,8 @@ class HomeLaunchController(ServiceComponent):
         and telling them to press START on a controller they may not own is
         the difference between a way out and a trapped television."""
         if self._owner._pairing.connected:
-            return "Press START on the controller, or Menu on your phone,"
-        return "Press START on the controller"
+            return "Press Menu on your phone, or Menu/Start on the controller,"
+        return "Press Menu/Start on the controller"
 
     def _on_launch_error(self, message: str) -> None:
         self._owner._toast(message)

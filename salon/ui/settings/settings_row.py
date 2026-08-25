@@ -226,7 +226,7 @@ class SettingsRow(Gtk.Button):
     @property
     def hint(self) -> str:
         """What the legend at the bottom of the screen says about this row."""
-        return "A/OK selects"
+        return "OK selects"
 
     def activate_row(self) -> None:
         """OK, or a click."""
