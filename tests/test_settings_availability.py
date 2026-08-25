@@ -10,7 +10,13 @@ from gi.repository import Gtk  # noqa: E402
 
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.settings.action_rows import ActionRow  # noqa: E402
-from salon.ui.settings.settings_list import SettingsList  # noqa: E402
+from salon.ui.settings.settings_list import SettingsList, _selection_offset  # noqa: E402
+
+
+def test_scroll_offset_uses_real_row_heights_at_end_of_list() -> None:
+    heights = [72, 72, 84, 84]
+
+    assert _selection_offset(heights, selected=3, viewport_height=240, spacing=6) == -90
 
 
 def test_unavailable_row_exposes_reason_and_cannot_activate() -> None:

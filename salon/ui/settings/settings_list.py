@@ -15,6 +15,20 @@ from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.settings.settings_row import SettingsRow  # noqa: E402
 
 
+def _selection_offset(
+    row_heights: list[int], selected: int, viewport_height: int, spacing: int
+) -> float:
+    """Return the y offset that keeps ``selected`` inside the viewport."""
+    if not row_heights or not 0 <= selected < len(row_heights) or viewport_height <= 0:
+        return 0.0
+
+    content_height = sum(row_heights) + spacing * (len(row_heights) - 1)
+    top = sum(row_heights[:selected]) + spacing * selected
+    bottom = top + row_heights[selected]
+    wanted = min(0, viewport_height - bottom)
+    return float(max(min(0, viewport_height - content_height), wanted))
+
+
 class SettingsList(Gtk.Fixed):
     """A vertically scrolling list of rows with a single selection.
 
@@ -168,14 +182,24 @@ class SettingsList(Gtk.Fixed):
     def _scroll_to_selection(self, *, animate: bool) -> None:
         if not self._rows:
             return
-        row_height = self._scale.du(72.0) + self._scale.du(6.0)
         viewport_height = self._allocated_height
         if viewport_height <= 0:
             return
-        content_height = len(self._rows) * row_height
-        top = self._selected * row_height
-        offset = 0.0
-        if top + row_height > viewport_height:
-            offset = viewport_height - (top + row_height)
-        offset = max(min(0.0, viewport_height - content_height), min(0.0, offset))
+
+        # A row requests 72du, but that is only a minimum. Two-line rows can
+        # grow beyond it when the font metrics and CSS padding need more
+        # room. Using the nominal pitch here left the last Appearance rows
+        # clipped because the scroll range was shorter than the real list.
+        # Measure at the viewport width so this stays correct for every
+        # theme, text scale, and row subtype.
+        row_heights = [
+            row.measure(Gtk.Orientation.VERTICAL, self._allocated_width)[1]
+            for row in self._rows
+        ]
+        offset = _selection_offset(
+            row_heights,
+            self._selected,
+            viewport_height,
+            self._content.get_spacing(),
+        )
         self._scroll.animate_to(offset) if animate else self._scroll.jump_to(offset)

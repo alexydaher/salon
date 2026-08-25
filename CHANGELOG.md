@@ -8,6 +8,13 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.5 — 2026-08-25
+
+### Fixed
+
+* Appearance settings now scroll far enough to show every item when rows
+  render taller than their nominal height.
+
 ## 0.2.4 — 2026-08-25
 
 ### Improved
