@@ -40,7 +40,7 @@ gi.require_version("Pango", "1.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
-from salon.ui import theme  # noqa: E402
+from salon.ui import motion, theme  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.tile import DISPLAY_FAMILY, font_description  # noqa: E402
 
@@ -116,6 +116,7 @@ class ScreenSaver(Gtk.Widget):
         self._opacity = 0.0
         self._fade.set_value_from(0.0)
         self._fade.set_value_to(1.0)
+        self._fade.set_duration(motion.duration_ms(_FADE_MS))
         self._fade.reset()
         self._fade.play()
         if self._tick_id is None:

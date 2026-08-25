@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 
 from salon.core.remote import (
+    OfferedIds,
     RemoteNowPlaying,
     RemoteRow,
     RemoteState,
@@ -149,6 +150,8 @@ def test_the_payload_carries_everything_the_page_draws() -> None:
         "accent": "#3B4252",
         "art": True,
         "fit": "cover",
+        "pinned": False,
+        "removable": False,
     }
 
 
@@ -196,3 +199,62 @@ def test_something_that_is_not_an_address_is_refused() -> None:
     deciding that an unreadable address is trustworthy."""
     for junk in ("", "localhost", "not an address", "192.168.1"):
         assert not is_local_address(junk), junk
+
+
+# --- what the phone has been shown -----------------------------------------
+
+
+def test_offered_ids_remembers_what_was_served() -> None:
+    offered = OfferedIds()
+    offered.offer(["app:firefox.desktop", "netflix"])
+    assert "app:firefox.desktop" in offered
+    assert "netflix" in offered
+    assert "something-else" not in offered
+
+
+def test_offered_ids_is_bounded() -> None:
+    # Fed from a network endpoint: a phone holding a key down against a
+    # large application list must not be able to grow this without limit.
+    offered = OfferedIds(limit=3)
+    offered.offer(str(n) for n in range(10))
+    assert "9" in offered
+    assert "7" in offered
+    assert "6" not in offered
+
+
+def test_offering_an_id_again_keeps_it_alive() -> None:
+    offered = OfferedIds(limit=3)
+    offered.offer(["a", "b", "c"])
+    offered.offer(["a"])  # back to the front of the queue
+    offered.offer(["d"])  # pushes the oldest out, which is now "b"
+    assert "a" in offered
+    assert "b" not in offered
+
+
+def test_offered_ids_clears() -> None:
+    offered = OfferedIds()
+    offered.offer(["a"])
+    offered.clear()
+    assert "a" not in offered
+
+
+# --- the fields the page reshapes itself on --------------------------------
+
+
+def test_app_and_volume_reach_the_phone() -> None:
+    payload = RemoteState(app="Netflix", volume=0.35, muted=True).to_dict()
+    assert payload["app"] == "Netflix"
+    assert payload["volume"] == 0.35
+    assert payload["muted"] is True
+
+
+def test_volume_is_negative_when_the_sink_could_not_be_read() -> None:
+    # -1 rather than 0: a slider parked at silence and a slider that does
+    # not know are different things, and only one of them should be drawn.
+    assert RemoteState().to_dict()["volume"] == -1.0
+
+
+def test_a_tile_says_whether_it_is_pinned_and_whether_it_can_be_removed() -> None:
+    payload = RemoteTile(id="x", title="X", pinned=True, removable=False).to_dict()
+    assert payload["pinned"] is True
+    assert payload["removable"] is False

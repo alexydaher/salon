@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from salon.core.config import Config
 from salon.core.model import Tile
-from salon.ui.settings.widgets import SettingsRow
+from salon.ui.settings.widgets import ActionRow, InfoRow, SettingsRow
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +28,12 @@ class Panel:
     title: str
     build: Callable[[], list[SettingsRow]]
     subtitle: str = ""
+    # Called once when this panel leaves the stack, however it leaves —
+    # popped, closed, or replaced by jumping to another section. Panels are
+    # otherwise stateless, but one that switches something *on* while it is
+    # open (Bluetooth discovery) needs somewhere to switch it off again, and
+    # "when the user next opens this panel" is not that place.
+    on_leave: Callable[[], None] | None = None
     # Stable across renames and reordering, so something outside Settings
     # can ask to be dropped straight into a section by name. Titles are
     # user-facing copy and the section list is positional; neither is a
@@ -62,6 +68,9 @@ class SettingsContext:
     phone_remote_running: Callable[[], bool]
     set_phone_remote: Callable[[bool], bool]
     phone_remote_hint: Callable[[], str]
+    # "mutter", "portal", or "" when nothing is injecting input yet. Which
+    # route is live is a different fact from which one was configured.
+    pointer_backend: Callable[[], str]
     # Rebinding (core/bindings.py). `capture` waits for the next physical
     # button from any source and calls back with (source, code); the panel
     # never sees an input device.
@@ -73,3 +82,31 @@ class SettingsContext:
     version: str
     config_path: str
     notes: list[str] = field(default_factory=list)
+
+
+def confirm_panel(
+    context: SettingsContext,
+    question: str,
+    confirm_label: str,
+    on_confirm: Callable[[], None],
+) -> Panel:
+    """A second, deliberate press for the things that can't be undone.
+
+    Cancel is what the cursor lands on, not the destructive option. Shared
+    rather than written per caller: deleting a row, deleting a tile and
+    forgetting a paired device are the same question, and a confirmation
+    screen that looks different each time teaches nobody where Cancel is.
+    """
+
+    def _confirm() -> None:
+        context.pop()  # dismiss the confirmation itself
+        on_confirm()
+
+    def build() -> list[SettingsRow]:
+        return [
+            InfoRow(question, ""),
+            ActionRow("Cancel", context.pop),
+            ActionRow(confirm_label, _confirm, danger=True),
+        ]
+
+    return Panel(title="Confirm", build=build)

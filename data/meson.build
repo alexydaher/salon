@@ -49,6 +49,27 @@ configure_file(
   install_dir: datadir / 'wayland-sessions',
 )
 
+# The same session with GNOME Kiosk underneath instead of GNOME Shell, offered
+# as a second entry at the login screen rather than as a replacement: the
+# Shell session is the one with road under it, and a compositor swap is
+# exactly the kind of change that wants a way back. The two share
+# @APP_ID@.service and differ in one Requires= line.
+configure_file(
+  input: 'io.github.alexydaher.Salon.kiosk.session.in',
+  output: 'salon-kiosk.session',
+  configuration: session_conf,
+  install: true,
+  install_dir: datadir / 'gnome-session' / 'sessions',
+)
+
+configure_file(
+  input: 'io.github.alexydaher.Salon.kiosk.session.desktop.in',
+  output: 'salon-kiosk.desktop',
+  configuration: session_conf,
+  install: true,
+  install_dir: datadir / 'wayland-sessions',
+)
+
 # The session's actual moving parts. gnome-session(1) is explicit that a
 # .session file "doesn't do anything on its own" and has to be accompanied by
 # systemd configuration; RequiredComponents= is no longer acted on, and isn't
@@ -79,6 +100,14 @@ configure_file(
   configuration: session_conf,
   install: true,
   install_dir: systemd_user_dir / 'gnome-session@salon.target.d',
+)
+
+configure_file(
+  input: 'systemd/gnome-session@salon-kiosk.target.d/session.conf.in',
+  output: 'kiosk-session.conf',
+  configuration: session_conf,
+  install: true,
+  install_dir: systemd_user_dir / 'gnome-session@salon-kiosk.target.d',
 )
 
 # AppStream metadata: what a software centre shows, and what Flathub

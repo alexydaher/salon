@@ -33,7 +33,7 @@ from salon import config as app_config  # noqa: E402
 from salon.core import sandbox, tokens  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.services import artwork, audio, bluetooth, launcher, netinfo, wifi  # noqa: E402
-from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
+from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
     ChoiceRow,
@@ -365,6 +365,15 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 lambda value: _set_phone_remote(context, value),
                 detail=context.phone_remote_hint(),
             ),
+            ToggleRow(
+                "Show the pairing code when nothing is connected",
+                lambda: settings.get_boolean("remote-hint"),
+                lambda value: settings.set_boolean("remote-hint", value),
+                detail=(
+                    "A small code in the corner of the home screen, gone as soon as "
+                    "a controller or a phone turns up"
+                ),
+            ),
             ActionRow(
                 "Pair a remote or controller",
                 lambda: context.push(_bluetooth_panel(context)),
@@ -416,6 +425,17 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     "The desktop asks for permission once."
                 ),
             ),
+            ChoiceRow(
+                "Input injection",
+                [
+                    ("auto", "Automatic"),
+                    ("mutter", "Compositor only"),
+                    ("portal", "Ask the desktop"),
+                ],
+                lambda: settings.get_string("input-injection"),
+                lambda value: settings.set_string("input-injection", value),
+                detail=_injection_detail(context, settings),
+            ),
             ActionRow(
                 "Forget remote-control permission",
                 lambda: _forget_remote_desktop(context, settings),
@@ -450,6 +470,25 @@ def _set_phone_remote(context: SettingsContext, enabled: bool) -> None:
     if not context.set_phone_remote(enabled):
         context.toast("Couldn't start the phone remote — port 8437 is already in use.")
     context.rebuild()
+
+
+def _injection_detail(context: SettingsContext, settings: Gio.Settings) -> str:
+    """What the row is actually doing, not what it was asked to do.
+
+    The two are different often enough to matter: "Automatic" prefers the
+    compositor and silently falls back to the portal, so the setting alone
+    never tells you whether a consent dialog is still in your future. The
+    live backend does.
+    """
+    live = context.pointer_backend()
+    if live == "mutter":
+        return "Asking the compositor directly — no permission dialog"
+    if live == "portal":
+        return "Going through the desktop portal, which asks permission once"
+    choice = settings.get_string("input-injection")
+    if choice == "portal":
+        return "Not started yet; the desktop will ask permission when it is"
+    return "Not started yet"
 
 
 def _forget_remote_desktop(context: SettingsContext, settings: Gio.Settings) -> None:
@@ -516,6 +555,34 @@ def _bluetooth_panel(context: SettingsContext) -> Panel:
 
         service.pair(device, paired)
 
+    def reload() -> None:
+        """Re-list after something changed the device, and redraw whichever
+        panel is on top — this one, or a device's own panel above it."""
+        state["scanned"] = False
+        request()
+        context.rebuild()
+
+    def open_device(device: bluetooth.Device) -> None:
+        context.push(_bluetooth_device_panel(context, service, device, reload))
+
+    def choose(device: bluetooth.Device) -> None:
+        # A device Salon has never seen has exactly one useful thing that
+        # can be done to it, so OK does it rather than opening a menu with
+        # one item on it. A paired one has three, including the one that
+        # cannot be undone, so it gets a panel.
+        if device.paired:
+            open_device(device)
+        else:
+            pair(device)
+
+    def leave() -> None:
+        # The adapter is left scanning otherwise — this used to claim in
+        # its own docstring that discovery "stops when the panel closes",
+        # and nothing anywhere called stop_discovery. A television quietly
+        # scanning for Bluetooth devices forever costs power and keeps the
+        # radio busy while a paired controller is trying to use it.
+        service.stop_discovery()
+
     def build() -> list[SettingsRow]:
         if not state["scanned"]:
             request()
@@ -536,9 +603,13 @@ def _bluetooth_panel(context: SettingsContext) -> Panel:
         rows: list[SettingsRow] = [
             ActionRow(
                 device.name,
-                lambda d=device: pair(d),
+                lambda d=device: choose(d),
                 value=device.summary,
                 detail=device.kind,
+                # A paired row leads somewhere, so RIGHT may open it; an
+                # unpaired one *acts*, and a direction key must not be how
+                # a television starts pairing with a stranger's phone.
+                opens=device.paired,
             )
             for device in devices
         ]
@@ -553,7 +624,80 @@ def _bluetooth_panel(context: SettingsContext) -> Panel:
         rows.append(ActionRow("Look again", rescan, detail="Scan for another few seconds"))
         return rows
 
-    return Panel(title="Pair a device", build=build)
+    return Panel(title="Pair a device", build=build, on_leave=leave)
+
+
+def _bluetooth_device_panel(
+    context: SettingsContext,
+    service: bluetooth.BluetoothService,
+    device: bluetooth.Device,
+    reload: Callable[[], None],
+) -> Panel:
+    """One paired device: connect, disconnect, forget.
+
+    Forgetting is the reason this panel exists. A controller that has been
+    paired once is remembered forever, and a list that can only ever grow —
+    a flatmate's headphones, a phone that visited, the same pad paired twice
+    under two names — is a list the right device gets harder to find in
+    every time. It is also the only repair for a pairing that has gone bad:
+    BlueZ will not re-pair a device it thinks it already knows, so "forget,
+    then pair again" is the fix, and until now it needed a mouse and
+    gnome-control-center.
+    """
+
+    def done(message: str) -> None:
+        context.toast(message)
+        reload()
+
+    def connect() -> None:
+        context.toast(f"Connecting to {device.name}…")
+        service.pair(device, lambda ok, message: done(message))
+
+    def disconnect() -> None:
+        service.disconnect(device, lambda ok, message: done(message))
+
+    def forget() -> None:
+        def forgotten(ok: bool, message: str) -> None:
+            context.toast(message)
+            if ok:
+                # Back to the list: this panel is about a device that no
+                # longer exists, and leaving it up would offer to connect
+                # to something Salon has just been told to forget.
+                context.pop()
+            reload()
+
+        service.forget(device, forgotten)
+
+    def confirm_forget() -> None:
+        context.push(
+            confirm_panel(context, f"Forget {device.name}?", "Forget device", forget)
+        )
+
+    def build() -> list[SettingsRow]:
+        rows: list[SettingsRow] = [InfoRow(device.kind, device.summary)]
+        if device.connected:
+            rows.append(
+                ActionRow(
+                    "Disconnect",
+                    disconnect,
+                    detail="Stays paired, and reconnects on its own next time",
+                )
+            )
+        else:
+            rows.append(
+                ActionRow("Connect", connect, detail="Wake it up and connect to it now")
+            )
+        rows.append(
+            ActionRow(
+                "Forget this device",
+                confirm_forget,
+                danger=True,
+                detail="Unpair it completely — you'll have to pair it again to use it",
+            )
+        )
+        return rows
+
+    return Panel(title=device.name, build=build)
 
 
 # The actions worth putting on a settings screen. Deliberately not every
@@ -882,6 +1026,15 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
 
         if power.can_suspend():
             rows.append(ActionRow("Suspend", lambda: power.suspend(fail("Suspend"))))
+        if power.can_log_out():
+            rows.append(
+                ActionRow(
+                    "Log out",
+                    lambda: power.log_out(fail("Log out")),
+                    detail="Ends the session and returns to the login screen",
+                    danger=True,
+                )
+            )
         if power.can_reboot():
             rows.append(
                 ActionRow("Restart", lambda: power.reboot(fail("Restart")), danger=True)

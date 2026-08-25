@@ -98,6 +98,23 @@ finish-args:
   # portal, not PipeWire, and portals need no talk-name.
   - --talk-name=org.freedesktop.Flatpak
 
+  # Deliberately absent: --talk-name=org.gnome.Mutter.RemoteDesktop.
+  #
+  # Outside the sandbox Salon prefers mutter's own remote-desktop
+  # interface, because it grants pointer and keyboard injection with no
+  # consent dialog — which is the only way a television with no keyboard
+  # and no mouse can finish pairing its first phone (the portal's dialog
+  # can only be dismissed with the pointer it is gating). That is the right
+  # trade for an appliance you install yourself with a distro package.
+  #
+  # It is the wrong trade for a Flathub build. That name is system-wide
+  # input injection with no revocation and no prompt, and a sandboxed app
+  # holding it has escaped the thing the sandbox is for. So the name is not
+  # listed, `call_sync` against it fails immediately inside the sandbox,
+  # and `input-injection=auto` falls through to the portal on its own — the
+  # Flatpak gets the consent dialog, once, as it should. Nothing needs to
+  # be configured for this; the absence of the line *is* the configuration.
+
   # Two host GSettings keys, and both are *written*, which is why the
   # Settings portal cannot replace this and Flathub's linter complaint
   # about direct dconf has to be answered with a justification instead:

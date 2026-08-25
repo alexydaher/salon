@@ -7,30 +7,36 @@ six buttons — never a desktop dialog on a television. That rules out
 is a small purpose-built set instead:
 
 * UP/DOWN moves the selection,
-* RIGHT engages the selected row — a row with values is *stepped into* and
-  only then does LEFT/RIGHT change it,
-* LEFT is never a value change: it leaves the row, and then the panel,
-* OK activates it.
+* OK (or RIGHT) **opens** the selected row: a row with a set of values
+  raises a small list of them beside itself and the choice is made there,
+* LEFT is never a value change: it leaves the panel.
 
-That middle pair is the whole shape of this screen. LEFT means "back" in
-the section list, in every sub-panel and on the home screen; a settings
-panel where it silently meant "decrement" instead was the one place in
-Salon where the same button did two unrelated things depending on which
-row the cursor happened to be resting on. Now a row has to be entered
-before it can be changed, so LEFT means back everywhere and nothing is
-edited by accident on the way out.
+That middle line is the whole shape of this screen, and it has been through
+two designs. LEFT/RIGHT used to change a value in place, which made the
+button that means "back" everywhere else in Salon silently edit a setting.
+That was replaced by an *engage* mode — RIGHT stepped into a row, then
+LEFT/RIGHT walked its values — which fixed the ambiguity but kept the part
+nobody liked: a direction key was still what changed the setting, the values
+went past one at a time with no way to see the set, and how many presses a
+change took depended on where in the list the current value happened to sit.
 
-`adjustable` rows (choice, range) are the ones with an inside to step into;
-`enterable` rows (toggle, text, and the action rows that open a sub-panel)
-have nothing to step through, so RIGHT does the thing directly. The rest —
-plain actions like "Shut Down", read-only info — refuse RIGHT with a short
-flash rather than acting, because a directional key must never be the way a
-destructive row gets triggered.
+Now the values are a list. OK opens `ui/settings/popup.py` anchored on the
+row, UP/DOWN walks the options with all of them on screen at once, and OK
+picks one — the shape a games console uses, for the same reason: it is the
+only one where the user can see what the alternatives *are* before choosing.
+`choices` on a row is what says it has a list; rows that have nothing to pick
+from (toggles, text fields, rows that open a sub-panel) are `enterable` and
+RIGHT does the thing directly. The rest — plain actions like "Shut Down",
+read-only info — refuse RIGHT with a short flash rather than acting, because
+a directional key must never be the way a television gets turned off.
+
+`can_adjust`/`adjust` survive the change and are now only for the preview
+strip, where LEFT/RIGHT stepping is right: the point there is watching the
+home screen change under the value, not reading a list of numbers.
 
 Every row is also a real button, so a mouse or a phone trackpad works
 without a second code path, and hover moves the selection so the two input
-methods never disagree about what's highlighted. A click still activates a
-row outright: engaging is a D-pad concept, and a pointer never needed it.
+methods never disagree about what's highlighted.
 """
 
 from __future__ import annotations
@@ -51,17 +57,11 @@ from salon.ui.scale import Scale  # noqa: E402
 # register from a sofa, short enough not to read as a state.
 _DENY_FLASH_MS = 220
 
-# Opacity of the ‹ › affordances beside an adjustable row's value, keyed by
-# (engaged, that direction still has somewhere to go). They are always
-# rendered, at 2% when the row isn't selected, so landing on a row fades
-# them in instead of shifting the value sideways.
-_CHEVRON_ALPHA = {
-    (True, True): "100%",
-    (True, False): "20%",
-    (False, True): "40%",
-    (False, False): "14%",
-}
-_CHEVRON_IDLE_ALPHA = "2%"
+# The affordance beside a row's value saying "there is a list behind this".
+# Always rendered on such a row so that landing on one fades it in rather
+# than shifting the value sideways to make room.
+_DROPDOWN_GLYPH = "\u2304"  # ⌄
+_DROPDOWN_ALPHA = {True: "70%", False: "22%"}
 
 
 class SettingsRow(Gtk.Button):
@@ -92,7 +92,6 @@ class SettingsRow(Gtk.Button):
         self.previewable = preview
         self._raw_value = ""
         self._is_selected = False
-        self._adjusting = False
         self._deny_source = 0
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
@@ -145,23 +144,21 @@ class SettingsRow(Gtk.Button):
             self.remove_css_class("selected")
         self._render_value()
 
-    def set_adjusting(self, adjusting: bool) -> None:
-        """Engaged: LEFT/RIGHT belong to this row until it is left again."""
-        if adjusting == self._adjusting:
-            return
-        self._adjusting = adjusting
-        if adjusting:
+    def set_list_open(self, open_: bool) -> None:
+        """Whether this row's value list is on screen right now.
+
+        EXPANDED rather than a bespoke state: to assistive technology a row
+        with a list behind it is exactly a collapsed combo box, and that is
+        the state a screen reader already knows how to announce.
+        """
+        self.update_state(
+            [Gtk.AccessibleState.EXPANDED],
+            [open_],
+        )
+        if open_:
             self.add_css_class("adjusting")
         else:
             self.remove_css_class("adjusting")
-        # PRESSED is the closest thing GTK has to "this row currently owns
-        # the left/right buttons", and it is what a screen reader reports as
-        # a toggled-on button — which is what being engaged is.
-        self.update_state(
-            [Gtk.AccessibleState.PRESSED],
-            [int(Gtk.AccessibleTristate.TRUE if adjusting else Gtk.AccessibleTristate.FALSE)],
-        )
-        self._render_value()
 
     def flash_denied(self) -> None:
         """RIGHT on a row with no inside, or a step past the end of a range.
@@ -179,6 +176,14 @@ class SettingsRow(Gtk.Button):
         self._deny_source = 0
         self.remove_css_class("denied")
         return GLib.SOURCE_REMOVE
+
+    @property
+    def value_anchor(self) -> Gtk.Widget:
+        """What a value list hangs off. The value label rather than the row,
+        so the list opens where the thing it is about is written — a row is
+        most of the screen wide, and a popup centred under one lands in the
+        middle of nothing."""
+        return self._value
 
     @property
     def label_text(self) -> str:
@@ -203,27 +208,19 @@ class SettingsRow(Gtk.Button):
 
     def _render_value(self) -> None:
         # The name a screen reader announces is composed from the child
-        # labels, which would otherwise include the ‹ › affordances and the
-        # 2%-alpha spans holding their space. Say the row instead.
+        # labels, which would otherwise carry the ⌄ affordance and the alpha
+        # span holding its space. Say the row instead.
         self.update_property(
             [Gtk.AccessibleProperty.LABEL],
             [f"{self.label_text}, {self._raw_value}" if self._raw_value else self.label_text],
         )
-        if not self.adjustable:
+        if not self.choices:
             self._value.set_use_markup(False)
             self._value.set_text(self._raw_value)
             return
-        left = self._chevron("\u2039", -1)
-        right = self._chevron("\u203a", 1)
+        alpha = _DROPDOWN_ALPHA[self._is_selected]
         text = GLib.markup_escape_text(self._raw_value)
-        self._value.set_markup(f"{left}\u2002{text}\u2002{right}")
-
-    def _chevron(self, glyph: str, delta: int) -> str:
-        if not self._is_selected:
-            alpha = _CHEVRON_IDLE_ALPHA
-        else:
-            alpha = _CHEVRON_ALPHA[(self._adjusting, self.can_adjust(delta))]
-        return f"<span alpha='{alpha}'>{glyph}</span>"
+        self._value.set_markup(f"{text}\u2002<span alpha='{alpha}'>{_DROPDOWN_GLYPH}</span>")
 
     def set_scale(self, scale: Scale) -> None:
         self._box.set_spacing(scale.px(24.0))
@@ -238,22 +235,27 @@ class SettingsRow(Gtk.Button):
         return True
 
     @property
-    def adjustable(self) -> bool:
-        """True for rows with a set of values to walk. RIGHT steps *into*
-        these; only then does LEFT/RIGHT move through the values."""
-        return False
+    def choices(self) -> list[tuple[str, str]]:
+        """The values this row can take, as (key, label).
+
+        Non-empty means OK raises the list rather than changing anything
+        itself — see `ui/settings/popup.py`. The key is opaque to everything
+        outside the row; only `current_choice` and `choose` interpret it.
+        """
+        return []
+
+    @property
+    def current_choice(self) -> str:
+        """Which of `choices` is set, by key. Empty selects nothing."""
+        return ""
+
+    def choose(self, key: str) -> None:
+        """Apply one of `choices`. Called from the popup, never directly."""
 
     @property
     def enterable(self) -> bool:
         """True for rows where RIGHT may safely do the thing directly: no
-        values to walk, and nothing lost by a stray press."""
-        return False
-
-    @property
-    def ok_engages(self) -> bool:
-        """Whether OK should engage the row rather than activate it. True
-        wherever activating would change a value without showing the user
-        they are now inside it."""
+        list to raise, and nothing lost by a stray press."""
         return False
 
     @property
@@ -265,14 +267,17 @@ class SettingsRow(Gtk.Button):
         """OK, or a click."""
 
     def can_adjust(self, delta: int) -> bool:
-        """Whether a step in this direction would change anything. Drives
-        the chevrons as well as `adjust`, so the affordance and the
-        behaviour cannot drift apart."""
+        """Whether a step in this direction would change anything.
+
+        With `choices` this only serves the preview strip, which is the one
+        place LEFT/RIGHT still moves a value — there the point is watching
+        the home screen change under it, not reading a list of numbers.
+        """
         return False
 
     def adjust(self, delta: int) -> bool:
-        """LEFT/RIGHT while engaged. Return False if the step ran off the
-        end, so the caller can flash instead of doing nothing silently."""
+        """One step, for the preview strip. False if it ran off the end, so
+        the caller can say so rather than doing nothing silently."""
         return False
 
     def refresh(self) -> None:
@@ -353,10 +358,10 @@ class ToggleRow(SettingsRow):
 
     @property
     def enterable(self) -> bool:
-        """On/Off has no inside to step into: stepping in and then pressing
-        RIGHT again to reach the only other value would be two presses to
-        do what one already does, and LEFT would mean "Off" at exactly the
-        moment the rest of the screen has taught it to mean "back"."""
+        """On/Off is not a list worth raising. A popup offering two items,
+        one of which is what the row already says, is two presses and a
+        panel to do what one press already does — and unlike a range or a
+        palette there is nothing to *see* in the set of alternatives."""
         return True
 
     @property
@@ -408,24 +413,24 @@ class ChoiceRow(SettingsRow):
         return 0
 
     @property
-    def adjustable(self) -> bool:
-        return bool(self._options)
+    def choices(self) -> list[tuple[str, str]]:
+        return list(self._options)
 
     @property
-    def ok_engages(self) -> bool:
-        return True
+    def current_choice(self) -> str:
+        return self._get()
+
+    def choose(self, key: str) -> None:
+        self._set(key)
+        self.refresh()
 
     @property
     def hint(self) -> str:
-        return "OK or RIGHT changes it"
+        return "OK opens the list"
 
     def refresh(self) -> None:
         if self._options:
             self.set_value(self._options[self._index()][1])
-
-    def activate_row(self) -> None:
-        """A mouse click, which has no notion of being inside a row: cycle."""
-        self.adjust(1)
 
     def can_adjust(self, delta: int) -> bool:
         return bool(self._options) and 0 <= self._index() + delta < len(self._options)
@@ -462,16 +467,52 @@ class RangeRow(SettingsRow):
         self.refresh()
 
     @property
-    def adjustable(self) -> bool:
-        return True
+    def choices(self) -> list[tuple[str, str]]:
+        """Every step from minimum to maximum, as a list.
+
+        A range is a set of values like any other here — these are all
+        coarse, deliberately chosen steps (5% of a scale, 50ms of a repeat
+        delay), not continuous quantities, and the longest of them is a few
+        dozen entries in a list that scrolls. Enumerating them means the
+        user can jump to the end instead of pressing RIGHT forty times.
+
+        Keyed by index rather than by the value: the labels go through
+        `fmt` and two neighbouring steps can format identically ("Off" and
+        "0 s"), so the key has to be the one thing that is unique.
+        """
+        return [(str(index), self._fmt(value)) for index, value in enumerate(self._steps())]
+
+    def _steps(self) -> list[float]:
+        values: list[float] = []
+        value = self._minimum
+        # Accumulated by addition rather than by index * step so the last
+        # entry is exactly `maximum` when the span divides evenly, and the
+        # epsilon keeps a float that lands a hair over the top from being
+        # dropped.
+        while value <= self._maximum + 1e-9:
+            values.append(min(value, self._maximum))
+            value += self._step
+        return values
 
     @property
-    def ok_engages(self) -> bool:
-        return True
+    def current_choice(self) -> str:
+        current = self._get()
+        steps = self._steps()
+        if not steps:
+            return ""
+        nearest = min(range(len(steps)), key=lambda i: abs(steps[i] - current))
+        return str(nearest)
+
+    def choose(self, key: str) -> None:
+        steps = self._steps()
+        index = int(key)
+        if 0 <= index < len(steps):
+            self._set(steps[index])
+            self.refresh()
 
     @property
     def hint(self) -> str:
-        return "OK or RIGHT changes it"
+        return "OK opens the list"
 
     def refresh(self) -> None:
         self.set_value(self._fmt(self._get()))
@@ -488,10 +529,6 @@ class RangeRow(SettingsRow):
         self._set(self._target(delta))
         self.refresh()
         return True
-
-    def activate_row(self) -> None:
-        """A mouse click, which has no notion of being inside a row: step."""
-        self.adjust(1)
 
 
 class TextRow(SettingsRow):
@@ -546,12 +583,13 @@ class SettingsList(Gtk.Fixed):
         self._scale = scale
         self._rows: list[SettingsRow] = []
         self._selected = 0
-        # Whether the selected row is *engaged* — LEFT/RIGHT are its, not
-        # the navigation's. Owned here rather than by the screen because
-        # every path that moves the selection has to drop it, including
-        # the mouse ones the screen never sees.
-        self._adjusting = False
         self._hover_enabled = False
+        # Where a click goes. Unset it activates the row directly, which is
+        # right for the sections list; the panel list hands this to the
+        # screen so that a click and OK take the same path — a row with a
+        # value list has nothing to "activate", and clicking one used to do
+        # nothing at all.
+        self._on_activate: Callable[[int], None] | None = None
         self._allocated_width = -1
         self._allocated_height = -1
 
@@ -589,22 +627,11 @@ class SettingsList(Gtk.Fixed):
             return self._rows[self._selected]
         return None
 
-    @property
-    def adjusting(self) -> bool:
-        return self._adjusting
-
-    def set_adjusting(self, adjusting: bool) -> bool:
-        """Engage or release the selected row. False if there was nothing
-        to engage, so the caller can flash the row instead."""
-        row = self.selected_row
-        if adjusting and (row is None or not row.adjustable):
-            return False
-        self._adjusting = adjusting
-        self._update_selection(animate=False)
-        return True
-
     def set_hover_enabled(self, enabled: bool) -> None:
         self._hover_enabled = enabled
+
+    def set_activate_handler(self, handler: Callable[[int], None] | None) -> None:
+        self._on_activate = handler
 
     def set_active(self, active: bool) -> None:
         """Which of the two lists the cursor is actually in. The other one
@@ -653,7 +680,6 @@ class SettingsList(Gtk.Fixed):
         if not (0 <= target < len(self._rows)):
             return False
         self._selected = target
-        self._adjusting = False
         self._update_selection()
         return True
 
@@ -661,15 +687,8 @@ class SettingsList(Gtk.Fixed):
         if self._rows:
             self._rows[self._selected].activate_row()
 
-    def adjust(self, delta: int) -> bool:
-        if not self._rows:
-            return False
-        return self._rows[self._selected].adjust(delta)
-
     def select(self, index: int) -> None:
         if 0 <= index < len(self._rows):
-            if index != self._selected:
-                self._adjusting = False
             self._selected = index
             self._update_selection()
 
@@ -678,24 +697,18 @@ class SettingsList(Gtk.Fixed):
 
     def _click(self, index: int) -> None:
         self.select(index)
-        self._rows[index].activate_row()
+        if self._on_activate is not None:
+            self._on_activate(index)
+        else:
+            self._rows[index].activate_row()
 
     def _hover(self, index: int) -> None:
         if self._hover_enabled:
             self.select(index)
 
     def _update_selection(self, *, animate: bool = True) -> None:
-        # A rebuild replaces every row object while a row is engaged (any
-        # edit that saves the catalogue does exactly that), so the engaged
-        # state is re-applied here rather than held on a widget that may
-        # already have been thrown away.
-        row = self.selected_row
-        if self._adjusting and (row is None or not row.adjustable):
-            self._adjusting = False
         for index, candidate in enumerate(self._rows):
-            selected = index == self._selected
-            candidate.set_selected(selected)
-            candidate.set_adjusting(selected and self._adjusting)
+            candidate.set_selected(index == self._selected)
         self._scroll_to_selection(animate=animate)
 
     def _scroll_to_selection(self, *, animate: bool) -> None:

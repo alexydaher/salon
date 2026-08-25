@@ -283,9 +283,24 @@ def remote(tmp_path):
         "clicks": [],
         "launched": [],
         "transport": [],
+        "searched": [],
+        "tile_actions": [],
+        "volume": [],
+        "scroll": [],
+        "buttons": [],
     }
     poster = tmp_path / "poster.png"
     poster.write_bytes(b"\x89PNG\r\n\x1a\n not really a png, but it is bytes")
+
+    def searched(query: str) -> list[RemoteTile]:
+        received["searched"].append(query)
+        if query == "nothing":
+            return []
+        return [RemoteTile(id="app:gimp.desktop", title="GIMP")]
+
+    def tile_action(tile_id: str, what: str) -> str:
+        received["tile_actions"].append((tile_id, what))
+        return f"{what} {tile_id}"
 
     instance = PairingServer(
         port=_free_port(),
@@ -294,7 +309,14 @@ def remote(tmp_path):
         on_click=lambda: received["clicks"].append(True),
         on_launch=received["launched"].append,
         on_transport=lambda what: bool(received["transport"].append(what)) or True,
-        art_for=lambda tile_id: poster if tile_id == "netflix" else None,
+        art_for=lambda tile_id: poster if tile_id in ("netflix", "app:gimp.desktop") else None,
+        on_search=searched,
+        on_tile_action=tile_action,
+        on_volume=received["volume"].append,
+        on_mute=lambda: received["volume"].append("mute"),
+        on_scroll=lambda dx, dy: received["scroll"].append((dx, dy)),
+        on_scroll_end=lambda: received["scroll"].append("end"),
+        on_button=lambda button, what: received["buttons"].append((button, what)),
     )
     instance.publish(
         RemoteState(
@@ -335,20 +357,35 @@ def test_the_token_gates_every_endpoint(remote) -> None:
             _send(port, "/action", {"key": "", "action": "menu"}),
             _send(port, "/pointer", {"key": "", "dx": 10, "dy": 10}),
             _send(port, "/pointer", {"key": "", "click": True}),
+            _send(port, "/pointer", {"key": "", "sx": 4, "sy": 4}),
+            _send(port, "/pointer", {"key": "", "hold": "down", "button": "left"}),
             _send(port, "/type", {"key": "", "text": "hello"}),
             _send(port, "/launch", {"key": "", "id": "netflix"}),
             _send(port, "/transport", {"key": "", "what": "play_pause"}),
+            _send(port, "/search", {"key": "", "q": "net"}),
+            _send(port, "/tile", {"key": "", "id": "netflix", "what": "pin"}),
+            _send(port, "/volume", {"key": "", "level": 0.5}),
             _get(port, "/state")[0],
             _get(port, "/art/netflix")[0],
+            _get(port, "/events")[0],
         ]
 
-    assert _run(server, exchange) == [401] * 8
+    assert _run(server, exchange) == [401] * 14
+    # Not "no actions arrived" — *nothing* arrived, on any callback the home
+    # screen hands this server. Written as an equality against the whole
+    # record so that a new endpoint wired up without a credential fails here
+    # rather than shipping.
     assert received == {
         "actions": [],
         "motion": [],
         "clicks": [],
         "launched": [],
         "transport": [],
+        "searched": [],
+        "tile_actions": [],
+        "volume": [],
+        "scroll": [],
+        "buttons": [],
     }
 
 
@@ -598,3 +635,287 @@ def test_an_unheld_session_still_times_out(server: PairingServer) -> None:
     server._last_seen = time.monotonic() - (SESSION_TIMEOUT_SECONDS * 2)  # noqa: SLF001
     assert not server._check_idle()  # noqa: SLF001 - GLib.SOURCE_REMOVE
     assert not server.running
+
+
+# --- search ----------------------------------------------------------------
+
+
+def test_search_returns_tiles_in_the_shape_the_page_draws(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    status, body = _run(
+        server, lambda: _send_full(port, "/search", {"key": server.token, "q": "gim"})
+    )
+    assert status == 200
+    assert received["searched"] == ["gim"]
+    results = json.loads(body)["results"]
+    assert [tile["id"] for tile in results] == ["app:gimp.desktop"]
+    # The same keys a catalogue tile carries, so one card renders both.
+    assert set(results[0]) >= {"id", "title", "accent", "art", "fit", "pinned", "removable"}
+
+
+def test_a_search_result_can_then_be_launched_and_its_art_fetched(remote) -> None:
+    """The invariant is "what the phone has been shown", not "what is on the
+    television" — and a result it was just handed is squarely the former."""
+    server, received = remote
+    port = server._port  # noqa: SLF001
+
+    # Before the search, an id the phone has never seen is refused.
+    assert _run(
+        server,
+        lambda: _send(port, "/launch", {"key": server.token, "id": "app:gimp.desktop"}),
+    ) == 404
+
+    assert _run(
+        server, lambda: _send(port, "/search", {"key": server.token, "q": "gim"})
+    ) == 200
+    assert _run(
+        server,
+        lambda: _send(port, "/launch", {"key": server.token, "id": "app:gimp.desktop"}),
+    ) == 200
+    assert received["launched"] == ["app:gimp.desktop"]
+
+    status, _ = _run(
+        server, lambda: _get(port, "/art/app%3Agimp.desktop", k=server.token)
+    )
+    assert status == 200
+
+
+def test_an_id_never_offered_is_still_refused(remote) -> None:
+    server, _ = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/search", {"key": server.token, "q": "gim"})
+    ) == 200
+    assert _run(
+        server, lambda: _send(port, "/launch", {"key": server.token, "id": "/etc/passwd"})
+    ) == 404
+
+
+def test_stopping_forgets_what_was_offered(remote) -> None:
+    """A new session starts knowing nothing about the last one's results."""
+    server, _ = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/search", {"key": server.token, "q": "gim"})
+    ) == 200
+    assert "app:gimp.desktop" in server._offered  # noqa: SLF001
+    server.stop()
+    assert "app:gimp.desktop" not in server._offered  # noqa: SLF001
+
+
+# --- the per-tile menu ------------------------------------------------------
+
+
+def test_a_tile_action_reaches_the_television_and_answers_with_a_sentence(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    status, body = _run(
+        server,
+        lambda: _send_full(port, "/tile", {"key": server.token, "id": "netflix", "what": "pin"}),
+    )
+    assert status == 200
+    assert received["tile_actions"] == [("netflix", "pin")]
+    assert json.loads(body)["said"] == "pin netflix"
+
+
+def test_an_unknown_tile_action_is_refused(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server,
+        lambda: _send(port, "/tile", {"key": server.token, "id": "netflix", "what": "rm -rf"}),
+    ) == 400
+    assert received["tile_actions"] == []
+
+
+def test_a_tile_action_on_something_never_shown_is_refused(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server,
+        lambda: _send(port, "/tile", {"key": server.token, "id": "nope", "what": "pin"}),
+    ) == 404
+    assert received["tile_actions"] == []
+
+
+# --- volume -----------------------------------------------------------------
+
+
+def test_the_slider_sets_an_absolute_level(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/volume", {"key": server.token, "level": 0.42})
+    ) == 200
+    assert received["volume"] == [pytest.approx(0.42)]
+
+
+def test_a_level_off_the_end_of_the_slider_is_clamped(remote) -> None:
+    """It arrives from a network endpoint, so 9000% has to mean 100%."""
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    for sent in (90.0, -3.0):
+        assert _run(
+            server, lambda level=sent: _send(port, "/volume", {"key": server.token, "level": level})
+        ) == 200
+    assert received["volume"] == [1.0, 0.0]
+
+
+def test_mute_is_its_own_field(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/volume", {"key": server.token, "mute": True})
+    ) == 200
+    assert received["volume"] == ["mute"]
+
+
+# --- the trackpad's gestures ------------------------------------------------
+
+
+def test_two_fingers_scroll(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/pointer", {"key": server.token, "sx": 0.0, "sy": -14.0})
+    ) == 200
+    assert received["scroll"] == [(0.0, -14.0)]
+    assert received["motion"] == []
+
+
+def test_lifting_the_fingers_finishes_the_scroll(remote) -> None:
+    """`finish` is what stops kinetic scrolling drifting on after the
+    gesture ends; without it a flick keeps going."""
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/pointer", {"key": server.token, "scrollEnd": True})
+    ) == 200
+    assert received["scroll"] == ["end"]
+
+
+def test_a_two_finger_tap_is_a_right_click(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server,
+        lambda: _send(port, "/pointer", {"key": server.token, "click": True, "button": "right"}),
+    ) == 200
+    assert received["buttons"] == [("right", "click")]
+    # The left button keeps its own callback, so the plain tap path is
+    # untouched by any of this.
+    assert received["clicks"] == []
+
+
+def test_a_bare_click_is_still_the_left_button(remote) -> None:
+    """An older page, cached on somebody's phone, sends no button at all."""
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server, lambda: _send(port, "/pointer", {"key": server.token, "click": True})
+    ) == 200
+    assert received["clicks"] == [True]
+
+
+def test_a_button_can_be_held_down_and_let_go(remote) -> None:
+    """What a drag needs: a click that releases itself 50ms later cannot
+    move a window or select a line of text."""
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    for what in ("down", "up"):
+        assert _run(
+            server,
+            lambda w=what: _send(
+                port, "/pointer", {"key": server.token, "hold": w, "button": "left"}
+            ),
+        ) == 200
+    assert received["buttons"] == [("left", "down"), ("left", "up")]
+
+
+def test_an_unknown_mouse_button_is_refused(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+    assert _run(
+        server,
+        lambda: _send(port, "/pointer", {"key": server.token, "click": True, "button": "fourth"}),
+    ) == 400
+    assert received["buttons"] == []
+    assert received["clicks"] == []
+
+
+# --- the event stream -------------------------------------------------------
+
+
+def _read_event(sock: socket.socket, deadline: float) -> str:
+    """Read until one complete `data:` frame has arrived, or time runs out."""
+    buffered = b""
+    while time.monotonic() < deadline:
+        try:
+            chunk = sock.recv(4096)
+        except (TimeoutError, OSError):
+            break
+        if not chunk:
+            break
+        buffered += chunk
+        if b"data: " in buffered and buffered.rstrip().endswith(b"}"):
+            break
+    return buffered.decode("utf-8", "replace")
+
+
+def test_the_event_stream_pushes_state_without_being_asked(remote) -> None:
+    """The whole reason it exists: a press changes the television now, and
+    the poll cannot find out for up to a second.
+
+    What this pins down is that libsoup's server will hold a response open
+    and let later writes reach the socket at all — the thing the whole
+    feature rests on, and the thing that is not obvious from the API. It
+    fails by timing out with an empty read.
+    """
+    server, _ = remote
+    port = server._port  # noqa: SLF001
+
+    def exchange() -> str:
+        sock = socket.create_connection(("127.0.0.1", port), timeout=5)
+        sock.settimeout(1.0)
+        sock.sendall(
+            f"GET /events?k={server.token} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\n"
+            "Accept: text/event-stream\r\n\r\n".encode()
+        )
+        deadline = time.monotonic() + 5
+        opening = _read_event(sock, deadline)
+        # A change on the television, from the thread that owns the loop.
+        GLib.idle_add(
+            lambda: bool(server.publish(RemoteState(screen="settings", app="", volume=0.5)))
+            and False
+        )
+        pushed = _read_event(sock, time.monotonic() + 5)
+        sock.close()
+        return opening + pushed
+
+    text = _run(server, exchange)
+    assert "text/event-stream" in text
+    # The state as it stood when the stream opened, so a phone that has just
+    # connected draws the television rather than an empty page.
+    assert text.count("data: ") >= 2
+    assert '"screen":"settings"' in text
+
+
+def test_the_stream_is_dropped_when_the_server_stops(remote) -> None:
+    server, _ = remote
+    port = server._port  # noqa: SLF001
+
+    def exchange() -> int:
+        sock = socket.create_connection(("127.0.0.1", port), timeout=5)
+        sock.settimeout(2.0)
+        sock.sendall(
+            f"GET /events?k={server.token} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\n\r\n".encode()
+        )
+        _read_event(sock, time.monotonic() + 3)
+        held = len(server._streams)  # noqa: SLF001
+        sock.close()
+        return held
+
+    assert _run(server, exchange) == 1

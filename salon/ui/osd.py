@@ -14,6 +14,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
+from salon.ui import motion  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 _VISIBLE_SECONDS = 1.5
@@ -67,5 +68,6 @@ class VolumeOsd(Gtk.Box):
 
     def _start_fade(self) -> bool:
         self._hide_timeout_id = None
+        self._fade.set_duration(motion.duration_ms(_FADE_MS))
         self._fade.play()
         return GLib.SOURCE_REMOVE

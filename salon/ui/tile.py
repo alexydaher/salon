@@ -43,7 +43,7 @@ from gi.repository import Adw, Gdk, Graphene, Gsk, Gtk, Pango  # noqa: E402
 from salon.core import tokens  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.services.artwork import Artwork, glow_color  # noqa: E402
-from salon.ui import theme  # noqa: E402
+from salon.ui import motion, theme  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 # Tighter than the brief's literal 0.82/320 — that combination read as
@@ -232,7 +232,7 @@ class TileWidget(Gtk.Widget):
             self,
             0.0,
             0.0,
-            Adw.SpringParams.new(SPRING_DAMPING_RATIO, SPRING_MASS, SPRING_STIFFNESS),
+            motion.spring_params(),
             target,
         )
 

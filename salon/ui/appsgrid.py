@@ -58,6 +58,7 @@ from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.services import appinfo  # noqa: E402
 from salon.services.artwork import ArtworkResolver  # noqa: E402
+from salon.ui import motion  # noqa: E402
 from salon.ui.motion import AxisSpring, SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.tile import TileMetrics, TileWidget, metrics_for  # noqa: E402
@@ -72,7 +73,7 @@ _TILE_SCALE = 1.0
 _ASPECT = "square"
 
 
-class AppsGrid(Gtk.Box):
+class AppsGrid(Gtk.Box, motion.FadesIn):
     """Reachable from the top bar's grid button. Owns nothing but its own
     view of the installed-app scan; the launch itself goes back out through
     the same `on_launch` the home screen and search use."""
@@ -86,6 +87,7 @@ class AppsGrid(Gtk.Box):
         on_close: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._init_fade()
         self.add_css_class("salon-search")  # the same full-bleed dark field
         self.set_visible(False)
         self.set_hexpand(True)
@@ -169,6 +171,7 @@ class AppsGrid(Gtk.Box):
 
     def open(self) -> None:
         self.set_visible(True)
+        self._begin_fade()
         # Always from the top. The cursor is stored as (row, column) and
         # the column count depends on the viewport, so a position kept
         # across a close and reopen can be reinterpreted against a

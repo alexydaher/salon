@@ -165,6 +165,27 @@ def adjust_volume(direction: int, on_done: Callable[[], None] | None = None) -> 
     _run_async(argv, lambda _stdout: on_done() if on_done is not None else None)
 
 
+def set_volume(level: float, on_done: Callable[[], None] | None = None) -> None:
+    """Set the sink to an absolute 0..1 level.
+
+    For the phone's slider. `adjust_volume` steps by the user's configured
+    increment, which is the right model for a button and the wrong one for
+    a finger dragged to a particular place — expressing "a third of the way
+    along" as nineteen step presses is how a volume control ends up lagging
+    behind the thumb moving it.
+    """
+    level = min(1.0, max(0.0, level))
+    if _have_wpctl():
+        argv = ["wpctl", "set-volume", _SINK, f"{level:.3f}"]
+    elif shutil.which("pactl") is not None:
+        argv = ["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{round(level * 100)}%"]
+    else:
+        if on_done is not None:
+            on_done()
+        return
+    _run_async(argv, lambda _stdout: on_done() if on_done is not None else None)
+
+
 def toggle_mute(on_done: Callable[[], None] | None = None) -> None:
     if _have_wpctl():
         argv = ["wpctl", "set-mute", _SINK, "toggle"]

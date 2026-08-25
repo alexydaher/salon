@@ -16,6 +16,7 @@ python_sources = [
   'appsgrid.py',
   'overlays.py',
   'phonepairing.py',
+  'remotehint.py',
   'osd.py',
   'textentry.py',
   'theme.py',

@@ -1,12 +1,39 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Pointer, click and keyboard injection via the RemoteDesktop portal.
+"""Pointer, click and keyboard injection, by two routes.
 
 Wayland forbids one app from injecting input into another app's window
-directly (unlike X11's XTestFakeInput), so this goes through
-org.freedesktop.portal.RemoteDesktop instead — the sanctioned, sandbox-safe
-mechanism GNOME Remote Desktop and similar tools use.
+directly (unlike X11's XTestFakeInput), so this goes through the
+compositor. There are two ways to ask, and Salon tries them in this order:
 
-**The consent dialog is shown once, ever.** RemoteDesktop portal version 2
+1. **`org.gnome.Mutter.RemoteDesktop`** — mutter's own interface, on the
+   session bus, owned by gnome-shell (or gnome-kiosk; both link the same
+   libmutter, which is where the name lives). `CreateSession` + `Start` is
+   two synchronous calls, about 4 ms, **and no consent dialog at all** —
+   the dialog belongs to xdg-desktop-portal-gnome, which is a *client* of
+   this interface rather than a layer beneath it. This is the same door
+   gnome-remote-desktop goes through.
+2. **`org.freedesktop.portal.RemoteDesktop`** — the sandboxed, public
+   route, which asks the user for consent.
+
+The order exists because of a deadlock, not a preference. Salon is a
+ten-foot interface whose *first* input device is often the phone it has not
+paired yet: fresh appliance, no controller, no keyboard, no mouse. The
+phone's D-pad arrives over HTTP into Salon's own process and needs no
+grant — but the trackpad and `/type` need input injection, so Salon asks
+the portal, and the portal puts a two-button dialog on the television that
+**can only be dismissed with the pointer the dialog is gating**. The one
+device that could answer it is the one being asked about. No amount of
+token persistence fixes that: `persist_mode` skips the second dialog and
+every one after it, never the first.
+
+So the mutter route is not an optimisation. It is the only route that a
+machine with no input devices can complete unattended. The portal remains
+the fallback for everything else — a non-mutter compositor, or the Flatpak
+build, whose sandbox has no business holding a name that grants
+system-wide input injection (see `input-injection` in the schema, which
+forces the portal for anyone who wants that boundary back).
+
+**The portal's consent dialog is shown once, ever.** RemoteDesktop portal version 2
 added `persist_mode` and `restore_token` (the same mechanism screen-sharing
 tools use so they don't re-prompt every call). Salon asks for
 `PERSIST_EXPLICITLY_REVOKED`, keeps the token the portal hands back, and
@@ -45,6 +72,29 @@ _OBJECT_PATH = "/org/freedesktop/portal/desktop"
 _RD_IFACE = "org.freedesktop.portal.RemoteDesktop"
 _REQUEST_IFACE = "org.freedesktop.portal.Request"
 
+# mutter's own interface. Version 1, unchanged since it was introduced, and
+# load-bearing for gnome-remote-desktop — but private, so it is tried and
+# not assumed, and any failure falls through to the portal.
+_MUTTER_BUS = "org.gnome.Mutter.RemoteDesktop"
+_MUTTER_PATH = "/org/gnome/Mutter/RemoteDesktop"
+_MUTTER_IFACE = "org.gnome.Mutter.RemoteDesktop"
+_MUTTER_SESSION_IFACE = "org.gnome.Mutter.RemoteDesktop.Session"
+
+# The handshake is two blocking calls on the main loop, so it needs a bound
+# that is short enough not to be felt. gnome-shell answers in single-digit
+# milliseconds when it is going to answer at all; a shell that is wedged is
+# not going to become responsive within a second either.
+_MUTTER_TIMEOUT_MS = 2000
+
+# MetaRemoteDesktopSessionAxisFlags. The portal spells this as a `finish`
+# option in an a{sv}; mutter spells it as a bit.
+_AXIS_FINISH = 1 << 0
+
+# Values of the `input-injection` GSettings key.
+BACKEND_AUTO = "auto"
+BACKEND_PORTAL = "portal"
+BACKEND_MUTTER = "mutter"
+
 _DEVICE_POINTER = 1
 _DEVICE_KEYBOARD = 2
 
@@ -59,6 +109,13 @@ _PERSIST_EXPLICITLY_REVOKED = 2
 _RD_VERSION_WITH_PERSIST = 2
 
 BTN_LEFT = 0x110
+# linux/input-event-codes.h again, and in that header's own order: RIGHT is
+# 0x111 and MIDDLE is 0x112. The portal takes evdev button codes directly,
+# so these are the same numbers a real mouse reports.
+BTN_RIGHT = 0x111
+BTN_MIDDLE = 0x112
+
+BUTTONS = {"left": BTN_LEFT, "right": BTN_RIGHT, "middle": BTN_MIDDLE}
 
 _PRESSED = 1
 _RELEASED = 0
@@ -113,10 +170,16 @@ class PointerInjector:
         *,
         load_restore_token: Callable[[], str] | None = None,
         save_restore_token: Callable[[str], None] | None = None,
+        backend: str = BACKEND_AUTO,
     ) -> None:
         self._connection: Gio.DBusConnection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self._session_handle: str | None = None
         self._started = False
+        self._preference = backend
+        # "" until something has actually started; then "mutter" or "portal".
+        self._backend = ""
+        self._mutter_session: str | None = None
+        self._closed_sub: int | None = None
         self._parent_window = ""
         self._starting = False
         self._timeout_id: int | None = None
@@ -140,6 +203,14 @@ class PointerInjector:
         """
         return self._session_handle is not None and self._started
 
+    @property
+    def backend(self) -> str:
+        """Which route is actually carrying input: "mutter", "portal", or ""
+        for "nothing is running". Settings shows this, because "remote
+        control is working" and "the desktop was asked for permission" are
+        different facts and only one of them is visible on screen."""
+        return self._backend
+
     def start(self, parent_window: str = "") -> None:
         """Begin the portal handshake. parent_window should be a handle from
         Gdk export_handle (e.g. "wayland:HANDLE") so the consent dialog is
@@ -151,8 +222,106 @@ class PointerInjector:
             return
         self._starting = True
         self._parent_window = parent_window
+        if self._preference != BACKEND_PORTAL and self._start_mutter():
+            self._starting = False
+            self._backend = "mutter"
+            self._started = True
+            # Worth a line in the journal: which route carried input is
+            # invisible from the screen, and the two differ in exactly the
+            # thing anyone debugging this cares about — whether a consent
+            # dialog is about to appear.
+            print("[pointer] Injecting input via mutter directly; no consent dialog needed.")
+            if self._on_ready is not None:
+                self._on_ready(True)
+            return
+        if self._preference == BACKEND_MUTTER:
+            # Explicitly asked for the one route that just failed. Falling
+            # through to the portal here would put the dialog on screen
+            # that this setting exists to avoid.
+            print("[pointer] input-injection=mutter, but mutter's interface did not answer.")
+            self._starting = False
+            self._fail()
+            return
         self._timeout_id = GLib.timeout_add_seconds(20, self._on_timeout)
         self._create_session()
+
+    # --- mutter's own interface ---------------------------------------
+
+    def _start_mutter(self) -> bool:
+        """CreateSession + Start against gnome-shell. True if input can be
+        injected when this returns.
+
+        Deliberately synchronous. It is two round trips to a process that
+        answers in a few milliseconds, and making it async would mean
+        carrying a second half-built-session state through the portal
+        fallback for no gain. A compositor that is not mutter simply has no
+        such bus name and `call_sync` fails immediately.
+        """
+        try:
+            result = self._connection.call_sync(
+                _MUTTER_BUS,
+                _MUTTER_PATH,
+                _MUTTER_IFACE,
+                "CreateSession",
+                None,
+                GLib.VariantType("(o)"),
+                Gio.DBusCallFlags.NONE,
+                _MUTTER_TIMEOUT_MS,
+                None,
+            )
+            session = str(result.unpack()[0])
+            self._connection.call_sync(
+                _MUTTER_BUS,
+                session,
+                _MUTTER_SESSION_IFACE,
+                "Start",
+                None,
+                None,
+                Gio.DBusCallFlags.NONE,
+                _MUTTER_TIMEOUT_MS,
+                None,
+            )
+        except GLib.Error as error:
+            # Not a failure worth a user-facing word: on a non-GNOME
+            # compositor this is the expected answer, and the portal is
+            # about to be tried.
+            print(f"[pointer] mutter's RemoteDesktop is not available ({error.message}).")
+            return False
+        self._mutter_session = session
+        self._session_handle = session
+        # A session dies with the compositor. gnome-shell restarting would
+        # otherwise leave `ready` True over a session that no longer exists,
+        # and every press after that would go nowhere in silence.
+        self._closed_sub = self._connection.signal_subscribe(
+            _MUTTER_BUS,
+            _MUTTER_SESSION_IFACE,
+            "Closed",
+            session,
+            None,
+            Gio.DBusSignalFlags.NONE,
+            self._on_mutter_closed,
+        )
+        return True
+
+    def _on_mutter_closed(self, *_args: object) -> None:
+        print("[pointer] mutter closed the remote-desktop session.")
+        self._fail()
+
+    def _mutter_call(self, method: str, args: GLib.Variant | None) -> None:
+        if self._mutter_session is None:
+            return
+        self._connection.call(
+            _MUTTER_BUS,
+            self._mutter_session,
+            _MUTTER_SESSION_IFACE,
+            method,
+            args,
+            None,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+            None,
+        )
 
     def _on_timeout(self) -> bool:
         print(
@@ -171,6 +340,9 @@ class PointerInjector:
     def move(self, dx: float, dy: float) -> None:
         if not self.ready:
             return
+        if self._backend == "mutter":
+            self._mutter_call("NotifyPointerMotionRelative", GLib.Variant("(dd)", (dx, dy)))
+            return
         self._connection.call(
             _BUS_NAME,
             _OBJECT_PATH,
@@ -183,6 +355,73 @@ class PointerInjector:
             None,
             None,
         )
+
+    def scroll(self, dx: float, dy: float) -> None:
+        """Two fingers on the phone's trackpad, as a scroll wheel.
+
+        `NotifyPointerAxis` and not `NotifyPointerAxisDiscrete`: the
+        discrete call moves in whole wheel clicks, which is what a mouse
+        does and not what a finger does — a page scrolled that way jumps in
+        three-line steps under a gesture that is continuous. The `finish`
+        option is what tells the compositor a fling has ended, so kinetic
+        scrolling in GTK and in a browser stops when the fingers lift
+        rather than drifting on.
+        """
+        if not self.ready or not (dx or dy):
+            return
+        if self._backend == "mutter":
+            self._mutter_call("NotifyPointerAxis", GLib.Variant("(ddu)", (dx, dy, 0)))
+            return
+        self._connection.call(
+            _BUS_NAME,
+            _OBJECT_PATH,
+            _RD_IFACE,
+            "NotifyPointerAxis",
+            GLib.Variant("(oa{sv}dd)", (self._session_handle, {}, dx, dy)),
+            None,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+            None,
+        )
+
+    def scroll_finish(self) -> None:
+        """Tell the compositor the fingers have left the glass."""
+        if not self.ready:
+            return
+        if self._backend == "mutter":
+            self._mutter_call(
+                "NotifyPointerAxis", GLib.Variant("(ddu)", (0.0, 0.0, _AXIS_FINISH))
+            )
+            return
+        self._connection.call(
+            _BUS_NAME,
+            _OBJECT_PATH,
+            _RD_IFACE,
+            "NotifyPointerAxis",
+            GLib.Variant(
+                "(oa{sv}dd)",
+                (self._session_handle, {"finish": GLib.Variant("b", True)}, 0.0, 0.0),
+            ),
+            None,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+            None,
+        )
+
+    def press(self, button: int = BTN_LEFT) -> None:
+        """Hold a button down. Pairs with `release`, and exists for the
+        drag gestures — a tap that presses and releases 50ms later cannot
+        move a window or select a line of text."""
+        if not self.ready:
+            return
+        self._notify_button(button, _PRESSED)
+
+    def release(self, button: int = BTN_LEFT) -> None:
+        if not self.ready:
+            return
+        self._notify_button(button, _RELEASED)
 
     def type_text(self, text: str) -> bool:
         """Type `text` into whatever currently has keyboard focus.
@@ -219,6 +458,11 @@ class PointerInjector:
         return GLib.SOURCE_REMOVE
 
     def _notify_keysym(self, keysym: int, state: int) -> bool:
+        if self._backend == "mutter":
+            self._mutter_call(
+                "NotifyKeyboardKeysym", GLib.Variant("(ub)", (keysym, bool(state)))
+            )
+            return GLib.SOURCE_REMOVE
         if self._session_handle is not None:
             self._connection.call(
                 _BUS_NAME,
@@ -241,6 +485,11 @@ class PointerInjector:
         GLib.timeout_add(50, self._notify_button, button, _RELEASED)
 
     def _notify_button(self, button: int, state: int) -> bool:
+        if self._backend == "mutter":
+            self._mutter_call(
+                "NotifyPointerButton", GLib.Variant("(ib)", (button, bool(state)))
+            )
+            return GLib.SOURCE_REMOVE
         if self._session_handle is not None:
             self._connection.call(
                 _BUS_NAME,
@@ -428,6 +677,8 @@ class PointerInjector:
             self._fail()
             return
         self._started = True
+        self._backend = "portal"
+        print("[pointer] Injecting input via the desktop portal.")
         self._store_restore_token(results.get("restore_token"))
         if self._on_ready is not None:
             self._on_ready(True)
@@ -451,8 +702,27 @@ class PointerInjector:
         self._starting = False
         self._started = False
         self._session_handle = None
+        self._backend = ""
+        self._release_mutter()
         if self._on_ready is not None:
             self._on_ready(False)
+
+    def _release_mutter(self) -> None:
+        if self._closed_sub is not None:
+            self._connection.signal_unsubscribe(self._closed_sub)
+            self._closed_sub = None
+        self._mutter_session = None
+
+    def stop(self) -> None:
+        """Give the grant back. Only meaningful for the mutter route — the
+        portal session is torn down with the bus connection, and its grant
+        is persisted on purpose."""
+        if self._backend == "mutter" and self._mutter_session is not None:
+            self._mutter_call("Stop", None)
+        self._release_mutter()
+        self._started = False
+        self._session_handle = None
+        self._backend = ""
 
 
 _A11Y_SCHEMA = "org.gnome.desktop.a11y.applications"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Salon (Kiosk)
+Comment=Living-room launcher on GNOME Kiosk, with no desktop underneath
+Exec=gnome-session --session=salon-kiosk
+Type=Application
+
+# GNOME stays in this list even though GNOME Shell does not run in this
+# session. It is what sets XDG_CURRENT_DESKTOP, and
+# /usr/share/xdg-desktop-portal/portals/gnome.portal is `UseIn=gnome`:
+# drop it and xdg-desktop-portal picks a different backend, or none, and
+# every RemoteDesktop call Salon makes stops working.
+DesktopNames=GNOME;Salon;

@@ -421,7 +421,40 @@ class BluetoothService:
             Gio.DBusCallFlags.NONE, _TIMEOUT_MS, None, finished,
         )
 
+    def disconnect(self, device: Device, on_done: Callable[[bool, str], None]) -> None:
+        """Drop the link without forgetting the device.
+
+        The one a controller actually needs: a pad that stays connected to
+        the television is a pad that will not pair with anything else, and
+        unpairing it to hand it over would mean pairing it again on the way
+        back. It stays trusted, so it reconnects on its own.
+        """
+        bus = self._bus()
+        if bus is None:
+            on_done(False, "Salon can't reach the Bluetooth service on this machine.")
+            return
+
+        def finished(conn: Gio.DBusConnection, result: Gio.AsyncResult) -> None:
+            try:
+                conn.call_finish(result)
+            except GLib.Error as error:
+                on_done(False, _readable(error))
+                return
+            on_done(True, f"{device.name} disconnected.")
+
+        bus.call(
+            _BUS, device.path, _DEVICE, "Disconnect", None, None,
+            Gio.DBusCallFlags.NONE, _TIMEOUT_MS, None, finished,
+        )
+
     def forget(self, device: Device, on_done: Callable[[bool, str], None]) -> None:
+        """Unpair and remove. BlueZ disconnects it on the way out.
+
+        `RemoveDevice` is on the *adapter*, not the device — the object at
+        `device.path` is what is being destroyed, so it cannot be the one
+        asked to do it. That is also why this needs an adapter, and so a
+        listing, to have happened first.
+        """
         bus = self._bus()
         adapter = self._adapter
         if bus is None or adapter is None:

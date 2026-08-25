@@ -37,6 +37,7 @@ from salon.input.actions import Action  # noqa: E402
 from salon.services import appinfo  # noqa: E402
 from salon.services.artwork import ArtworkResolver  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
+from salon.ui import motion  # noqa: E402
 from salon.ui.keyboardpane import KeyboardPane  # noqa: E402
 from salon.ui.motion import AxisSpring, SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
@@ -56,7 +57,7 @@ class Pane(Enum):
     RESULTS = auto()
 
 
-class SearchOverlay(Gtk.Box):
+class SearchOverlay(Gtk.Box, motion.FadesIn):
     def __init__(
         self,
         scale: Scale,
@@ -67,6 +68,7 @@ class SearchOverlay(Gtk.Box):
         on_close: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._init_fade()
         self.add_css_class("salon-search")
         self.set_visible(False)
         self.set_hexpand(True)
@@ -152,6 +154,7 @@ class SearchOverlay(Gtk.Box):
         self._results_focus = FocusModel([])
         self._pane = Pane.KEYBOARD
         self.set_visible(True)
+        self._begin_fade()
         self._refresh_results()
         # Scanning every .desktop file on the system is far too slow for the
         # frame clock, so results start as catalogue-only and widen when the
@@ -207,17 +210,13 @@ class SearchOverlay(Gtk.Box):
             pairs = appinfo.search_pairs(self._catalog_tiles) + appinfo.search_pairs(
                 self._installed_tiles
             )
-            ordered = ranking.rank(query, pairs)
-            seen: set[str] = set()
-            results: list[Tile] = []
-            for tile_id in ordered:
-                if tile_id in seen:
-                    continue
-                seen.add(tile_id)
-                results.append(by_id[tile_id])
-                if len(results) >= _MAX_RESULTS:
-                    break
-            self._results = results
+            # The same call the phone's `/search` makes, deliberately: two
+            # search surfaces that ordered or deduplicated results
+            # differently would be two things to learn.
+            self._results = [
+                by_id[tile_id]
+                for tile_id in ranking.rank_best(query, pairs, _MAX_RESULTS)
+            ]
 
         self._update_hint()
         self._rebuild_result_widgets()

@@ -102,7 +102,13 @@ gi.require_version("Gio", "2.0")
 
 from gi.repository import Gio, GLib, Soup  # noqa: E402
 
-from salon.core.remote import RemoteState, StateFeed, is_local_address  # noqa: E402
+from salon.core.remote import (  # noqa: E402
+    OfferedIds,
+    RemoteState,
+    RemoteTile,
+    StateFeed,
+    is_local_address,
+)
 from salon.input.actions import Action  # noqa: E402
 
 # What the page is allowed to ask for. Derived from the enum rather than
@@ -114,6 +120,23 @@ ACTION_NAMES = frozenset(action.value for action in Action)
 # The three things you can do to a player. Not Actions: see the comment on
 # the transport buttons in the page.
 TRANSPORT_NAMES = frozenset({"play_pause", "next", "previous"})
+
+# What the per-tile menu on the phone may ask for. Pinning and unpinning
+# write `favourite-tile-ids`; "edit" opens the television's own tile editor
+# on that tile, because a form with eight fields is not something to
+# reimplement on a phone; "remove" deletes it from `tiles.json` and is only
+# offered for a tile that came from there.
+TILE_ACTIONS = frozenset({"pin", "unpin", "edit", "remove"})
+
+# Mouse buttons the trackpad can send. Names rather than evdev codes on the
+# wire: the page should not have to know that the middle button is 0x112,
+# and an unknown name is refused rather than passed through to the portal.
+POINTER_BUTTONS = frozenset({"left", "right", "middle"})
+
+# The most results a search will return. A phone screen shows about six at a
+# time and nobody scrolls a remote control; past this the ranking is doing
+# no work that anyone reads.
+MAX_SEARCH_RESULTS = 40
 
 DEFAULT_PORT = 8437
 SESSION_TIMEOUT_SECONDS = 300
@@ -224,6 +247,13 @@ class PairingServer:
         art_for: Callable[[str], Path | None] | None = None,
         pointer_ready: Callable[[], bool] | None = None,
         on_remote_text: Callable[[str], bool] | None = None,
+        on_search: Callable[[str], list[RemoteTile]] | None = None,
+        on_tile_action: Callable[[str, str], str] | None = None,
+        on_volume: Callable[[float], None] | None = None,
+        on_mute: Callable[[], None] | None = None,
+        on_scroll: Callable[[float, float], None] | None = None,
+        on_scroll_end: Callable[[], None] | None = None,
+        on_button: Callable[[str, str], None] | None = None,
     ) -> None:
         self._on_action = on_action
         self._on_pointer = on_pointer
@@ -234,6 +264,13 @@ class PairingServer:
         self._art_for = art_for
         self._pointer_ready = pointer_ready
         self._on_remote_text = on_remote_text
+        self._on_search = on_search
+        self._on_tile_action = on_tile_action
+        self._on_volume = on_volume
+        self._on_mute = on_mute
+        self._on_scroll = on_scroll
+        self._on_scroll_end = on_scroll_end
+        self._on_button = on_button
         self._port = port
         self._server: Soup.Server | None = None
         self._code = ""
@@ -249,6 +286,15 @@ class PairingServer:
         # What the phone draws. Published from the home screen; serialised
         # only when a poll actually asks for a version it hasn't seen.
         self._feed = StateFeed()
+        # Ids served in search results. `/launch` and `/art` accept these as
+        # well as the ones in the published state — see core.remote for why
+        # a result list is not published and why this is bounded.
+        self._offered = OfferedIds()
+        # Open EventSource connections. The 1 Hz poll is still there and
+        # still correct; this is what makes a press feel immediate instead
+        # of up to a second late, and the page falls back to polling on any
+        # browser or proxy that will not hold the stream open.
+        self._streams: list[Soup.ServerMessage] = []
         # Text goes wherever is currently asking for it, which is nowhere
         # most of the time. A sink rather than a constructor argument
         # because one server now serves several screens: search, each of the
@@ -298,8 +344,17 @@ class PairingServer:
         Cheap enough to call from every focus move and every catalogue
         rebuild: an unchanged state costs one dataclass comparison, and even
         a changed one is not serialised until someone asks.
+
+        A phone holding an event stream open counts as asking, so a real
+        change is serialised once here and written to all of them. That is
+        the whole difference between the stream and the poll: the poll
+        cannot be told, it can only ask, and a second is a long time to
+        wait to see that the button you pressed did something.
         """
-        return self._feed.publish(state)
+        changed = self._feed.publish(state)
+        if changed and self._streams:
+            self._broadcast(self._feed.payload())
+        return changed
 
     @property
     def running(self) -> bool:
@@ -366,6 +421,10 @@ class PairingServer:
             server.add_handler(clip_path, self._handle_awake)
         server.add_handler("/connect", self._handle_connect)
         server.add_handler("/state", self._handle_state)
+        server.add_handler("/events", self._handle_events)
+        server.add_handler("/search", self._handle_search)
+        server.add_handler("/tile", self._handle_tile_action)
+        server.add_handler("/volume", self._handle_volume)
         server.add_handler("/art", self._handle_art)
         server.add_handler("/type", self._handle_type)
         server.add_handler("/action", self._handle_action)
@@ -383,6 +442,8 @@ class PairingServer:
         return True
 
     def stop(self) -> None:
+        self._close_streams()
+        self._offered.clear()
         if self._idle_id is not None:
             GLib.source_remove(self._idle_id)
             self._idle_id = None
@@ -672,6 +733,193 @@ class PairingServer:
             return
         self._json(message, self._feed.payload())
 
+    def _handle_events(
+        self,
+        server: Soup.Server,
+        message: Soup.ServerMessage,
+        path: str,
+        query: dict[str, str] | None,
+    ) -> None:
+        """The state, pushed instead of polled.
+
+        `text/event-stream`, held open, one `data:` line per real change.
+        The poll is not removed and is not deprecated — it is the fallback,
+        and it earns its place: a stream is a connection somebody's phone
+        keeps open across a screen lock, a Wi-Fi roam and a browser tab
+        eviction, and every one of those ends it silently. The page opens a
+        stream, and if it ever closes or errors it goes back to asking once
+        a second. Both paths read the same `StateFeed`, so they cannot
+        disagree about what the television is showing.
+
+        The body does not accumulate. Delivery works either way — measured,
+        because the first version of this claimed otherwise — but with
+        accumulation on, libsoup keeps every byte it has ever written to
+        the response, and this is a response that is meant to live for as
+        long as someone has the page open. That is a slow leak per connected
+        phone rather than a broken feature, which is exactly the kind of
+        thing that is invisible until a television has been on for a week.
+        """
+        if not self._authorize_get(message, query):
+            return
+        message.set_status(Soup.Status.OK, None)
+        headers = message.get_response_headers()
+        headers.set_content_type("text/event-stream", None)
+        headers.append("Cache-Control", "no-cache")
+        headers.append("Connection", "keep-alive")
+        # Chrome and Safari both hold a stream in a buffer until enough
+        # bytes arrive to bother with; a proxy in between will do the same.
+        # Telling the browser to wait 2s before reconnecting, in a comment
+        # line, doubles as the flush.
+        headers.set_encoding(Soup.Encoding.EOF)
+        body = message.get_response_body()
+        body.set_accumulate(False)
+        body.append(b": salon\nretry: 2000\n\n")
+        # The current state immediately, so a phone that has just connected
+        # draws the television rather than an empty page until something
+        # over there happens to change.
+        body.append(_sse_frame(self._feed.payload()))
+        self._streams.append(message)
+        message.connect("finished", self._on_stream_finished)
+
+    def _on_stream_finished(self, message: Soup.ServerMessage) -> None:
+        try:
+            self._streams.remove(message)
+        except ValueError:
+            pass
+
+    def _broadcast(self, payload: bytes) -> None:
+        frame = _sse_frame(payload)
+        for message in list(self._streams):
+            try:
+                message.get_response_body().append(frame)
+                message.unpause()
+            except (GLib.Error, TypeError):
+                # A socket that has gone away between the "finished" signal
+                # and now. Dropping it here rather than letting it throw on
+                # every future publish.
+                self._on_stream_finished(message)
+
+    def _close_streams(self) -> None:
+        for message in list(self._streams):
+            try:
+                message.get_response_body().complete()
+                message.unpause()
+            except (GLib.Error, TypeError):
+                pass
+        self._streams.clear()
+
+    def _handle_search(
+        self,
+        server: Soup.Server,
+        message: Soup.ServerMessage,
+        path: str,
+        query: dict[str, str] | None,
+    ) -> None:
+        """Search the catalogue and every installed application.
+
+        The one thing the phone is unambiguously better at than the remote:
+        the television's search screen is a keyboard drawn on a screen, and
+        the device in your hand already has one. Results come back in the
+        same shape the catalogue does, so they render with the same card,
+        the same artwork endpoint and the same launch path.
+
+        Answering synchronously is deliberate. Soup dispatches on the main
+        loop, which is where the catalogue and the installed-app cache both
+        live, so the handler can simply ask — no thread, no request id, no
+        second round trip. The cost is that whatever fills `on_search` must
+        stay cheap; see `HomeView._search_for_phone`, which ranks a list it
+        already has rather than scanning the disk.
+        """
+        fields = self._authorize(message)
+        if fields is None:
+            return
+        if self._on_search is None:
+            self._refuse(message, Soup.Status.NOT_IMPLEMENTED, "Search isn't available.")
+            return
+        results = self._on_search(str(fields.get("q", "")))[:MAX_SEARCH_RESULTS]
+        # Remembered before they are sent, so the /art request the page
+        # makes for each result a moment later is answerable.
+        self._offered.offer(tile.id for tile in results)
+        self._json(
+            message,
+            json.dumps({"results": [tile.to_dict() for tile in results]}).encode(),
+        )
+
+    def _handle_tile_action(
+        self,
+        server: Soup.Server,
+        message: Soup.ServerMessage,
+        path: str,
+        query: dict[str, str] | None,
+    ) -> None:
+        """Pin, unpin, edit or remove one tile — the phone's long-press.
+
+        `Action.OPTIONS` has opened a per-tile menu on the television since
+        the reachability pass, and the phone had no equivalent, so the one
+        surface where every tile is visible at once was the one surface
+        where none of them could be changed.
+
+        The reply carries a sentence for the phone to show. These are the
+        actions with a consequence that is not visible on the phone itself
+        — "edit" opens a screen on the television, which is a strange thing
+        to have happen with no acknowledgement in your hand.
+        """
+        fields = self._authorize(message)
+        if fields is None:
+            return
+        tile_id = str(fields.get("id", ""))
+        what = str(fields.get("what", ""))
+        if self._on_tile_action is None or what not in TILE_ACTIONS:
+            self._refuse(message, Soup.Status.BAD_REQUEST, "Unknown tile action.")
+            return
+        if not self._may_touch(tile_id):
+            self._refuse(message, Soup.Status.NOT_FOUND, "That is not on the TV any more.")
+            return
+        self._json(message, json.dumps({"said": self._on_tile_action(tile_id, what)}).encode())
+
+    def _handle_volume(
+        self,
+        server: Soup.Server,
+        message: Soup.ServerMessage,
+        path: str,
+        query: dict[str, str] | None,
+    ) -> None:
+        """An absolute level from the slider, or the mute toggle.
+
+        Absolute, not a delta, because that is the whole reason the slider
+        exists: two repeat-buttons already send VOLUME_UP and VOLUME_DOWN
+        as ordinary Actions and will keep doing so. A finger dragged to a
+        third of the way along is asking for a third of the way along, and
+        expressing that as nineteen presses of a step key is how you get a
+        volume control that lags behind the thumb moving it.
+        """
+        fields = self._authorize(message)
+        if fields is None:
+            return
+        if fields.get("mute"):
+            if self._on_mute is not None:
+                mute = self._on_mute
+                GLib.idle_add(_notify, mute)
+            self._ok(message)
+            return
+        if self._on_volume is None:
+            self._refuse(message, Soup.Status.NOT_IMPLEMENTED, "Volume isn't available.")
+            return
+        level = min(1.0, max(0.0, _finite(fields.get("level"))))
+        callback = self._on_volume
+        GLib.idle_add(lambda: _deliver_level(callback, level))
+        self._ok(message)
+
+    def _may_touch(self, tile_id: str) -> bool:
+        """Whether the phone has been shown this tile.
+
+        Two sources, one rule: the ids in the published state, and the ids
+        served in a search result. Never the catalogue and never the
+        filesystem — which is also why there is no path traversal to get
+        wrong anywhere in this file.
+        """
+        return bool(tile_id) and (tile_id in self._feed.tile_ids() or tile_id in self._offered)
+
     def _handle_art(
         self,
         server: Soup.Server,
@@ -689,7 +937,7 @@ class PairingServer:
             return
         escaped = path.removeprefix("/art/") if path.startswith("/art/") else ""
         tile_id = GLib.uri_unescape_string(escaped, None) or "" if escaped else ""
-        if not tile_id or tile_id not in self._feed.tile_ids() or self._art_for is None:
+        if not self._may_touch(tile_id) or self._art_for is None:
             message.set_status(Soup.Status.NOT_FOUND, None)
             return
         art = self._art_for(tile_id)
@@ -785,7 +1033,7 @@ class PairingServer:
         if fields is None:
             return
         tile_id = str(fields.get("id", ""))
-        if self._on_launch is None or tile_id not in self._feed.tile_ids():
+        if self._on_launch is None or not self._may_touch(tile_id):
             self._refuse(message, Soup.Status.NOT_FOUND, "That is not on the TV any more.")
             return
         callback = self._on_launch
@@ -835,18 +1083,46 @@ class PairingServer:
                 "desktop's permission request.",
             )
             return
-        if fields.get("click"):
-            if self._on_click is not None:
-                click = self._on_click
-                GLib.idle_add(_notify, click)
-            self._ok(message)
-            return
+        # Ordered by how often each arrives, which is also the order the
+        # gestures on the page fire in: motion during a drag, then the
+        # scroll of a two-finger drag, then the once-per-gesture events.
         move = self._on_pointer
         if move is not None:
             dx = _finite(fields.get("dx"))
             dy = _finite(fields.get("dy"))
             if dx or dy:
                 GLib.idle_add(lambda: _deliver_motion(move, dx, dy))
+        scroll = self._on_scroll
+        if scroll is not None:
+            sx = _finite(fields.get("sx"))
+            sy = _finite(fields.get("sy"))
+            if sx or sy:
+                GLib.idle_add(lambda: _deliver_motion(scroll, sx, sy))
+        if fields.get("scrollEnd") and self._on_scroll_end is not None:
+            finish = self._on_scroll_end
+            GLib.idle_add(_notify, finish)
+        # `button` names which one; a bare `click` stays "left" so an older
+        # page — one a phone kept in its cache — goes on working.
+        button = str(fields.get("button", "") or "left")
+        if button not in POINTER_BUTTONS:
+            self._refuse(message, Soup.Status.BAD_REQUEST, "Unknown mouse button.")
+            return
+        if fields.get("click"):
+            if button == "left" and self._on_click is not None:
+                click = self._on_click
+                GLib.idle_add(_notify, click)
+            elif self._on_button is not None:
+                press = self._on_button
+                GLib.idle_add(lambda: _deliver_button(press, button, "click"))
+            self._ok(message)
+            return
+        # Press and release as separate events: this is what lets a
+        # double-tap-and-drag on the phone move a window or select text,
+        # which a tap that releases itself 50ms later can never do.
+        held = str(fields.get("hold", ""))
+        if held in ("down", "up") and self._on_button is not None:
+            hold = self._on_button
+            GLib.idle_add(lambda: _deliver_button(hold, button, held))
         self._ok(message)
 
 
@@ -865,6 +1141,27 @@ def _finite(value: object) -> float:
     # A phone screen is not a thousand pixels wide; anything larger is
     # either a bug or someone probing.
     return max(-2000.0, min(2000.0, number))
+
+
+def _sse_frame(payload: bytes) -> bytes:
+    """One server-sent event carrying the state JSON.
+
+    The payload is JSON with no newlines in it (`json.dumps` with the
+    separators `StateFeed` uses emits none, and a newline inside a `data:`
+    line would split one event into two half-parsed ones), so this is a
+    prefix and two line feeds rather than a line-by-line encoder.
+    """
+    return b"data: " + payload + b"\n\n"
+
+
+def _deliver_button(callback: Callable[[str, str], None], button: str, what: str) -> bool:
+    callback(button, what)
+    return GLib.SOURCE_REMOVE
+
+
+def _deliver_level(callback: Callable[[float], None], level: float) -> bool:
+    callback(level)
+    return GLib.SOURCE_REMOVE
 
 
 def _deliver(callback: Callable[[str], None], text: str) -> bool:

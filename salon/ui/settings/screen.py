@@ -8,14 +8,12 @@ from rows to one row to one tile and BACK unwinds it a level at a time
 rather than dumping the user back at the home screen.
 
 The horizontal axis reads the same way at every depth: **RIGHT goes in,
-LEFT comes back out.** A row with values to walk has to be *engaged* first
-— RIGHT steps into it, it lights up, and only then do LEFT and RIGHT move
-through its values; OK or BACK leaves it again. Before that change LEFT
-decremented whatever row the cursor happened to be on, so the button that
-means "back" everywhere else in Salon silently edited a setting instead,
-and there was no way out of a panel except BACK or a row that happened to
-have nothing to adjust. See `widgets.py` for which rows have an inside and
-which just act.
+LEFT comes back out**, and LEFT is never a value change. A row with a set of
+values does not change on a direction key at all — OK raises the values as a
+small list beside the row (`popup.py`) and the choice is made there, which is
+how a console does it and the only arrangement where the alternatives can be
+seen before one is picked. See `widgets.py` for the two designs this
+replaced and why.
 
 Panels are rebuilt from their `build()` callback whenever anything changes,
 rather than mutated in place. A settings list is a few dozen widgets and
@@ -56,12 +54,14 @@ from salon.core.model import Tile  # noqa: E402
 from salon.core.provider import ProviderOutcome  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.providers.registry import ProviderRegistry  # noqa: E402
+from salon.ui import motion  # noqa: E402
 from salon.ui.motion import SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.settings import panels as panel_builders  # noqa: E402
 from salon.ui.settings import providers as provider_panels  # noqa: E402
 from salon.ui.settings import tiles as tile_panels  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
+from salon.ui.settings.popup import ValuePopup  # noqa: E402
 from salon.ui.settings.widgets import ActionRow, SettingsList, SettingsRow  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
@@ -73,7 +73,7 @@ class Pane(Enum):
     PANEL = auto()
 
 
-class SettingsScreen(Gtk.Box):
+class SettingsScreen(Gtk.Box, motion.FadesIn):
     def __init__(
         self,
         scale: Scale,
@@ -92,6 +92,7 @@ class SettingsScreen(Gtk.Box):
         phone_remote_running: Callable[[], bool],
         set_phone_remote: Callable[[bool], bool],
         phone_remote_hint: Callable[[], str],
+        pointer_backend: Callable[[], str],
         bindings: Callable[[], object],
         capture_binding: Callable[[Callable[[str, int], None]], None],
         cancel_capture: Callable[[], None],
@@ -101,6 +102,7 @@ class SettingsScreen(Gtk.Box):
         config_path: str,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._init_fade()
         self.add_css_class("salon-search")  # same full-bleed dark field
         self.set_visible(False)
         self.set_hexpand(True)
@@ -132,6 +134,7 @@ class SettingsScreen(Gtk.Box):
             phone_remote_running=phone_remote_running,
             set_phone_remote=set_phone_remote,
             phone_remote_hint=phone_remote_hint,
+            pointer_backend=pointer_backend,
             bindings=bindings,
             capture_binding=capture_binding,
             cancel_capture=cancel_capture,
@@ -181,6 +184,15 @@ class SettingsScreen(Gtk.Box):
         self._panel_host.set_hexpand(True)
         self._panel_host.set_vexpand(True)
         body.append(self._panel_host)
+
+        # The list of values for whichever row is open. One instance for the
+        # whole screen, re-parented onto each row it is opened for — see
+        # popup.py on why it never stays attached.
+        self._popup = ValuePopup(scale, on_chosen=self._on_value_chosen)
+        # A click on a panel row takes the same path OK does. Without this a
+        # row whose value lives in a list would answer a click with nothing:
+        # there is no longer anything for `activate_row` to do on one.
+        self._panel_list.set_activate_handler(self._activate_panel_row)
 
         self._legend = Gtk.Label()
         self._legend.add_css_class("salon-settings-legend")
@@ -269,11 +281,12 @@ class SettingsScreen(Gtk.Box):
             self._rebuild_panel()
 
     def open(self) -> None:
-        self._panel_list.set_adjusting(False)
+        self._popup.close()
         self._pane = Pane.SECTIONS
-        self._stack = [self._section_panels[self._sections.selected_index]]
+        self._set_stack([self._section_panels[self._sections.selected_index]])
         self._leave_preview()
         self.set_visible(True)
+        self._begin_fade()
         self._rebuild_panel()
 
     def open_at(self, panel_id: str, deeper: list[Panel] | None = None) -> None:
@@ -291,12 +304,13 @@ class SettingsScreen(Gtk.Box):
         if index is None:
             self.open()
             return
-        self._panel_list.set_adjusting(False)
+        self._popup.close()
         self._sections.select(index)
-        self._stack = [self._section_panels[index], *(deeper or [])]
+        self._set_stack([self._section_panels[index], *(deeper or [])])
         self._pane = Pane.PANEL
         self._leave_preview()
         self.set_visible(True)
+        self._begin_fade()
         self._rebuild_panel()
 
     def open_tile(self, row_id: str, tile_id: str) -> None:
@@ -310,7 +324,11 @@ class SettingsScreen(Gtk.Box):
         )
 
     def close(self) -> None:
-        self._panel_list.set_adjusting(False)
+        self._popup.close()
+        self._leave_panels(self._stack)
+        # Emptied, not kept: reopening builds a fresh stack, and a panel
+        # still sitting here would be told it had left a second time.
+        self._stack = []
         self._leave_preview()
         self.set_visible(False)
         self._on_close()
@@ -334,35 +352,52 @@ class SettingsScreen(Gtk.Box):
         self._preview_bar.set_margin_start(margin)
         self._preview_bar.set_margin_end(margin)
         self._preview_bar.set_margin_bottom(margin)
+        self._popup.set_scale(scale)
 
     def set_pointer_active(self, active: bool) -> None:
         self._pointer_active = active
         self._sections.set_hover_enabled(active)
         self._panel_list.set_hover_enabled(active)
+        self._popup.set_hover_enabled(active)
 
     # --- panel stack -----------------------------------------------------
 
     def _enter_section(self, index: int) -> None:
-        self._panel_list.set_adjusting(False)
+        self._popup.close()
         self._sections.select(index)
-        self._stack = [self._section_panels[index]]
+        self._set_stack([self._section_panels[index]])
         self._pane = Pane.PANEL
         self._rebuild_panel()
 
     def _push(self, panel: Panel) -> None:
-        self._panel_list.set_adjusting(False)
+        self._popup.close()
         self._stack.append(panel)
         self._pane = Pane.PANEL
         self._rebuild_panel()
 
     def _pop(self) -> None:
-        self._panel_list.set_adjusting(False)
+        self._popup.close()
         if len(self._stack) > 1:
-            self._stack.pop()
+            self._leave_panels([self._stack.pop()])
             self._rebuild_panel()
         else:
             self._pane = Pane.SECTIONS
             self._update_pane_style()
+
+    def _set_stack(self, panels: list[Panel]) -> None:
+        """Replace the whole stack, telling whatever was on it that it is
+        gone. Jumping straight to another section is a way of leaving every
+        panel currently open, and a panel that switched something on while
+        it was up (Bluetooth discovery) has to hear about it."""
+        leaving = [panel for panel in self._stack if panel not in panels]
+        self._stack = panels
+        self._leave_panels(leaving)
+
+    @staticmethod
+    def _leave_panels(panels: list[Panel]) -> None:
+        for panel in panels:
+            if panel.on_leave is not None:
+                panel.on_leave()
 
     def _rebuild_panel(self) -> None:
         if not self._stack:
@@ -393,16 +428,20 @@ class SettingsScreen(Gtk.Box):
             )
             return
         row = self._panel_list.selected_row
-        if self._panel_list.adjusting and row is not None:
+        if self._popup.is_open and row is not None:
             self._legend.set_label(
-                f"LEFT and RIGHT change {row.label_text}"
-                "  ·  OK or BACK keeps it and steps back out"
+                f"UP and DOWN pick a value for {row.label_text}"
+                "  ·  OK sets it  ·  BACK or LEFT leaves it as it was"
             )
             return
         parts = [row.hint if row is not None else "OK selects"]
         if row is not None and row.previewable:
+            # OK is spoken for on these: it collapses to the preview strip,
+            # which is the only way to judge an accent or a tile size. The
+            # list is still there on RIGHT for anyone who knows the value
+            # they want.
             parts.append("OK previews it on the home screen")
-            parts[0] = "RIGHT changes it here"
+            parts[0] = "RIGHT opens the list" if row.choices else "RIGHT changes it here"
         parts.append(
             "LEFT or BACK goes up a level"
             if len(self._stack) > 1
@@ -484,10 +523,11 @@ class SettingsScreen(Gtk.Box):
             self._handle_preview(action)
             return
 
-        # An engaged row owns the whole horizontal axis *and* BACK, so it
-        # is checked before the pane dispatch below rather than inside it.
-        if self._pane is Pane.PANEL and self._panel_list.adjusting:
-            self._handle_adjusting(action)
+        # An open value list owns every button, including BACK, so it is
+        # checked before the pane dispatch below rather than inside it.
+        if self._popup.is_open:
+            self._popup.handle_action(action)
+            self._update_legend()
             return
 
         if action is Action.BACK:
@@ -517,7 +557,7 @@ class SettingsScreen(Gtk.Box):
     def _handle_sections(self, action: Action) -> None:
         if action in (Action.UP, Action.DOWN):
             if self._sections.move(-1 if action is Action.UP else 1):
-                self._stack = [self._section_panels[self._sections.selected_index]]
+                self._set_stack([self._section_panels[self._sections.selected_index]])
                 self._rebuild_panel()
             else:
                 self._sections.bump(
@@ -538,8 +578,8 @@ class SettingsScreen(Gtk.Box):
             if row is not None and row.previewable:
                 self._enter_preview(row)
                 return
-            if row is not None and row.ok_engages:
-                self._engage()
+            if row is not None and row.choices:
+                self._open_values(row)
                 return
             self._panel_list.activate()
             return
@@ -550,21 +590,31 @@ class SettingsScreen(Gtk.Box):
             self._update_legend()
             return
         if action is Action.RIGHT:
-            self._engage()
+            self._enter_row()
             return
         if action is Action.LEFT:
             # LEFT is how you leave — the same gesture that crosses panes in
             # search, and now the same one at every depth of this screen.
-            # It never edits a row: a row has to be entered first.
+            # It never edits a row: values are chosen from a list.
             self._pop()
 
-    def _engage(self) -> None:
-        """RIGHT (or OK on a row with values): step into the selected row."""
+    def _activate_panel_row(self, index: int) -> None:
+        """A click. Deliberately not the preview strip: entering preview
+        hides the whole screen, which is a fine answer to a deliberate OK
+        from a remote and a startling one to a mouse click."""
+        row = self._panel_list.rows[index]
+        if row.choices:
+            self._open_values(row)
+        else:
+            row.activate_row()
+
+    def _enter_row(self) -> None:
+        """RIGHT on the selected row: go in, whatever "in" means for it."""
         row = self._panel_list.selected_row
         if row is None:
             return
-        if self._panel_list.set_adjusting(True):
-            self._update_legend()
+        if row.choices:
+            self._open_values(row)
         elif row.enterable:
             self._panel_list.activate()
         else:
@@ -572,24 +622,15 @@ class SettingsScreen(Gtk.Box):
             # does not run it — see ActionRow.
             row.flash_denied()
 
-    def _handle_adjusting(self, action: Action) -> None:
-        if action in (Action.OK, Action.BACK):
-            self._panel_list.set_adjusting(False)
+    def _open_values(self, row: SettingsRow) -> None:
+        if self._popup.open_for(row):
             self._update_legend()
-            return
-        if action in (Action.LEFT, Action.RIGHT):
-            row = self._panel_list.selected_row
-            if not self._panel_list.adjust(-1 if action is Action.LEFT else 1) and row:
-                # At the end of the range. It stays engaged: leaving on an
-                # over-step would make LEFT mean "back" again one press
-                # after it meant "less", which is the confusion this whole
-                # mode exists to remove.
-                row.flash_denied()
-            return
-        if action in (Action.UP, Action.DOWN):
-            # Moving off the row releases it (SettingsList.move does that),
-            # so this is an ordinary navigation press.
-            self._handle_panel(action)
+
+    def _on_value_chosen(self) -> None:
+        """A value was picked. The row has already written it; everything
+        else on the panel may now be describing the old one — a tile's kind
+        decides which rows exist below it — so rebuild rather than guess."""
+        self._rebuild_panel()
 
     # --- odds and ends ---------------------------------------------------
 

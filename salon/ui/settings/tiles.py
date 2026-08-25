@@ -23,12 +23,10 @@ filename to drop.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from salon.core import editing
 from salon.core.model import LaunchKind, Tile
 from salon.services.artwork import artwork_drop_dir
-from salon.ui.settings.context import Panel, SettingsContext
+from salon.ui.settings.context import Panel, SettingsContext, confirm_panel
 from salon.ui.settings.widgets import (
     ActionRow,
     ChoiceRow,
@@ -45,8 +43,6 @@ _KINDS = [
     (LaunchKind.FLATPAK.value, "Flatpak"),
     (LaunchKind.COMMAND.value, "Command"),
 ]
-
-
 def rows_panel(context: SettingsContext) -> Panel:
     """Top level: every row in the catalogue, plus "add row"."""
 
@@ -179,7 +175,7 @@ def _delete_row(context: SettingsContext, row_id: str) -> None:
         context.save_config()
         context.pop()
 
-    context.push(_confirm_panel(context, f"Delete {title}?", "Delete row", confirmed))
+    context.push(confirm_panel(context, f"Delete {title}?", "Delete row", confirmed))
 
 
 # --- adding tiles --------------------------------------------------------
@@ -549,28 +545,4 @@ def _delete_tile(context: SettingsContext, row_id: str, tile_id: str) -> None:
         context.save_config()
         context.pop()
 
-    context.push(_confirm_panel(context, f"Delete {title}?", "Delete tile", confirmed))
-
-
-def _confirm_panel(
-    context: SettingsContext,
-    question: str,
-    confirm_label: str,
-    on_confirm: Callable[[], None],
-) -> Panel:
-    """Deletion is the one thing here that can't be undone, so it always
-    costs a second, deliberate press — and Cancel is what the cursor lands
-    on, not the destructive option."""
-
-    def _confirm() -> None:
-        context.pop()  # dismiss the confirmation itself
-        on_confirm()
-
-    def build() -> list[SettingsRow]:
-        return [
-            InfoRow(question, ""),
-            ActionRow("Cancel", context.pop),
-            ActionRow(confirm_label, _confirm, danger=True),
-        ]
-
-    return Panel(title="Confirm", build=build)
+    context.push(confirm_panel(context, f"Delete {title}?", "Delete tile", confirmed))

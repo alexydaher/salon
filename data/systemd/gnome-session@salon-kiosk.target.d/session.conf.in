@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# What the Salon (Kiosk) session is made of. Same shape as
+# gnome-session@salon.target.d/session.conf — see that file for why the
+# components live here and not in RequiredComponents= — with one line
+# different: the compositor.
+[Unit]
+# Unchanged from the Shell session: without these there is no NetworkManager
+# applet feeding the status bar's Wi-Fi glyph, no media keys, no colour
+# management.
+Requires=gnome-session-services.target
+
+# The one line that differs. gnome-kiosk is a Mutter-based compositor with no
+# panel, dash, dock or overview — so there is no way for a remote to fall out
+# of Salon into a desktop, and it fullscreens every window it is handed.
+#
+# The target rather than org.gnome.Kiosk@wayland.service directly: the service
+# is templated on the session type and carries
+# ConditionEnvironment=XDG_SESSION_TYPE=%I, and the target is what upstream
+# offers as the entry point. It Wants= the instance rather than Requires= it,
+# but the instance carries its own OnFailure=gnome-session-shutdown.target, so
+# a compositor that fails to start still takes the session down rather than
+# leaving a black screen up.
+#
+# Requires the gnome-kiosk package, which is not a dependency of anything else
+# Salon needs. Without it this session starts, finds no compositor, and the
+# Salon unit's Requisite= fails it cleanly back to the login screen.
+Requires=org.gnome.Kiosk.target
+
+# The same unit as the Shell session — Salon does not know or care which
+# compositor it connected to.
+Requires=@APP_ID@.service

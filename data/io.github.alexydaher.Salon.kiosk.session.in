@@ -1,0 +1,24 @@
+[GNOME Session]
+Name=Salon (Kiosk)
+
+# The same session as salon.session, with GNOME Kiosk as the compositor
+# instead of GNOME Shell. Everything about Salon itself is identical — it is
+# an ordinary Wayland client either way, and the unit that starts it
+# (@APP_ID@.service) is shared between the two sessions.
+#
+# What changes is what is underneath: no overview, no hot corner, no
+# Activities, no panel — and, the reason this variant exists at all, GNOME
+# Kiosk fullscreens every window it is handed. That is the one thing no
+# Wayland client can do for itself: a native application decides its own
+# window state and no other client may override it, which is why only URL
+# tiles can pass --start-fullscreen today. A compositor may.
+#
+# The cost is that this has less road under it than the Shell session. See
+# DECISIONS.md 2026-08-23 for what was verified and what was only reasoned
+# about — in particular the RemoteDesktop portal, which is what the phone
+# trackpad, /type into a launched app and gamepad pointer control all ride on.
+Kiosk=true
+
+# As in salon.session, the components are not here: gnome-session 50 does not
+# act on RequiredComponents=. They are in the systemd drop-in on
+# gnome-session@salon-kiosk.target; see data/systemd/.

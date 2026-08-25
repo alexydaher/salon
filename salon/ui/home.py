@@ -53,7 +53,7 @@ from gi.repository import Adw, Gdk, GdkWayland, Gio, GLib, Graphene, Gsk, Gtk  #
 
 from salon import config as app_config  # noqa: E402
 from salon.core import config as tile_config  # noqa: E402
-from salon.core import editing, nowplaying, tokens  # noqa: E402
+from salon.core import editing, nowplaying, ranking, tokens  # noqa: E402
 from salon.core.bindings import CEC, GAMEPAD, KEYBOARD, Bindings  # noqa: E402
 from salon.core.catalog import Catalog, sanitize  # noqa: E402
 from salon.core.errors import ConfigError  # noqa: E402
@@ -72,8 +72,9 @@ from salon.input.gamepad import GamepadSource  # noqa: E402
 from salon.input.keyboard import action_for_keyval  # noqa: E402
 from salon.providers import favourites, recents  # noqa: E402
 from salon.providers.registry import ProviderRegistry  # noqa: E402
-from salon.services import appinfo, audio, cec_out, power  # noqa: E402
+from salon.services import appinfo, audio, cec_out, pointer_injector, power  # noqa: E402
 from salon.services.artwork import (  # noqa: E402
+    Artwork,
     ArtworkResolver,
     artwork_drop_dir,
     to_hex,
@@ -86,6 +87,7 @@ from salon.services.pointer_injector import (  # noqa: E402
     onscreen_keyboard_enabled,
     set_onscreen_keyboard_enabled,
 )
+from salon.ui import motion  # noqa: E402
 from salon.ui.appsgrid import AppsGrid  # noqa: E402
 from salon.ui.backdrop import Backdrop  # noqa: E402
 from salon.ui.detailbar import DetailBar  # noqa: E402
@@ -94,11 +96,12 @@ from salon.ui.onboarding import Onboarding  # noqa: E402
 from salon.ui.osd import VolumeOsd  # noqa: E402
 from salon.ui.overlays import LaunchingOverlay, SystemMenu, SystemMenuItem  # noqa: E402
 from salon.ui.phonepairing import PhonePairing  # noqa: E402
+from salon.ui.remotehint import RemoteHint  # noqa: E402
 from salon.ui.scale import Scale, ScaleManager  # noqa: E402
 from salon.ui.screensaver import ScreenSaver  # noqa: E402
 from salon.ui.search import SearchOverlay  # noqa: E402
 from salon.ui.settings.screen import SettingsScreen  # noqa: E402
-from salon.ui.statusbar import StatusBar  # noqa: E402
+from salon.ui.statusbar import StatusBar, StatusInfo  # noqa: E402
 from salon.ui.textentry import TextEntryOverlay  # noqa: E402
 from salon.ui.theme import ThemeManager  # noqa: E402
 from salon.ui.tile import (  # noqa: E402
@@ -118,6 +121,20 @@ _POINTER_SPEED = 22.0
 # can also arrive as several events for one file) into one rebuild.
 _RELOAD_DEBOUNCE_MS = 300
 
+# How long to wait, after an app closes, before opening the one the phone
+# asked for over the top of it. Long enough for the compositor to hand focus
+# back to Salon, because the next launch's return detection is the window
+# going *inactive* and a window that is already inactive never does.
+_RELAUNCH_DELAY_MS = 250
+
+# How many results the phone's search returns, and how large an icon it
+# resolves for a card on it. The phone shows about six results at a time and
+# nobody scrolls a remote control; past this the ranking is doing work
+# nobody reads. The icon size is a phone card's worth of pixels on a dense
+# screen, not the television's, which would be four times the download.
+_PHONE_SEARCH_RESULTS = 40
+_PHONE_ICON_SIZE_PX = 256
+
 _DIRECTIONS = (Action.UP, Action.DOWN, Action.LEFT, Action.RIGHT)
 
 # How often the held-direction repeater is polled. Independent of the
@@ -129,12 +146,32 @@ _REPEAT_POLL_MS = 30
 # produces a short overshoot-and-settle rather than silence, which reads as
 # a broken remote.
 _BUMP_DISTANCE_DU = 26.0
+# How far the row band's top and bottom edges fade out *when there is
+# something hanging over them* — see `HomeView._update_edge_fades`.
+#
+# Short, and doing a different job from the fade that used to be here. The
+# band no longer reaches under the two bars at all — it is inset to the gap
+# between them — so nothing has to be dimmed to keep it off the clock. What
+# is left is that a tile cut by a hard clip edge reads as a rendering fault,
+# and a tile's bloom needs somewhere to go. Forty du is about a quarter of a
+# wide tile: enough that a row leaving the band looks like it is leaving,
+# little enough that it costs nothing while it goes.
+_EDGE_FADE_DU = 40.0
 _BUMP_MS = 90
 
 # The phone remote's name on the shared pairing server. Named rather than
 # anonymous because a text field can be holding the same server at the same
 # time and neither may stop it out from under the other.
 _REMOTE_HOLDER = "phone-remote"
+# The corner card's own hold on the pairing server (ui/remotehint.py).
+# Separate from the one above so that Settings' toggle and "there is
+# nothing to press with" are independent reasons for the server to run,
+# and neither can take the port from under the other.
+_HINT_HOLDER = "remote-hint"
+# How often the corner card re-asks whether a phone is talking to us.
+# `connected` is a time window, so nothing signals its expiry; two
+# seconds is well inside the window and costs one property read.
+_HINT_POLL_MS = 2000
 
 _FALLBACK_VIEWPORT_WIDTH_PX = 1920
 _FALLBACK_VIEWPORT_HEIGHT_PX = 1080
@@ -160,10 +197,19 @@ class _LayoutViewport(Gtk.Fixed):
 
     The fade exists because the rows are taller than the screen whenever
     there are more than about three of them, and a row sliced off by a hard
-    clip edge — especially under the status bar, where it collides with the
-    clock — reads as a rendering fault. Masking the *rows* rather than
+    clip edge reads as a rendering fault. Masking the *rows* rather than
     painting a scrim over them keeps the backdrop's ambient glow intact
-    underneath.
+    underneath. Each end is faded by however much is actually overhanging
+    it, so an end with nothing past it is not faded at all — a constant ramp
+    at the top dimmed the first row's heading permanently.
+
+    It used to be doing a second job as well, and no longer is. The fades
+    were the width of the two bars — the status strip and the detail strip —
+    because this viewport spanned the whole window and rows really did pass
+    behind the clock; dimming them was what kept the clock readable. The
+    viewport is now inset to the gap between the bars instead
+    (`HomeView._apply_viewport_insets`), so nothing overlaps them at all and
+    what is left here is a short softening of the band's own edges.
     """
 
     def __init__(self) -> None:
@@ -219,13 +265,25 @@ class _AxisSpring:
     never mutated in place.
     """
 
-    def __init__(self, viewport: Gtk.Fixed, child: Gtk.Widget, *, vertical: bool) -> None:
+    def __init__(
+        self,
+        viewport: Gtk.Fixed,
+        child: Gtk.Widget,
+        *,
+        vertical: bool,
+        on_value: Callable[[float], None] | None = None,
+    ) -> None:
         self._viewport = viewport
         self._child = child
         self._vertical = vertical
         self._value = 0.0
         self._resting = 0.0
         self._animations_enabled = True
+        # Called on every frame of the animation, not just when it settles:
+        # the band's edge fades are a function of how far the content has
+        # actually moved, and reading the target instead would snap them to
+        # full strength while the rows were still travelling.
+        self._on_value = on_value
 
         params = Adw.SpringParams.new(SPRING_DAMPING_RATIO, SPRING_MASS, SPRING_STIFFNESS)
         target = Adw.CallbackAnimationTarget.new(self._on_tick)
@@ -239,10 +297,16 @@ class _AxisSpring:
     def set_animations_enabled(self, enabled: bool) -> None:
         self._animations_enabled = enabled
 
+    @property
+    def value(self) -> float:
+        return self._value
+
     def _on_tick(self, value: float) -> None:
         self._value = value
         dx, dy = (0.0, value) if self._vertical else (value, 0.0)
         self._viewport.set_child_transform(self._child, _translate(dx, dy))
+        if self._on_value is not None:
+            self._on_value(value)
 
     def animate_to(self, target_value: float) -> None:
         self._resting = target_value
@@ -481,7 +545,19 @@ class HomeView(Gtk.Box):
 
         self._viewport = _LayoutViewport()
         self._viewport.set_overflow(Gtk.Overflow.HIDDEN)
-        self._viewport_host = SizeReporter(self._viewport, self._on_viewport_resized)
+        # propagate_minimum=False, for the third time in this project and the
+        # last place that was missing it: a Gtk.Fixed measures to fit its
+        # children, so a band around four rows of tiles asks to be taller
+        # than the window and an overlay child is granted exactly that. The
+        # margins in `_apply_viewport_insets` were being applied to a widget
+        # that then overhung the screen anyway, which is why tiles were
+        # drawn across the detail strip, why the band's bottom fade landed
+        # off-screen, and why `_viewport_height` was the *content's* height
+        # — so `_row_anchor_y` concluded everything fitted and the home
+        # screen stopped scrolling altogether.
+        self._viewport_host = SizeReporter(
+            self._viewport, self._on_viewport_resized, propagate_minimum=False
+        )
         self._viewport_host.set_hexpand(True)
         self._viewport_host.set_vexpand(True)
         self._overlay.add_overlay(self._viewport_host)
@@ -491,7 +567,44 @@ class HomeView(Gtk.Box):
         # box's non-negative spacing can't express an overlap.
         self._rows_content = Gtk.Fixed()
         self._viewport.put(self._rows_content, 0, 0)
-        self._row_anchor = _AxisSpring(self._viewport, self._rows_content, vertical=True)
+        self._row_anchor = _AxisSpring(
+            self._viewport,
+            self._rows_content,
+            vertical=True,
+            on_value=lambda _value: self._update_edge_fades(),
+        )
+
+        # One server, one port, one code for the whole application: the
+        # phone remote and an open text field can both want the phone at
+        # once. Actions arrive as if from any other input source, which is
+        # the whole reason the vocabulary exists.
+        #
+        # Built before the overlay children rather than beside the rest of
+        # the phone state below, because the corner pairing card reads it
+        # and has to go into the overlay under the screensaver.
+        self._pairing = PairingServer(
+            on_action=self._on_phone_action,
+            on_pointer=self._on_phone_pointer,
+            on_click=self._on_phone_click,
+            on_locked=self._on_phone_locked,
+            on_launch=self._on_phone_launch,
+            on_transport=self._on_phone_transport,
+            art_for=self._art_for_phone,
+            pointer_ready=lambda: self._pointer.ready,
+            on_remote_text=self._type_remotely,
+            on_search=self._search_for_phone,
+            on_tile_action=self._on_phone_tile_action,
+            on_volume=self._on_phone_volume,
+            on_mute=self._on_phone_mute,
+            on_scroll=self._on_phone_scroll,
+            on_scroll_end=self._on_phone_scroll_end,
+            on_button=self._on_phone_button,
+        )
+
+        # Two corners, not one strip: what the machine is on the left, what
+        # the user can press on the right. See ui/statusbar.py.
+        self._status_info = StatusInfo(self._scale)
+        self._overlay.add_overlay(self._status_info)
 
         self._status_bar = StatusBar(
             self._scale,
@@ -510,6 +623,16 @@ class HomeView(Gtk.Box):
         # row stack's bottom inset, so rows never scroll underneath it.
         self._detail_bar = DetailBar(self._scale)
         self._overlay.add_overlay(self._detail_bar)
+
+        # The standing pairing code, bottom right. Only ever on screen when
+        # there is neither a controller nor a phone — see _update_remote_hint
+        # and ui/remotehint.py. Added here so every full-bleed overlay above
+        # (search, the grid, Settings, both menus) covers it.
+        self._gamepad_count = 0
+        self._remote_hint = RemoteHint(
+            self._scale, self._pairing, on_open=self._open_phone_pairing
+        )
+        self._overlay.add_overlay(self._remote_hint)
 
         # What is playing, wherever it is playing. Takes the detail strip
         # while it has something to say, and gives the remote's transport
@@ -544,26 +667,23 @@ class HomeView(Gtk.Box):
             on_fetched=self._rebuild_row_widgets,
         )
 
-        # One server, one port, one code for the whole application: the
-        # phone remote and an open text field can both want the phone at
-        # once. Actions arrive as if from any other input source, which is
-        # the whole reason the vocabulary exists.
-        self._pairing = PairingServer(
-            on_action=self._on_phone_action,
-            on_pointer=self._on_phone_pointer,
-            on_click=self._on_phone_click,
-            on_locked=self._on_phone_locked,
-            on_launch=self._on_phone_launch,
-            on_transport=self._on_phone_transport,
-            art_for=self._art_for_phone,
-            pointer_ready=lambda: self._pointer.ready,
-            on_remote_text=self._type_remotely,
-        )
         # What the phone draws, kept in step with what is on the television.
         # Rebuilt with the row widgets — which is also when artwork arrives,
         # so a poster that finishes downloading shows up on the phone too —
         # and republished whenever the cursor or the player moves.
         self._remote_rows: tuple[RemoteRow, ...] = ()
+        # Every installed application, for the phone's search. Scanned once
+        # on a worker thread when the remote starts rather than per query:
+        # `/search` answers on the main loop, so the one thing it must not
+        # do is touch the disk. Empty until the scan lands, which costs the
+        # first search or two its installed-app half and nothing else.
+        self._phone_apps: list[Tile] = []
+        self._phone_apps_scanned = False
+        # What the volume slider on the phone shows. Read from the sink
+        # asynchronously, so the snapshot carries the last known value
+        # rather than blocking a publish on PulseAudio.
+        self._phone_volume = -1.0
+        self._phone_muted = False
         self._current_player: nowplaying.Player | None = None
 
         self._search = SearchOverlay(
@@ -608,6 +728,7 @@ class HomeView(Gtk.Box):
             phone_remote_running=self.phone_remote_running,
             set_phone_remote=self.set_phone_remote,
             phone_remote_hint=self.phone_remote_hint,
+            pointer_backend=lambda: self._pointer.backend,
             bindings=self.bindings,
             capture_binding=self.begin_binding_capture,
             cancel_capture=self.cancel_binding_capture,
@@ -652,6 +773,30 @@ class HomeView(Gtk.Box):
         self._onboarding = Onboarding(self._scale, self._finish_onboarding)
         self._overlay.add_overlay(self._onboarding)
 
+        # The way back from a launched application, and the one transition
+        # nothing else can supply: GNOME Kiosk's compositor has no destroy
+        # animation at all, so without this a closing child leaves Salon
+        # simply *there*, mid-frame, with the compositor's black behind it.
+        # Under Shell it is a second animation over the Shell's own, which
+        # is why it is a fade rather than anything with a direction.
+        # Set before the first tiles are built, because a TileWidget reads
+        # the shared spring once at construction. A speed changed later only
+        # reaches existing tiles through the rebuild that
+        # `_apply_animation_setting` forces for exactly that reason.
+        motion.set_animation_speed(self._settings.get_double("animation-scale"))
+        self._return_fade = motion.FadeIn(self._overlay, motion.RETURN_FADE_MS)
+        # Every surface that opens over the home screen. Collected so the
+        # reduced-motion decision reaches all of them in one pass.
+        self._faded_surfaces: tuple[motion.Fadable, ...] = (
+            self._search,
+            self._apps_grid,
+            self._settings_screen,
+            self._system_menu,
+            self._tile_menu,
+            self._phone_pairing,
+            self._launching_overlay,
+        )
+
         # Starts empty and fills in when the providers answer — usually
         # within a frame or two, and never blocking startup on one of them.
         self._catalog = Catalog([])
@@ -694,9 +839,9 @@ class HomeView(Gtk.Box):
         )
         scroll.connect("scroll", self._on_scroll)
         self.add_controller(scroll)
-        motion = Gtk.EventControllerMotion()
-        motion.connect("motion", self._on_pointer_motion)
-        self.add_controller(motion)
+        pointer_motion = Gtk.EventControllerMotion()
+        pointer_motion.connect("motion", self._on_pointer_motion)
+        self.add_controller(pointer_motion)
         self._last_pointer_xy: tuple[float, float] | None = None
         # Cursor stays hidden until the mouse actually moves: a TV launcher
         # that boots with an arrow parked in the middle of the screen looks
@@ -705,6 +850,9 @@ class HomeView(Gtk.Box):
 
         self._pointer_mode = False
         self._child_active = False
+        # A tile the phone asked for while another app was still in front;
+        # started once that one has gone. See _launch_tile.
+        self._pending_launch: Tile | None = None
         self._current_launch_is_browser = False
         self._pointer = PointerInjector(
             on_ready=self._on_pointer_ready,
@@ -714,6 +862,7 @@ class HomeView(Gtk.Box):
             save_restore_token=lambda token: self._settings.set_string(
                 "remote-desktop-restore-token", token
             ),
+            backend=self._settings.get_string("input-injection"),
         )
 
         self._launcher = LauncherService(
@@ -735,7 +884,9 @@ class HomeView(Gtk.Box):
             on_action_release=self._stop_repeat,
             bindings=self._bindings,
             on_raw=lambda code: self._on_raw_input(GAMEPAD, code),
+            on_devices_changed=self._on_gamepads_changed,
         )
+        self._gamepad_count = self._gamepad.device_count
 
         # The TV's own remote, over HDMI-CEC. Same reference-keeping reason:
         # the source owns the cec-client subprocess and its stream reader.
@@ -773,9 +924,12 @@ class HomeView(Gtk.Box):
             settings.connect(
                 "notify::gtk-enable-animations", lambda *_: self._apply_animation_setting()
             )
-        self._settings.connect(
-            "changed::reduced-motion", lambda *_: self._apply_animation_setting()
-        )
+        for key in ("reduced-motion", "animation-scale"):
+            self._settings.connect(f"changed::{key}", lambda *_: self._apply_animation_setting())
+        # Once at startup as well as on every change: reduced motion is a
+        # setting that is already true when Salon opens, and nothing else
+        # hands it to the tiles, the springs or the surfaces' fades.
+        self._apply_animation_setting()
         for key in ("tile-scale", "row-spacing-scale", "safe-area-percent"):
             self._settings.connect(f"changed::{key}", lambda *_: self._apply_layout_settings())
         for key in ("key-repeat-initial-ms", "key-repeat-interval-ms"):
@@ -792,6 +946,55 @@ class HomeView(Gtk.Box):
         audio.set_volume_step(self._settings.get_int("volume-step-percent"))
         self._apply_preferred_sink()
 
+        self._settings.connect("changed::remote-hint", lambda *_: self._update_remote_hint())
+        self._update_remote_hint()
+        GLib.timeout_add(_HINT_POLL_MS, self._poll_remote_hint)
+
+    # --- the standing pairing code ---------------------------------------
+
+    def _on_gamepads_changed(self, count: int) -> None:
+        self._gamepad_count = count
+        self._update_remote_hint()
+
+    def _poll_remote_hint(self) -> bool:
+        """`PairingServer.connected` is a time window, so nothing signals
+        its expiry — a phone that closes the page just stops talking."""
+        self._update_remote_hint()
+        return bool(GLib.SOURCE_CONTINUE)
+
+    def _update_remote_hint(self) -> None:
+        """Decide whether the corner card is on screen, and keep the pairing
+        server up for as long as it is.
+
+        The rule is "does the user have anything to press with": a pad
+        plugged in, or a phone that spoke to us in the last few seconds.
+        With neither, the card is the only way to get an input device onto
+        this machine that does not already require one.
+
+        The hold is dropped a beat late on purpose. `release()` stops the
+        server outright once the last holder lets go, so letting go the
+        instant a phone connects would tear down the session that phone just
+        opened. The card hides immediately; the hold goes when there is no
+        longer a phone to lose.
+        """
+        wanted = self._settings.get_boolean("remote-hint") and self._gamepad_count == 0
+        if wanted:
+            if not self._pairing.holds(_HINT_HOLDER):
+                self._start_remote(_HINT_HOLDER, take_pointer=False)
+        elif self._pairing.holds(_HINT_HOLDER) and not self._pairing.connected:
+            self._pairing.release(_HINT_HOLDER)
+        if (
+            self._pairing.connected
+            and self._pairing.holds(_HINT_HOLDER)
+            and self._settings.get_boolean("gamepad-pointer")
+            and not self._pointer.ready
+        ):
+            # A phone answered the card. Now the trackpad is a thing someone
+            # is about to use, so the grant is worth asking for.
+            self._start_pointer_session()
+        visible = wanted and not self._pairing.connected and self._remote_hint.refresh()
+        self._remote_hint.set_visible(visible)
+
     # --- scale / geometry -------------------------------------------------
 
     @property
@@ -800,6 +1003,11 @@ class HomeView(Gtk.Box):
         override. When off, focus changes are instant — the tile's ring and
         bloom carry the indication instead of the motion."""
         if self._settings.get_boolean("reduced-motion"):
+            return False
+        # "Animation speed: Off" is the third way to say the same thing, and
+        # it has to be answered here rather than only inside `motion` — the
+        # springs and fades ask this property, not the speed.
+        if not motion.enabled():
             return False
         settings = Gtk.Settings.get_default()
         if settings is None:
@@ -844,7 +1052,14 @@ class HomeView(Gtk.Box):
             tops.append(y)
             y += self._heading_height + self._heading_gap + row.metrics.height + self._row_gap
         self._row_tops = tops
-        self._content_height_px = max(0.0, y - self._row_gap)
+        trailing = self._rows[-1].metrics.bleed if self._rows else 0.0
+        # The last row's bleed counts as content. It is the room the tile
+        # needs for the focus growth and the bloom, and a scroll limit that
+        # stopped at the card's own bottom edge put both of them past the end
+        # of the band: the focused tile in the last row had its ring sliced
+        # off by the clip, which is exactly the rendering fault the edge fade
+        # exists to avoid.
+        self._content_height_px = max(0.0, y - self._row_gap + trailing)
 
     def _row_top(self, row_index: int) -> float:
         if 0 <= row_index < len(self._row_tops):
@@ -865,6 +1080,8 @@ class HomeView(Gtk.Box):
     def _on_scale_changed(self, scale: Scale) -> None:
         self._scale = scale
         self._apply_metrics()
+        self._status_info.set_scale(scale)
+        self._remote_hint.set_scale(scale)
         self._status_bar.set_scale(scale)
         self._detail_bar.set_scale(scale)
         self._launching_overlay.set_scale(scale)
@@ -934,10 +1151,17 @@ class HomeView(Gtk.Box):
                 widget.queue_draw()
 
     def _apply_animation_setting(self) -> None:
+        # The speed goes first: `_animations_enabled` asks the motion module
+        # whether the dial is at zero, so reading it before this line would
+        # answer for the previous value.
+        motion.set_animation_speed(self._settings.get_double("animation-scale"))
         enabled = self._animations_enabled
         self._row_anchor.set_animations_enabled(enabled)
         for row in self._rows:
             row.scroller.set_animations_enabled(enabled)
+        self._return_fade.set_enabled(enabled)
+        for surface in self._faded_surfaces:
+            surface.set_fade_enabled(enabled)
         self._rebuild_row_widgets()
 
     # --- config / catalog -----------------------------------------------
@@ -1115,19 +1339,12 @@ class HomeView(Gtk.Box):
                 # phone-sized card, so it counts as no artwork and the
                 # accent card is drawn instead — the same judgement the
                 # television makes at level 5.
-                remote_tiles.append(
-                    RemoteTile(
-                        id=tile.id,
-                        title=tile.title,
-                        subtitle=tile.subtitle,
-                        accent=to_hex(artwork.accent),
-                        has_art=artwork.level <= 4 and not artwork.icon_is_symbolic,
-                        # Level 1 is a real image and fills the card; levels
-                        # 3 and 4 are icons and are drawn small on the
-                        # accent, exactly as ui/tile.py draws them.
-                        fit="cover" if artwork.level == 1 else "contain",
-                    )
-                )
+                # Levels: 1 is a real image and fills the card; 3 and 4 are
+                # icons drawn small on the accent, exactly as ui/tile.py
+                # draws them. Built by the same helper the phone's search
+                # results go through, so a result and a home-screen tile are
+                # the same card rather than two that drift apart.
+                remote_tiles.append(self._remote_tile_from(tile, artwork))
                 widget = TileWidget(
                     tile, artwork, metrics, self._scale, animations_enabled=animations
                 )
@@ -1178,27 +1395,66 @@ class HomeView(Gtk.Box):
                 row.viewport, 0.0, self._row_tile_top(index) - row.metrics.bleed
             )
         self._rows_content.set_size_request(width, max(1, round(self._content_height())))
-        # The top fade has to cover the whole band the status bar occupies,
-        # not just the bar's own height: the bar is inset from the screen
-        # edge by the safe margin, and a row scrolling up past it used to
-        # stay fully opaque until it was level with the clock — tiles and a
-        # clock at the same brightness, overlapping. The bottom fade covers
-        # the detail strip for the same reason.
-        self._viewport.set_fades(
-            self._safe_margin + self._status_height, self._bottom_inset()
-        )
+        self._apply_viewport_insets()
+        self._update_edge_fades()
+
+    def _update_edge_fades(self) -> None:
+        """Fade each band edge by as much as is actually hanging over it.
+
+        A constant fade at both ends is wrong at rest. The band's top is
+        exactly where the first row's heading sits when nothing is scrolled,
+        so a permanent 40du ramp there dimmed "Favourites" — and only
+        "Favourites" — for the whole life of the screen, with no row passing
+        under it to justify the softening. The fade exists so a row *leaving*
+        the band isn't sliced by a hard clip edge; when nothing is leaving,
+        there is nothing to soften.
+
+        So each end fades by min(overflow, 40du): zero when the content ends
+        inside the band, ramping in over the first few pixels of travel and
+        capping at the full ramp once a row is genuinely passing under a bar.
+        """
+        fade = self._scale.du(_EDGE_FADE_DU)
+        band_height = float(self._viewport_height or _FALLBACK_VIEWPORT_HEIGHT_PX)
+        offset = self._row_anchor.value
+        above = max(0.0, -offset)
+        below = max(0.0, self._content_height() + offset - band_height)
+        self._viewport.set_fades(min(fade, above), min(fade, below))
+
+    def _apply_viewport_insets(self) -> None:
+        """Shrink the scrolling band to the gap between the two bars.
+
+        The top bar and the detail strip are the two places on this screen
+        that *report* — the time, the network, what the cursor is on and
+        what OK will do with it — and a row of artwork sliding underneath
+        text is unreadable in both directions. This used to be a fade: the
+        band covered the whole window and its top and bottom were masked out
+        over exactly the bands the bars occupy. That kept them legible and
+        still put half-transparent tiles behind them.
+
+        Margins on the viewport host instead, so the clip really happens at
+        the bars' edges and no tile pixel is ever drawn in either strip.
+        `Gtk.Overflow.HIDDEN` on the viewport does the rest.
+
+        Set here rather than in `_apply_metrics` because the bottom inset is
+        *measured* off the detail strip, which changes height with its own
+        contents. Assigning an unchanged margin is a no-op in GTK, so the
+        steady state costs nothing and this cannot drive a resize loop even
+        though `_layout_rows` runs from inside an allocation.
+        """
+        self._viewport_host.set_margin_top(round(self._top_inset()))
+        self._viewport_host.set_margin_bottom(round(self._bottom_inset()))
 
     def _attach_pointer(self, widget: TileWidget, row: int, col: int) -> None:
         click = Gtk.GestureClick()
         click.connect("released", lambda *_: self._on_tile_clicked(row, col))
         widget.add_controller(click)
 
-        motion = Gtk.EventControllerMotion()
+        hover = Gtk.EventControllerMotion()
         # `motion`, not `enter`: focus should follow a pointer the user is
         # actually moving, not jump because a row scrolled a different tile
         # under a stationary cursor.
-        motion.connect("motion", lambda *_: self._on_tile_hovered(row, col))
-        widget.add_controller(motion)
+        hover.connect("motion", lambda *_: self._on_tile_hovered(row, col))
+        widget.add_controller(hover)
 
     def _on_tile_clicked(self, row: int, col: int) -> None:
         if self._system_menu.get_visible() or self._launcher.is_launching:
@@ -1300,8 +1556,26 @@ class HomeView(Gtk.Box):
                 repeat_delay_ms=round(timing.initial_delay * 1000),
                 repeat_interval_ms=round(timing.interval * 1000),
                 accent=self._settings.get_string("accent-color") or "#E8A33D",
+                # Named separately from `screen`, which carries the same
+                # string but as one of six reserved words. The page hides
+                # half its own controls on this, so it cannot be guessing.
+                app=self._app_in_front(),
+                volume=self._phone_volume,
+                muted=self._phone_muted,
             )
         )
+
+    def _app_in_front(self) -> str:
+        """The title of the application covering the television, or "".
+
+        Same test `_current_screen` makes, named on its own because the
+        phone reshapes itself around the answer: with an app up, the D-pad
+        and Search do nothing at all, and only the trackpad, the volume and
+        Menu still mean something.
+        """
+        if self._child_active or self._pointer_mode or self._launcher.has_child:
+            return self._launcher.child_title or "an app"
+        return ""
 
     def _current_screen(self) -> str:
         """Which screen is in front, for the phone's title bar.
@@ -1379,6 +1653,24 @@ class HomeView(Gtk.Box):
         target = self._row_scroll_x(row, col)
         row.scroller.animate_to(target) if animate else row.scroller.jump_to(target)
 
+    def _top_inset(self) -> float:
+        """How much of the top of the screen the rows may not use.
+
+        Measured off the two status widgets rather than taken from
+        STATUS_BAR_HEIGHT_DU, for the same reason `_bottom_inset` is
+        measured: both carry their own safe-area top margin and both scale
+        with the du pipeline, and the token is a design figure rather than
+        what the widgets actually ask for. The larger of the two, because
+        they are side by side — the buttons are taller than the clock.
+        """
+        natural = max(
+            self._status_info.get_preferred_size()[1].height,
+            self._status_bar.get_preferred_size()[1].height,
+        )
+        if natural > 0:
+            return float(natural)
+        return self._safe_margin + self._status_height
+
     def _bottom_inset(self) -> float:
         """How much of the bottom of the screen the rows may not use.
 
@@ -1397,33 +1689,41 @@ class HomeView(Gtk.Box):
         """The focused row holds a fixed vertical anchor (§6.1), clamped at
         both ends of the content.
 
-        The top clamp keeps a catalogue shorter than the screen sitting
-        under the status bar rather than floating in the middle of dead
-        space. The bottom clamp stops the stack scrolling past its own end.
+        In **band** coordinates: the scrolling viewport no longer spans the
+        window, it spans the gap between the top bar and the detail strip
+        (`_apply_viewport_insets`), so 0 here is the top of that gap and not
+        the top of the screen. The anchor line itself is still measured on
+        the *window*, because 38% of a television is a design figure about
+        where a human looks and not about where this widget happens to
+        start — hence the `- top_inset` converting it back.
+
+        The top clamp keeps a catalogue shorter than the band sitting at the
+        top of it rather than floating in the middle of dead space. The
+        bottom clamp stops the stack scrolling past its own end.
 
         That bottom clamp was removed once, because it left barely 90px of
         travel on a four-row 1080p screen and parked the last row under the
         fold with its tiles half off. The diagnosis was right and the cure
         was wrong: the fault was a limit that ignored the insets, not the
-        existence of a limit. Computed properly — the content's *bottom*
-        coming to rest on the bottom inset — the last row lands fully
+        existence of a limit. Computed properly the last row lands fully
         visible with the detail strip beneath it, and the case the removal
         caused goes away too: with three rows and the cursor on the last of
         them, an unclamped anchor scrolled 409px into empty space and left
         sixty per cent of a television blank.
         """
-        viewport_height = self._viewport_height or _FALLBACK_VIEWPORT_HEIGHT_PX
-        top_inset = self._status_height + self._safe_margin
-        bottom_inset = self._bottom_inset()
+        band_height = self._viewport_height or _FALLBACK_VIEWPORT_HEIGHT_PX
+        top_inset = self._top_inset()
+        window_height = band_height + top_inset + self._bottom_inset()
         content_height = self._content_height()
 
-        if content_height <= viewport_height - top_inset - bottom_inset:
-            return top_inset
+        if content_height <= band_height:
+            return 0.0
 
         focused_center = self._row_tile_top(self._focus.row) + self._focused_tile_height() / 2.0
-        desired = viewport_height * tokens.ROW_ANCHOR_FRACTION - focused_center
-        lowest = viewport_height - bottom_inset - content_height
-        return min(top_inset, max(lowest, desired))
+        anchor_line = window_height * tokens.ROW_ANCHOR_FRACTION - top_inset
+        desired = anchor_line - focused_center
+        lowest = band_height - content_height
+        return min(0.0, max(lowest, desired))
 
     def _update_row_anchor(self, *, animate: bool) -> None:
         target = self._row_anchor_y()
@@ -1868,6 +2168,172 @@ class HomeView(Gtk.Box):
         self._update_focus()
         self._launch_tile(tile)
 
+    def _search_for_phone(self, query: str) -> list[RemoteTile]:
+        """Rank the catalogue and every installed app for the phone.
+
+        Answers on the main loop, inside the HTTP handler, so it must not
+        touch the disk — the installed-app list is the one scanned when the
+        remote started. Empty query returns the catalogue, exactly as the
+        television's search screen does: someone who opened search wants to
+        go somewhere, and a blank page makes them type before it will admit
+        anything exists.
+
+        `ranking.rank_best` is the same call the television makes, which is
+        the point: two search surfaces that ordered results differently
+        would be two things to learn.
+        """
+        catalogue = self._searchable_tiles()
+        text = query.strip()
+        if not text:
+            chosen = catalogue[:_PHONE_SEARCH_RESULTS]
+        else:
+            by_id = {tile.id: tile for tile in (*catalogue, *self._phone_apps)}
+            pairs = appinfo.search_pairs(catalogue) + appinfo.search_pairs(self._phone_apps)
+            chosen = [
+                by_id[tile_id]
+                for tile_id in ranking.rank_best(text, pairs, _PHONE_SEARCH_RESULTS)
+            ]
+        return [self._remote_tile(tile) for tile in chosen]
+
+    def _remote_tile(self, tile: Tile) -> RemoteTile:
+        """One tile in the shape the phone draws, artwork and all.
+
+        Shared with the catalogue snapshot's own construction so a search
+        result and a home-screen tile are the same card with the same
+        image — a result that rendered as a bare coloured rectangle would
+        read as a different, lesser kind of thing.
+        """
+        return self._remote_tile_from(
+            tile, self._artwork.resolve(tile, icon_size=_PHONE_ICON_SIZE_PX)
+        )
+
+    def _remote_tile_from(self, tile: Tile, artwork: Artwork) -> RemoteTile:
+        return RemoteTile(
+            id=tile.id,
+            title=tile.title,
+            subtitle=tile.subtitle,
+            accent=to_hex(artwork.accent),
+            has_art=artwork.level <= 4 and not artwork.icon_is_symbolic,
+            fit="cover" if artwork.level == 1 else "contain",
+            pinned=favourites.is_favourite(self._settings, tile.id),
+            removable=self._locate_in_config(tile.id) is not None,
+        )
+
+    def _scan_apps_for_phone(self) -> None:
+        """The installed-app list the phone's search ranks against.
+
+        Once, when the remote first starts, and never on the request path.
+        Scanning every `.desktop` file on the system takes long enough that
+        doing it inside `/search` would stall the frame clock on every
+        keystroke somebody types on their phone.
+        """
+        if self._phone_apps_scanned:
+            return
+        self._phone_apps_scanned = True
+
+        def scanned(tiles: list[Tile]) -> None:
+            self._phone_apps = tiles
+
+        appinfo.list_installed_async(scanned)
+
+    def _phone_tile(self, tile_id: str) -> Tile | None:
+        """The catalogue tile behind an id from the phone, or the installed
+        app if it is one of those — a search result can be either."""
+        position = self._catalog.find(tile_id)
+        if position is not None:
+            return self._catalog.tile_at(*position)
+        return next((tile for tile in self._phone_apps if tile.id == tile_id), None)
+
+    def _on_phone_tile_action(self, tile_id: str, what: str) -> str:
+        """The phone's long-press menu. Returns what to tell the phone.
+
+        Every one of these already exists behind `Action.OPTIONS` on the
+        television; this is the same set reached from the one surface that
+        shows every tile at once. `edit` opens the television's own editor
+        rather than reimplementing a form with eight fields on a phone —
+        and says so, because a screen changing over there with no
+        acknowledgement in your hand is indistinguishable from a dead
+        button.
+        """
+        tile = self._phone_tile(tile_id)
+        if tile is None:
+            return "That isn't on the television any more."
+        if what in ("pin", "unpin"):
+            pinned = favourites.is_favourite(self._settings, tile_id)
+            if (what == "pin") == pinned:
+                return f"{tile.title} is already {'pinned' if pinned else 'unpinned'}."
+            favourites.toggle_favourite(self._settings, tile_id)
+            self._refresh_catalog(preserve_focus=True)
+            return f"{tile.title} {'pinned to' if what == 'pin' else 'removed from'} Favourites"
+        located = self._locate_in_config(tile_id)
+        if located is None:
+            # Recents, Favourites and the apps grid all produce tiles that
+            # no row in tiles.json contains; there is nothing to edit or
+            # delete, and saying so beats a button that quietly fails.
+            return f"{tile.title} isn't one of your own tiles, so it can't be changed."
+        row_id, located_id = located
+        if what == "edit":
+            self._settings_screen_open_tile(row_id, located_id)
+            return f"Editing {tile.title} on the television."
+        if editing.remove_tile(self._config, row_id, located_id):
+            self._save_config()
+            return f"{tile.title} removed."
+        return f"{tile.title} couldn't be removed."
+
+    def _on_phone_volume(self, level: float) -> None:
+        """The slider. Absolute, and the OSD comes up on the television too
+        — someone else in the room should see why it got quieter."""
+        self.wake()
+        audio.set_volume(level, lambda: audio.get_volume(self._on_volume_read))
+
+    def _on_phone_mute(self) -> None:
+        self.wake()
+        audio.toggle_mute(lambda: audio.get_volume(self._on_volume_read))
+
+    def _on_volume_read(self, level: float, muted: bool) -> None:
+        self._osd.show_volume(level, muted)
+        self._phone_volume = level
+        self._phone_muted = muted
+        self._publish_remote_state()
+
+    def _refresh_phone_volume(self) -> None:
+        """Read the sink so the phone's slider starts in the right place."""
+        audio.get_volume(self._on_volume_read)
+
+    def _on_phone_scroll(self, dx: float, dy: float) -> None:
+        """Two fingers on the trackpad. Straight through to the same
+        RemoteDesktop session the one-finger drag uses."""
+        if not self._pointer.ready:
+            return
+        self._set_pointer_visible(True)
+        self.wake()
+        self._pointer.scroll(dx, dy)
+
+    def _on_phone_scroll_end(self) -> None:
+        if self._pointer.ready:
+            self._pointer.scroll_finish()
+
+    def _on_phone_button(self, button: str, what: str) -> None:
+        """A named mouse button, clicked or held.
+
+        Held is what a double-tap-and-drag needs: a click that releases
+        itself 50ms later cannot move a window or select a line of text,
+        and those are the two things a trackpad is for that a D-pad is not.
+        """
+        if not self._pointer.ready:
+            return
+        code = pointer_injector.BUTTONS.get(button)
+        if code is None:
+            return
+        self._set_pointer_visible(True)
+        self.wake()
+        if what == "click":
+            self._pointer.click(code)
+        elif what == "down":
+            self._pointer.press(code)
+        else:
+            self._pointer.release(code)
+
     def _on_phone_transport(self, what: str) -> bool:
         """Play/pause, next track, previous track, for the player the phone
         can see. Not routed through `Action`: see the comment on the page's
@@ -1883,10 +2349,15 @@ class HomeView(Gtk.Box):
         return done
 
     def _art_for_phone(self, tile_id: str) -> Path | None:
-        position = self._catalog.find(tile_id)
-        if position is None:
-            return None
-        tile = self._catalog.tile_at(*position)
+        """The image file behind a tile the phone is drawing.
+
+        Through `_phone_tile`, so it covers a search result as well as
+        something on the home screen. Looking only in the catalogue — which
+        is what this did — meant every installed application in a result
+        list reported artwork it could not then serve, and the card fell
+        back to a coloured letter after a 404 per tile.
+        """
+        tile = self._phone_tile(tile_id)
         return None if tile is None else self._artwork.artwork_file(tile)
 
     def _on_phone_locked(self) -> None:
@@ -1900,6 +2371,11 @@ class HomeView(Gtk.Box):
 
     def phone_remote_hint(self) -> str:
         if not self.phone_remote_running():
+            # The server can still be up: the corner pairing card holds it
+            # too, and saying "Off" over a code that is on screen right now
+            # is the kind of small lie that makes a settings screen useless.
+            if self._pairing.holds(_HINT_HOLDER):
+                return "Off — but running while the corner pairing code is showing"
             return "Off"
         if self._pairing.locked:
             return "Locked — too many wrong codes. Turn it off and on again."
@@ -1917,8 +2393,31 @@ class HomeView(Gtk.Box):
         if not enabled:
             self._pairing.release(_REMOTE_HOLDER)
             return True
-        started = self._pairing.acquire(_REMOTE_HOLDER)
+        return self._start_remote(_REMOTE_HOLDER)
+
+    def _start_remote(self, holder: str, *, take_pointer: bool = True) -> bool:
+        """Start the server on behalf of `holder` *and* fill in everything a
+        phone needs to be useful the moment it connects.
+
+        Taken out of `set_phone_remote` when the corner pairing card became
+        a second reason to start it: a phone that scanned the card's code
+        arrived at an empty catalogue and a volume slider reading nothing,
+        because the setup below only ran on the Settings toggle's path.
+
+        `take_pointer` is what the two paths do *not* share. Asking the
+        portal for a remote-control grant puts a permission dialog on screen
+        the first time, and that is fair when the user has just switched the
+        remote on and unreasonable when Salon started it by itself because
+        nothing was plugged in. The card's session takes the pointer when a
+        phone actually turns up instead — see `_update_remote_hint`.
+        """
+        started = self._pairing.acquire(holder)
         if started:
+            # The two things the phone needs that Salon does not otherwise
+            # keep to hand: the installed-app list its search ranks against,
+            # and where the volume actually is.
+            self._scan_apps_for_phone()
+            self._refresh_phone_volume()
             # The first snapshot, so a phone that connects immediately has
             # something to draw rather than an empty catalogue until the
             # cursor next moves.
@@ -1931,7 +2430,11 @@ class HomeView(Gtk.Box):
             # is its own reason to ask. Still gated on the same consent
             # setting: this is the user saying whether Salon may move the
             # system pointer at all.
-            if self._settings.get_boolean("gamepad-pointer") and not self._pointer.ready:
+            if (
+                take_pointer
+                and self._settings.get_boolean("gamepad-pointer")
+                and not self._pointer.ready
+            ):
                 self._start_pointer_session()
         return started
 
@@ -1992,11 +2495,23 @@ class HomeView(Gtk.Box):
             # Salon on a fullscreen, keyboard-less kiosk, so it must never
             # be one of the things a stuck launch or an active pointer
             # session can swallow.
-            if self._child_active or self._pointer_mode:
+            if self._child_active or self._pointer_mode or self._launcher.has_child:
                 # ...and while something else is in front of Salon it means
                 # "bring me home", because a menu drawn in Salon's own
                 # window would appear underneath Netflix where nobody can
                 # see it. See _return_from_child.
+                #
+                # `has_child` is asked as well as the two mode flags, and it
+                # is the one that makes MENU *reliable*. Those flags are set
+                # from `on_child_focused`, which needs Salon's window to go
+                # from active to inactive — an edge that never happens when
+                # the window was already inactive at launch, which is what
+                # the phone does every time it opens a tile while another
+                # app is in front. Without this, MENU fell through to
+                # opening the system menu underneath the app: invisible,
+                # swallowing the next press to close itself again, and
+                # looking for all the world like a button that works every
+                # other time.
                 self._return_from_child()
                 return
             if self._text_entry.get_visible():
@@ -2060,16 +2575,62 @@ class HomeView(Gtk.Box):
             self._search.handle_action(action)
             return
 
-        if action is Action.SEARCH:
+        # Volume is the one group that is true whatever is on screen: it
+        # acts on the system's audio, not on a window, so it stays above
+        # the "something else is in front" guards below.
+        # `_on_volume_read` rather than the OSD directly: it shows the OSD
+        # *and* carries the new level to the phone, so a slider in someone's
+        # hand does not sit at the old position until they drag it.
+        if action is Action.VOLUME_UP:
+            audio.adjust_volume(1, lambda: audio.get_volume(self._on_volume_read))
+            return
+        if action is Action.VOLUME_DOWN:
+            audio.adjust_volume(-1, lambda: audio.get_volume(self._on_volume_read))
+            return
+        if action is Action.MUTE:
+            audio.toggle_mute(lambda: audio.get_volume(self._on_volume_read))
+            return
+
+        # Everything from here down draws or acts on Salon's own window, so
+        # the guards for "an app is covering it" come first. They used not
+        # to, and the three actions that sat above them all misfired from
+        # behind a launched app: SEARCH opened the search overlay where
+        # nobody could see it and then took every press, POWER opened the
+        # system menu the same way, and PLAY_PAUSE with nothing playing fell
+        # through to *launching the focused tile* on top of the app that was
+        # already running — which is also what left MENU with no child to
+        # close. The rule the MENU handler above states ("a menu drawn in
+        # Salon's own window would appear underneath Netflix") is this one.
+        if self._pointer_mode or self._child_active:
+            if action is Action.PLAY_PAUSE:
+                # The transport half only. The launch fallback below makes
+                # sense on an idle home screen and nowhere else.
+                if not self._now_playing.play_pause():
+                    self._toast("Nothing is playing.")
+                return
             if self._pointer_mode:
-                # While the gamepad is driving the system cursor over a
-                # browser window, Salon's own search is the wrong thing to
-                # open — the text field the user is aiming at belongs to
-                # Chrome, so SEARCH toggles GNOME's on-screen keyboard for
-                # it instead.
-                set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
-            else:
-                self._open_search()
+                if action is Action.SEARCH:
+                    # While the cursor is being driven over a browser
+                    # window, Salon's own search is the wrong thing to open
+                    # — the text field the user is aiming at belongs to
+                    # Chrome, so SEARCH toggles GNOME's on-screen keyboard
+                    # for it instead.
+                    set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+                elif action is Action.OK:
+                    self._pointer.click()
+                elif action is Action.BACK:
+                    self._pointer_mode = False
+                    self._toast("Cursor off. Press MENU to close the app and come back.")
+                return
+            # A native app (e.g. a game client) reads the same raw gamepad
+            # device directly — that input bypasses window focus entirely,
+            # unlike keyboard/mouse, so Salon has to deliberately go quiet
+            # rather than fight it for button presses. Resumes on exit, or
+            # on MENU, which is handled above.
+            return
+
+        if action is Action.SEARCH:
+            self._open_search()
             return
         if action is Action.PLAY_PAUSE:
             # Falls through to launching the focused tile when nothing is
@@ -2083,31 +2644,6 @@ class HomeView(Gtk.Box):
             # remote's power key is one press away from every other key on
             # it, and Salon cannot know whether it was meant for the TV.
             self._show_system_menu()
-            return
-        if action is Action.VOLUME_UP:
-            audio.adjust_volume(1, lambda: audio.get_volume(self._osd.show_volume))
-            return
-        if action is Action.VOLUME_DOWN:
-            audio.adjust_volume(-1, lambda: audio.get_volume(self._osd.show_volume))
-            return
-        if action is Action.MUTE:
-            audio.toggle_mute(lambda: audio.get_volume(self._osd.show_volume))
-            return
-
-        if self._pointer_mode:
-            if action is Action.OK:
-                self._pointer.click()
-            elif action is Action.BACK:
-                self._pointer_mode = False
-                self._toast("Cursor off. Press MENU to close the app and come back.")
-            return
-
-        if self._child_active:
-            # A native app (e.g. a game client) reads the same raw gamepad
-            # device directly — that input bypasses window focus entirely,
-            # unlike keyboard/mouse, so Salon has to deliberately go quiet
-            # rather than fight it for button presses. Resumes on exit, or
-            # on MENU, which is handled above.
             return
 
         if action is Action.BACK:
@@ -2216,9 +2752,18 @@ class HomeView(Gtk.Box):
         self._launcher.notify_window_active(is_active)
 
     def _open_search(self) -> None:
-        # Deduplicated by id: a tile that's also in Recents legitimately
-        # appears in the catalogue twice, and listing it twice in the
-        # results reads as a bug.
+        self._set_nav_focused(False)
+        self._search.open(self._searchable_tiles())
+
+    def _searchable_tiles(self) -> list[Tile]:
+        """Every catalogue tile, once.
+
+        Deduplicated by id: a tile that is also in Recents legitimately
+        appears in the catalogue twice, and listing it twice in the results
+        reads as a bug. Shared with the phone's `/search`, which searches
+        the same catalogue and would otherwise have its own copy of this to
+        get subtly different.
+        """
         seen: set[str] = set()
         tiles: list[Tile] = []
         for row in self._catalog.rows:
@@ -2226,8 +2771,7 @@ class HomeView(Gtk.Box):
                 if tile.id not in seen:
                     seen.add(tile.id)
                     tiles.append(tile)
-        self._set_nav_focused(False)
-        self._search.open(tiles)
+        return tiles
 
     def _open_apps(self) -> None:
         """The all-apps grid, from the top bar's grid button."""
@@ -2332,9 +2876,13 @@ class HomeView(Gtk.Box):
             return
         # No handle on it: a .desktop launch whose pid was a wrapper that
         # exited immediately (§11). Saying so beats a button that silently
-        # does nothing.
+        # does nothing — and the launcher is told to stop tracking it,
+        # because nothing will ever report that app going away and MENU
+        # would otherwise keep answering "I can't close that" long after the
+        # user closed it themselves.
         self._pointer_mode = False
         self._child_active = False
+        self._launcher.abandon()
         self._toast(f"Salon can't close {title} — use the app's own way out.")
 
     def _launch_focused(self) -> None:
@@ -2357,6 +2905,19 @@ class HomeView(Gtk.Box):
             self._apps_grid.close()
         if self._search.get_visible():
             self._search.close()
+        if self._launcher.has_child:
+            # Something is already out there. Only the phone can reach this
+            # — on the television the launcher is behind the app and nobody
+            # can press OK on a tile they cannot see — and launching over
+            # the top of it is what breaks MENU: the launcher would forget
+            # the first child completely, so the button that closes an app
+            # would close the *new* one and leave the old app on screen with
+            # nothing tracking it.
+            #
+            # So: close what is there, and open this once it has gone.
+            self._pending_launch = tile
+            self._return_from_child()
+            return
         self._launcher.launch(tile)
 
     def _handle_builtin(self, target: str) -> None:
@@ -2391,6 +2952,14 @@ class HomeView(Gtk.Box):
         ]
         if power.can_suspend():
             items.append(SystemMenuItem("Suspend", lambda: power.suspend(fail("Suspend"))))
+        # Between Suspend and Restart, and above them in consequence: it is
+        # the way to get from Salon to another session — the desktop, a
+        # different user — without powering the machine down. "Exit Salon"
+        # below leaves the process; this leaves the session, which under the
+        # Salon unit's Restart=always is the only one of the two that
+        # actually ends up somewhere else.
+        if power.can_log_out():
+            items.append(SystemMenuItem("Log Out", lambda: power.log_out(fail("Log out"))))
         if power.can_reboot():
             items.append(
                 SystemMenuItem("Restart", lambda: power.reboot(fail("Restart")), danger=True)
@@ -2454,9 +3023,27 @@ class HomeView(Gtk.Box):
 
     def _on_returned(self) -> None:
         self._launching_overlay.hide()
+        # Salon's own way back in. Under GNOME Shell this rides on top of
+        # the Shell's window-close animation; under GNOME Kiosk, whose
+        # compositor hides a destroyed window with no transition at all, it
+        # is the entire thing standing between an application and the home
+        # screen.
+        self._return_fade.play()
         self._pointer_mode = False
         self._child_active = False
         self._publish_remote_state()
+        pending, self._pending_launch = self._pending_launch, None
+        if pending is not None:
+            # A tile tapped on the phone while another app was in front. The
+            # old one has just gone; give the compositor a moment to hand
+            # focus back before spawning the next, because the return
+            # detection for *that* launch is the window going inactive and
+            # it can only go inactive from active.
+            GLib.timeout_add(_RELAUNCH_DELAY_MS, lambda: self._start_pending(pending))
+
+    def _start_pending(self, tile: Tile) -> bool:
+        self._launch_tile(tile)
+        return bool(GLib.SOURCE_REMOVE)
 
     def _close_hint(self) -> str:
         """How to get back out, named for the hardware that is actually

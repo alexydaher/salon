@@ -90,7 +90,11 @@ the content's height, and every "is the focused row off-screen?" test
 answers no, so the list stops scrolling. Wrap it in
 `motion.SizeReporter(..., propagate_minimum=False)`, which reports a zero
 minimum and hands the decision to the parent. The all-apps grid, the search
-results and both settings lists all needed it.
+results, both settings lists **and the home screen's own row band** all
+needed it — the home band was found missing it on 2026-08-23, three
+symptoms deep: tiles drawn across the detail strip, a bottom edge fade
+painted below the screen, and a home screen that had silently stopped
+scrolling because `_viewport_height` was the content's height.
 
 ## Input vocabulary
 
@@ -165,8 +169,19 @@ verified.** What remains is hardware that isn't attached to this machine
   overlap), row viewports span the full window width so the only horizontal
   clip is the screen edge, and both axes clamp their scroll to the content
   bounds. `ui/backdrop.py` is a bounded pool of accent light behind the
-  focused tile rather than a full-screen wash. Row content fades at the top
-  and bottom edges through a `push_mask` alpha gradient. `ui/statusbar.py`
+  focused tile rather than a full-screen wash. **The scrolling band is inset
+  to the gap between the two bars** (`_apply_viewport_insets`, 2026-08-23):
+  the viewport host takes real top/bottom margins measured off the status
+  widgets and the detail strip, so `Gtk.Overflow.HIDDEN` clips at the bars'
+  edges and no tile is ever drawn behind either one. `_row_anchor_y` is
+  therefore in *band* coordinates — 0 is the top of the gap — while the 38%
+  anchor line is still measured on the window, which is what the `-
+  top_inset` in it converts. Screen positions are unchanged by that switch;
+  only the clipping is. A short 40du `push_mask` alpha fade remains at each
+  band edge — scaled to how much is actually overhanging that edge, so an
+  end with nothing past it isn't faded at all, which is what used to dim the
+  first row's heading permanently.
+  `ui/statusbar.py`
   carries the clock, the date and (§6.9) the network and battery glyphs —
   `services/netinfo.py` over NetworkManager and `services/battery.py` over
   UPower, both live, both **honestly absent** when there is nothing true to
@@ -266,6 +281,37 @@ verified.** What remains is hardware that isn't attached to this machine
   - **A held session never idles out.** `stop()` clears `_holders`, so
     letting the idle timer fire on a remote the user switched on turned it
     off mid-film. Only unheld sessions expire.
+  - **The page reshapes itself around `state.app` (2026-08-23).** With an
+    application covering the television the D-pad, OK, Back, Search,
+    Options and the group keys are greyed with one line saying why, "Close
+    *Netflix*" becomes the prominent action, and the pane switches to the
+    trackpad once on the transition. Volume and Play/Pause stay live,
+    because they act on the system's audio and on MPRIS rather than on a
+    window. `screen` could not carry this: it is one string among six
+    reserved words, and "an app called Settings" is not "the Settings
+    screen".
+  - **Search is in the Apps pane**, over the catalogue *and* every
+    installed application, `/search` answering synchronously on the main
+    loop against a list scanned once when the remote starts. A result is
+    reachable for `/launch` and `/art` through `core/remote.OfferedIds` —
+    "what the phone has been shown", bounded at 400 — because a result list
+    is deliberately not published into the state snapshot.
+  - **A long press on a tile** opens pin/unpin, edit and remove: the same
+    set `Action.OPTIONS` reaches on the television. Edit opens the
+    television's editor and the endpoint replies with a sentence saying so.
+  - **Volume is an absolute slider** above the tab strip, on every pane. The
+    step buttons still exist as Actions; this is the other thing. Every
+    volume path on the television now goes through `_on_volume_read`, so a
+    press up there moves the slider in a hand down here.
+  - **`GET /events` is server-sent events; the 1 Hz poll is the fallback.**
+    The page keeps polling until the stream is actually open and falls back
+    on any error, because a held connection is exactly what a screen lock,
+    a Wi-Fi roam or a tab eviction ends. Both read the same `StateFeed`.
+  - **Trackpad gestures:** one finger moves and taps, two scroll and
+    right-click, three middle-click, long-press or double-tap-and-hold
+    drags. Dragging needed `press`/`release` as separate portal calls;
+    scrolling uses `NotifyPointerAxis`, not the discrete variant, or a
+    continuous gesture jumps in whole wheel clicks.
   - **Menu on the phone closes a launched app**, same `_return_from_child`
     path as START on a controller, and for the same structural reason: the
     press arrives over HTTP into Salon's own process, so it does not need
@@ -273,6 +319,19 @@ verified.** What remains is hardware that isn't attached to this machine
     lifecycle callbacks must all `_publish_remote_state()` — they arrive
     asynchronously, and without that the phone's header is one event behind
     and reads exactly inverted.
+- **The pairing code stands in the corner when nothing is connected**
+  (2026-08-23). `ui/remotehint.py` is a small card, bottom right, holding the
+  same QR as the pairing screen — on screen for exactly as long as there is
+  no controller plugged in *and* no phone talking to us, because reaching the
+  pairing *screen* requires the very thing it hands out. Gated on the
+  `remote-hint` key (Settings → Input). Three things it depends on:
+  `GamepadSource` now watches `device-disconnected` too and exposes
+  `device_count`; the card takes its own `_HINT_HOLDER` on `PairingServer`,
+  separate from the Settings toggle's; and `_update_remote_hint` keeps that
+  hold until there is no phone to lose, because `release()` stops the server
+  outright. It deliberately does **not** take the RemoteDesktop grant when it
+  starts the server — that dialog is fair when the user switched the remote
+  on, not when Salon did. The grant is taken when a phone actually answers.
 - **Mouse is a first-class input.** Tiles take clicks and hover-to-focus,
   the scroll wheel navigates, the power menu's selection follows the
   pointer, and the cursor hides until the mouse actually moves. Hover is
@@ -294,23 +353,73 @@ verified.** What remains is hardware that isn't attached to this machine
   runtime. System configuration delegates to gnome-control-center (§1).
   Verified end to end on the live session: Add row → on-screen keyboard →
   Done wrote `tiles.json` and the editor followed into the new row's panel.
-- **Settings' horizontal axis: RIGHT goes in, LEFT comes back out.** A row
-  with values (choice, range) has to be *engaged* before it can be changed —
-  RIGHT steps into it, it fills with accent and takes the whole horizontal
-  axis, OK or BACK releases it. LEFT is never a value change at any depth:
-  it pops one panel, then returns to the sections, then closes Settings.
-  Toggles, text rows and rows that open a sub-panel have no inside to step
-  into, so RIGHT does the thing directly; plain action rows ("Shut Down",
-  "Delete row") refuse RIGHT with a 220ms flash rather than firing on a
-  direction key. The legend at the bottom is per-row and says which of these
-  the selected row is. See DECISIONS.md 2026-08-19.
+- **Settings' horizontal axis: RIGHT goes in, LEFT comes back out, and a
+  value is picked from a list.** OK on a row with values raises
+  `ui/settings/popup.py` — a small list anchored on that row's own value,
+  walked with UP/DOWN, set with OK, left alone with BACK or LEFT. Ranges are
+  enumerated into the same list (keyed by index, because two steps can format
+  identically). Toggles stay a direct switch; text rows and rows that open a
+  sub-panel are `enterable`, so RIGHT does the thing directly; plain action
+  rows ("Shut Down", "Delete row") refuse RIGHT with a 220ms flash rather
+  than firing on a direction key. LEFT is never a value change at any depth:
+  it pops one panel, then returns to the sections, then closes Settings. The
+  legend at the bottom is per-row. The popover is `set_autohide(False)`, because
+  an autohiding one takes a GTK input grab and none of Salon's input arrives
+  through GTK focus. This replaced the *engage* mode (RIGHT steps in, then
+  LEFT/RIGHT walk the values), which replaced LEFT/RIGHT changing in place —
+  see DECISIONS.md 2026-08-19 and 2026-08-23 (evening, cont.).
 - **Power menu.** `services/power.py` wraps logind (system bus, never
-  `systemctl`); `ui/overlays.py`'s `SystemMenu` is bound to `Action.MENU`
+  `systemctl`) — except **Log Out**, which goes to
+  `org.gnome.SessionManager.Logout(1)` first and falls back to logind's
+  `session/self.Terminate()`, because gnome-session owns the session's
+  lifetime and the kiosk session has no Shell. Mode 1 skips GNOME's
+  confirmation dialog, which Salon's fullscreen window would hide anyway.
+  Log Out is a different thing from "Exit Salon": under the session unit's
+  `Restart=always`, exiting gets you Salon again.
+  `ui/overlays.py`'s `SystemMenu` is bound to `Action.MENU`
   and checked *before* every other mode in `_handle_action`, including
   `pointer_mode`/`child_active`, so it survives a stuck launch. The status
   bar carries visible Settings and power buttons, because MENU is invisible
   to a mouse. The power actions have been invoked against the real machine
   and work; the polkit *refusal* path has never been reached.
+- **Input injection goes to mutter directly, and only falls back to the
+  portal (2026-08-23).** `org.gnome.Mutter.RemoteDesktop` is on the session
+  bus, owned by gnome-shell, and grants pointer + keyboard injection with
+  **no consent dialog** — `CreateSession` + `Start`, two synchronous calls,
+  ~4 ms. The portal's "Allow remote interaction" dialog belongs to
+  xdg-desktop-portal-gnome, which is a *client* of this interface rather
+  than a layer beneath it. This is not an optimisation: it is the only
+  route a television with no keyboard and no mouse can complete, because
+  **the portal's dialog can only be dismissed with the pointer it is
+  gating** — a fresh appliance's first input device is the phone it has not
+  paired yet, and `persist_mode` skips every dialog except the first.
+  - `input-injection` (Settings → Input) is `auto` | `mutter` | `portal`.
+    `auto` prefers mutter and falls back; `mutter` **refuses** to fall
+    back, because a silent fallback would put the unanswerable dialog back
+    on the television; `portal` always takes the sanctioned route.
+  - The session method set maps 1:1 onto the portal's, with two spelling
+    differences: `NotifyPointerMotionRelative` rather than
+    `NotifyPointerMotion`, and `finish` is a **flag bit** on
+    `NotifyPointerAxis` rather than an `a{sv}` option. Still the
+    *continuous* axis call, for the same reason as before.
+  - **A mutter session dies with the compositor**, so `Closed` is
+    subscribed and drops `ready`. Without it a gnome-shell restart leaves
+    `ready` True over a session that no longer exists and every press after
+    that vanishes in silence.
+  - **gnome-kiosk gets this for free** — the name lives in
+    `libmutter-18.so.0` and `ldd /usr/bin/gnome-kiosk` links exactly that.
+    Present by construction; not yet measured in a live kiosk login.
+  - **The Flatpak deliberately does not get it.** No
+    `--talk-name=org.gnome.Mutter.RemoteDesktop` in the manifest: that name
+    is system-wide input injection with no prompt and no revocation, which
+    is the sandbox failing at its one job. Inside the sandbox the call
+    fails immediately and `auto` falls through to the portal by itself. The
+    absence of the line *is* the configuration.
+  - Verified through the real `PointerInjector` against a live GTK window,
+    both backends: motion, click, scroll (the scrolled window's adjustment
+    moved 0 → 360) and exactly `s a l o n Return`. mutter ~4 ms to ready,
+    portal 7.3 s. `tests/test_injection_backend.py` guards the schema
+    against the constants. See DECISIONS 2026-08-23 (night, cont.).
 - **Gamepad pointer control is on by default and prompts once, ever.**
   `services/pointer_injector.py` asks the RemoteDesktop portal for
   `persist_mode=2` and keeps the returned `restore_token` in
@@ -356,8 +465,13 @@ verified.** What remains is hardware that isn't attached to this machine
   changes below all came from one complaint: things existed but could not be
   got to. See DECISIONS.md for the reasoning on each.
   - `ui/statusbar.py` is a **focus row**, not two dim icons: UP from the
-    first tile row moves into Search / All apps / Settings / Power, DOWN
-    comes back, and the tile ring drops while the bar holds the cursor.
+    first tile row moves into Search / All apps / Connect a phone / Settings
+    / Power, DOWN comes back, and the tile ring drops while the bar holds the
+    cursor. As of 2026-08-23 it is **two widgets in the two top corners** —
+    `StatusInfo` (clock, date, network, battery) left, `StatusBar` (the five
+    buttons) right. Two overlay children rather than one full-width bar
+    because a `Gtk.Box` spanning the screen is picked for pointer events
+    across the whole top strip, and the rows scroll under it.
   - `ui/appsgrid.py` is the **all-apps grid** — every installed application
     A–Z, columns computed from the real viewport width. Reached from the top
     bar. The `show-apps-row` provider setting still exists and is unchanged.
@@ -416,6 +530,19 @@ started a session containing nothing, and the restart-on-exit behaviour the
 systemd unit now (`data/systemd/`), with `Restart=always` and a bounded
 start limit, plus a drop-in on `gnome-session@salon.target`. See DECISIONS.
 
+**There are two session entries, and the second one swaps the compositor.**
+*Salon* runs on GNOME Shell; *Salon (Kiosk)* runs on `gnome-kiosk`, a
+Mutter-based compositor with no panel, dash, dock or overview. They share
+`io.github.alexydaher.Salon.service` and differ in one `Requires=` line, so
+carrying both costs two small files and keeps a way back if the kiosk path
+misbehaves. Kiosk **fullscreens every window it is handed**, which is the
+only route to fullscreening native apps — no Wayland client may set another
+client's window state. It needs the `gnome-kiosk` package (universe on
+Ubuntu; not a dependency of anything else here), and its RemoteDesktop
+portal path has been reasoned about but **not measured** — see the gap list.
+Keep `DesktopNames=GNOME;` in the kiosk entry: `gnome.portal` is
+`UseIn=gnome`. DECISIONS 2026-08-23 (late).
+
 ## What is still missing
 
 **2026-08-23: the human tested everything except CEC**, against the build at
@@ -424,16 +551,61 @@ phone and the controller are all reported working. That is a *report*, not
 a measurement taken here, and the distinction is kept below wherever the
 sub-item is finer than the report was.
 
+- **The mutter injection route has not been seen in a live kiosk login.**
+  It is measured working under GNOME Shell, and gnome-kiosk links the
+  library the bus name lives in, so it is present by construction — but
+  "the name resolves" and "the trackpad works there" are different claims
+  and only the first is established.
 - **CEC has never touched hardware, and is now the only one.**
   `input/cec_in.py` and `services/cec_out.py` are written and the keycode
   table is tested, but there is no CEC adapter here and `cec-client` isn't
   installed. Everything else on this list that needed hardware has now had
   it.
-- **The Salon session has been logged into.** Picking *Salon* at the login
-  screen brings the Shell and Salon up. The systemd units under
-  `data/systemd/` are what makes that work; `RequiredComponents=` never
-  did. What has not been separately watched is the `Restart=always`
-  behaviour after a crash, or the bounded start limit tripping.
+- **A Flathub release will not carry the session, and cannot.** Flatpak
+  exports a fixed, small set of subdirectories out of the sandbox —
+  `applications`, `icons`, `metainfo`, plus `dbus-1/services`,
+  `gnome-shell/search-providers` and `mime` where present; verified against
+  `/var/lib/flatpak/exports/share` on this machine. `wayland-sessions`,
+  `gnome-session/sessions` and `systemd/user` are not among them, and GDM's
+  search paths are compiled-in absolutes under `/usr/share` besides. So
+  `flatpak install` gets the app into the Applications grid and nothing at
+  the login screen. Putting Salon there needs a distro package (or a
+  documented `sudo cp`), and its unit would have to say
+  `ExecStart=flatpak run io.github.alexydaher.Salon` rather than
+  `@bindir@/salon`.
+- **GDM only reads `/usr/share`, so the session entries must be installed
+  system-wide.** `/usr/sbin/gdm3` has its search paths compiled in and
+  absolute: `/usr/share/wayland-sessions/`, `/usr/share/xsessions/`, and
+  `/usr/share/gnome-session/sessions/%s.session` — that last one is how it
+  decides a session is runnable, so the `.session` definition has to be there
+  too, not just the `wayland-sessions` entry. **A `--prefix=$HOME/.local`
+  install can never put Salon at the login screen**, which is exactly how
+  this build dir is configured. Everything else works fine from a user
+  prefix; only these four files are different in kind, and the build system
+  doesn't distinguish them. See DECISIONS 2026-08-23 (late, cont.).
+- **The Salon session has *not* been confirmed at the login screen.** The
+  human reported logging into it on 2026-08-23, but GDM had never been able
+  to see the entry — it lived under `~/.local`. That report is unexplained
+  and should not be treated as evidence the session works. Separately, the
+  installed copy at the time was from 2026-08-19 and pre-`ba288af`: inert
+  `RequiredComponents=`, the old `rocks.salon.Salon` id, no units at all.
+  `meson install` has since been run and the four GDM-visible files copied
+  into `/usr/share`. Still unwatched: an actual login, the `Restart=always`
+  behaviour after a crash, and the start limit tripping.
+- **An installed tree goes stale silently, and nothing catches it.**
+  `bin/salon` runs from source and every gate in `check.sh` reads source, so
+  no test in the project ever looks at `$prefix`. Re-run `meson install`
+  after touching anything under `data/` that is only meaningful once
+  installed — the session entries, the units, the schema.
+- **`Salon (Kiosk)` has never been logged into.** The session entry, the
+  definition and the drop-in are installed, the units resolve
+  (`systemd-analyze --user verify` is clean, `gnome-session@salon-kiosk.target`
+  shows the right `Requires=`), and as of 2026-08-23 the `gnome-kiosk`
+  package is installed, so `org.gnome.Kiosk.target` loads. The thing to test
+  first in that session is not the launcher, it's
+  `services/pointer_injector.py` — if the RemoteDesktop portal doesn't come
+  up under kiosk, the phone trackpad, `/type` and gamepad pointer control
+  all fail together, in a session with no overview to escape to.
 - **The power actions work; a refusal has never been seen.**
   `services/power.py` calls `Suspend`/`Reboot`/`PowerOff` on logind and
   they do what they say. The part flagged as most likely to be wrong is
@@ -441,6 +613,13 @@ sub-item is finer than the report was.
   power the machine off never triggers the polkit denial, so whether that
   denial arrives back as a message on screen rather than vanishing is
   unknown. Testing it means a deliberately unprivileged account.
+- **A regression gate that was missing: `warn_unreachable`.** On
+  2026-08-23 the controller was found completely dead — `d2bab02` had
+  inserted two methods into the middle of `GamepadSource.__init__`, leaving
+  the `Manette.Monitor` setup stranded after a `return`. Nothing was
+  raised, nothing was logged, and every gate stayed green. `mypy --strict`
+  now runs with `warn_unreachable = true`, which flags exactly that line.
+  See DECISIONS 2026-08-23 (evening).
 - **The gamepad has met one controller, and the mapping is confirmed.** A
   DualSense over USB: libmanette enumerates it as "Sony Interactive
   Entertainment DualSense Wireless Controller", and the mapping
@@ -456,7 +635,9 @@ sub-item is finer than the report was.
   a mouse: brushing it moves Salon's pointer and wakes hover-to-focus.
 - **Only web tiles can be launched fullscreen.** URL tiles pass
   `--start-fullscreen` (per-tile toggle in the editor); native apps decide
-  their own window state and no Wayland client may override another's.
+  their own window state and no Wayland client may override another's. The
+  `Salon (Kiosk)` session is the way out of this: a *compositor* may, and
+  gnome-kiosk does it by default.
 - **The Flatpak needs `--disable-rofiles-fuse` here.** `org.flatpak.Builder`
   can't spawn `rofiles-fuse` in this environment; the flag skips the
   hardlink-protection layer and the build proceeds normally.
@@ -470,28 +651,18 @@ sub-item is finer than the report was.
   artwork (§7.4) — pre-blurring at fetch time is the missing piece;
   `data/fonts/` is empty, so Archivo/Inter are requested but fall back to
   the system UI font.
-- **Three actions fire from behind a launched app (found 2026-08-22, not
-  fixed).** `SEARCH`, `POWER` and `PLAY_PAUSE` are each handled in
-  `_dispatch_action` *above* the `if self._child_active: return` guard, so
-  while an application is covering Salon they act on a window nobody can
-  see. Measured, from the phone, with a real child in front:
-  - `PLAY_PAUSE` "falls through to launching the focused tile when nothing
-    is playing" — so with a paused player it **launched GeForce NOW**
-    behind the app that was already running. The worst of the three.
-  - `SEARCH` opened the search overlay behind the app (`get_visible()`
-    True), and because the search branch is *also* above the guard, the
-    phone's D-pad then drove an invisible screen.
-  - `POWER` is the same shape (system menu); read off the dispatch order
-    rather than measured.
-  The MENU handler's own comment already states the rule these break: "a
-  menu drawn in Salon's own window would appear underneath Netflix where
-  nobody can see it". Not the RemoteDesktop consent dialog — all three
-  reproduced with the grant already held and no dialog shown.
-- **The phone lists the catalogue, not every installed app.** 11 tiles
-  against 53 installed here. Settings → Providers → `show-apps-row` is the
-  workaround (measured: 11 → 64 tiles, via an "All applications" row), but
-  it adds that row to the television too. A phone-only all-apps list is the
-  real fix.
+- **Three actions fired from behind a launched app — fixed 2026-08-23.**
+  `SEARCH`, `POWER` and `PLAY_PAUSE` sat *above* the `if self._child_active:
+  return` guard and acted on a window nobody could see; `PLAY_PAUSE` with
+  nothing playing fell through to launching the focused tile, which is how a
+  paused player opened GeForce NOW behind the app already running. They are
+  below the guard now. Volume and mute stay above it deliberately: they act
+  on the system's audio, not on a window.
+- **The phone can now reach every installed app — fixed 2026-08-23**, by
+  search rather than by a list. The Apps pane has a search field that ranks
+  the catalogue *and* every installed application through the same
+  `core/ranking.rank_best` the television uses. `show-apps-row` still
+  exists and is unchanged.
 - **The phone remote has now met a real phone** (2026-08-23, against the
   build carrying the muted-video screen-awake fallback). Before that, every
   endpoint, the QR (read back off a screen capture with libzbar) and each

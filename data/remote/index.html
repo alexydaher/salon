@@ -294,9 +294,7 @@
   /* --- trackpad --------------------------------------------------------- */
 
   #pane-pad { padding-bottom: 1rem; }
-  #pad {
-    flex: 1;
-    margin: 0.4rem 0 0.6rem;
+  #pad, #type-pad {
     border-radius: 18px;
     background: var(--s1);
     border: 2px dashed var(--s2);
@@ -306,9 +304,16 @@
     text-align: center;
     padding: 1rem;
     color: var(--dim);
+    font-size: 0.8rem;
+    /* The whole point of the surface: without this the browser claims the
+       gesture for scrolling the pane and the pointer never moves. */
     touch-action: none;
   }
-  #pad.live { border-style: solid; border-color: var(--accent); }
+  #pad { flex: 1; margin: 0.4rem 0 0.6rem; }
+  #pad.live, #type-pad.live { border-style: solid; border-color: var(--accent); }
+  /* Two fingers down: the surface is scrolling rather than pointing, and
+     saying so is what stops it reading as a pointer that stopped working. */
+  #pad.scrolling, #type-pad.scrolling { border-color: var(--dim); }
 
   /* --- keyboard --------------------------------------------------------- */
 
@@ -387,6 +392,225 @@
   nav button .glyph { font-size: 1.15rem; line-height: 1; }
   nav button.on { color: var(--accent); background: var(--s1); }
 
+  /* --- an application is in front --------------------------------------- */
+
+  /* The single most important thing the page can say. Salon's own screens
+     and a launched application are completely different situations — with
+     Netflix up, the D-pad, Search and Options do nothing at all, because
+     Salon deliberately goes quiet rather than fight a fullscreen app for
+     button presses. A remote that looks identical in both is a remote you
+     learn by pressing things and watching nothing happen. */
+  .app-bar {
+    display: none;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 0.6rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--s2);
+  }
+  body.in-app .app-bar { display: flex; }
+  .app-bar .what { flex: 1; min-width: 0; }
+  .app-bar .label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .app-bar .name {
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-bar button {
+    flex: none;
+    padding: 0.7rem 0.9rem;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #12151A;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .app-bar button.pressed { opacity: 0.6; }
+
+  /* Not hidden — greyed and still there. A control that vanishes while an
+     app is up makes the remote a different shape every time you glance
+     down; one that is visibly unavailable teaches what the rule is. */
+  .keys button:disabled, .bar button:disabled { opacity: 0.3; }
+  .why {
+    display: none;
+    color: var(--dim);
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 0.1rem 0 0.2rem;
+  }
+  body.in-app .why { display: block; }
+
+  /* --- search ----------------------------------------------------------- */
+
+  #search-row {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 0 0.4rem;
+    background: var(--bg);
+  }
+  #q {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem 0.9rem;
+    font-size: 1rem;
+    border-radius: 14px;
+    border: 2px solid var(--s2);
+    background: var(--s1);
+    color: var(--fg);
+  }
+  #q:focus { outline: none; border-color: var(--accent); }
+  #q-clear {
+    display: none;
+    flex: none;
+    padding: 0 0.9rem;
+    border-radius: 14px;
+    background: var(--s1);
+    color: var(--dim);
+  }
+  body.searching #q-clear { display: block; }
+  /* The catalogue stays in the DOM while a search is running rather than
+     being rebuilt over: a query cleared with the X puts the rows straight
+     back, images and all, instead of re-downloading every poster. */
+  body.searching #apps, body.searching #apps-empty { display: none; }
+  #results { display: none; }
+  body.searching #results { display: block; }
+  #results .row-tiles { margin-bottom: 1rem; }
+  #results-empty { color: var(--dim); padding: 2rem 0; text-align: center; }
+
+  /* --- volume ----------------------------------------------------------- */
+
+  /* Above the tabs and on every pane, because volume is the one control
+     that is guaranteed to work whatever is on the television — it acts on
+     the system's audio, not on a window. It is also the control a
+     touchscreen is unambiguously better at than a physical remote, which
+     is why this is a slider and not two more repeat-buttons. */
+  #volume {
+    display: none;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0.5rem var(--pad) 0;
+    padding: 0.4rem 0.75rem;
+    border-radius: 14px;
+    background: var(--s1);
+    border: 1px solid var(--s2);
+  }
+  #volume.on { display: flex; }
+  #mute {
+    flex: none;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+  }
+  #mute.muted { color: var(--danger); }
+  #vol {
+    flex: 1;
+    min-width: 0;
+    height: 2.2rem;
+    background: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  #vol::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--s2);
+  }
+  #vol::-moz-range-track { height: 6px; border-radius: 3px; background: var(--s2); }
+  #vol::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: calc((6px - 1.5rem) / 2);
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  #vol::-moz-range-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  #volume.off { opacity: 0.45; }
+
+  /* --- the trackpad's own controls -------------------------------------- */
+
+  .pad-hint {
+    color: var(--dim);
+    font-size: 0.74rem;
+    line-height: 1.5;
+    text-align: center;
+    padding-bottom: 0.5rem;
+  }
+  /* A gesture nobody is told about is a gesture nobody has. Two fingers to
+     scroll is the one people try; the rest are here because the legend
+     costs one line and the alternative is a surface with five secrets. */
+  .pad-hint b { color: var(--fg); font-weight: 600; }
+  #type-pad {
+    height: 6.5rem;
+    flex: none;
+    margin-bottom: 0.2rem;
+  }
+
+  /* --- the per-tile sheet ------------------------------------------------ */
+
+  /* A long press on a tile. The television has had this behind
+     Action.OPTIONS since the reachability pass, and the phone — the one
+     surface that shows every tile at once — was the one that could not
+     change any of them. */
+  #sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(0, 0, 0, 0.55);
+  }
+  #sheet.on { display: flex; }
+  #sheet-card {
+    background: var(--s1);
+    border-radius: 20px 20px 0 0;
+    padding: 0.8rem var(--pad) calc(0.8rem + var(--safe-b));
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  #sheet-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.4rem 0.2rem 0.6rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #sheet-card button {
+    padding: 0.95rem 0.9rem;
+    border-radius: 14px;
+    background: var(--s2);
+    text-align: left;
+    font-size: 0.95rem;
+  }
+  #sheet-card button.danger { color: var(--danger); }
+  #sheet-card button.cancel { background: none; text-align: center; color: var(--dim); }
+
   #toast {
     position: fixed;
     left: 50%;
@@ -429,46 +653,80 @@
 
 <main hidden id="body">
   <section id="pane-apps" class="pane on">
+    <!-- Search lives here rather than behind a fifth tab: what you are
+         looking for is an app, and this is the pane with the apps in it.
+         It also searches every *installed* application, not just the
+         catalogue, which is the gap that made the phone show 11 things on
+         a machine with 53 on it. -->
+    <div id="search-row">
+      <input id="q" type="search" autocomplete="off" autocapitalize="none"
+             autocorrect="off" spellcheck="false" enterkeyhint="search"
+             placeholder="Search apps" aria-label="Search apps">
+      <button id="q-clear" aria-label="Clear search">&#10005;</button>
+    </div>
     <div id="apps"></div>
     <div id="apps-empty">Nothing on the television yet.</div>
+    <div id="results"></div>
   </section>
 
   <section id="pane-remote" class="pane">
+    <div class="app-bar">
+      <div class="what">
+        <div class="label">On the television</div>
+        <div class="name app-name"></div>
+      </div>
+      <button class="close-app">Close</button>
+    </div>
+    <p class="why">The D-pad drives Salon, and Salon is behind this app.
+       Use the Pad, or close it.</p>
     <div class="bar">
-      <button data-action="back">Back</button>
+      <button data-action="back" data-tv-only>Back</button>
       <button data-action="menu">Menu</button>
-      <button data-action="options">Options</button>
+      <button data-action="options" data-tv-only>Options</button>
     </div>
     <div class="keys dpad">
       <button class="blank"></button>
-      <button data-action="up" data-repeat aria-label="Up">&#9650;</button>
+      <button data-action="up" data-repeat data-tv-only aria-label="Up">&#9650;</button>
       <button class="blank"></button>
-      <button data-action="left" data-repeat aria-label="Left">&#9664;</button>
-      <button data-action="ok" class="ok">OK</button>
-      <button data-action="right" data-repeat aria-label="Right">&#9654;</button>
+      <button data-action="left" data-repeat data-tv-only aria-label="Left">&#9664;</button>
+      <button data-action="ok" class="ok" data-tv-only>OK</button>
+      <button data-action="right" data-repeat data-tv-only aria-label="Right">&#9654;</button>
       <button class="blank"></button>
-      <button data-action="down" data-repeat aria-label="Down">&#9660;</button>
+      <button data-action="down" data-repeat data-tv-only aria-label="Down">&#9660;</button>
       <button class="blank"></button>
     </div>
     <div class="bar">
-      <button data-action="search">Search</button>
-      <button data-action="prev_group" aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
-      <button data-action="next_group" aria-label="Next group"><small>Group</small>&#8202;&#8677;</button>
+      <button data-action="search" data-tv-only>Search</button>
+      <button data-action="prev_group" data-tv-only aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
+      <button data-action="next_group" data-tv-only aria-label="Next group"><small>Group</small>&#8202;&#8677;</button>
     </div>
-    <div class="bar">
-      <button data-action="volume_down" data-repeat aria-label="Volume down">Vol &minus;</button>
-      <button data-action="mute">Mute</button>
-      <button data-action="volume_up" data-repeat aria-label="Volume up">Vol +</button>
-    </div>
+    <!-- Play/pause is *not* data-tv-only. It reaches the player over MPRIS
+         rather than through Salon's own screen, so it is one of the two
+         things on this pane that still work with Netflix in front. -->
     <div class="bar">
       <button data-action="play_pause">Play / Pause</button>
     </div>
   </section>
 
   <section id="pane-pad" class="pane">
+    <div class="app-bar">
+      <div class="what">
+        <div class="label">On the television</div>
+        <div class="name app-name"></div>
+      </div>
+      <button class="close-app">Close</button>
+    </div>
     <div id="pad">Drag to move the pointer&#8202;&middot;&#8202;tap to click</div>
+    <p class="pad-hint">
+      <b>Two fingers</b> scroll&#8202;&middot;&#8202;<b>two-finger tap</b> right-clicks<br>
+      <b>Three-finger tap</b> middle-clicks&#8202;&middot;&#8202;<b>double-tap and hold</b> drags
+    </p>
     <div class="bar">
-      <button data-action="back">Back</button>
+      <button id="click-left">Click</button>
+      <button id="click-right">Right click</button>
+    </div>
+    <div class="bar">
+      <button data-action="back" data-tv-only>Back</button>
       <button data-action="menu">Menu</button>
     </div>
   </section>
@@ -488,6 +746,12 @@
     </div>
     <p class="subtle" id="type-hint">Nothing on the television is asking for
        text right now.</p>
+    <!-- The Type tab's real limitation, answered in place: the keys land
+         wherever the launched app's cursor happens to be, and an app that
+         has just opened has focused nothing — so you have to tap its search
+         box first. Making that a trip to another tab and back turns one
+         gesture into a lesson. Same pad, same gestures, less of it. -->
+    <div id="type-pad" hidden></div>
   </section>
 </main>
 
@@ -504,6 +768,23 @@
   <button id="np-prev" data-transport="previous" aria-label="Previous">&#9198;</button>
   <button id="np-play" data-transport="play_pause" aria-label="Play or pause">&#9199;</button>
   <button id="np-next" data-transport="next" aria-label="Next">&#9197;</button>
+</div>
+
+<div id="volume">
+  <button id="mute" aria-label="Mute">&#128266;</button>
+  <input id="vol" type="range" min="0" max="100" step="1" value="0"
+         aria-label="Volume">
+</div>
+
+<div id="sheet">
+  <div id="sheet-card">
+    <div id="sheet-title"></div>
+    <button id="sheet-open">Open</button>
+    <button id="sheet-pin">Pin to Favourites</button>
+    <button id="sheet-edit">Edit on the television…</button>
+    <button id="sheet-remove" class="danger">Remove from the home screen</button>
+    <button id="sheet-cancel" class="cancel">Cancel</button>
+  </div>
 </div>
 
 <nav hidden id="tabs">
@@ -639,10 +920,14 @@ function dropSession(message) {
   key = "";
   rememberKey("");
   stopPolling();
+  stopStream();
   $("chrome").hidden = true;
   $("body").hidden = true;
   $("tabs").hidden = true;
   $("playing").classList.remove("on");
+  $("volume").classList.remove("on");
+  closeSheet();
+  document.body.classList.remove("in-app", "searching");
   $("connect").style.display = "";
   $("connect-status").textContent = message || "";
   $("code").value = "";
@@ -697,6 +982,7 @@ async function connect(credential) {
   showTab(tab);
   setLive(true);
   startPolling();
+  startStream();
   keepAwake();
   return true;
 }
@@ -766,9 +1052,68 @@ function stopPolling() {
   pollTimer = null;
 }
 
+/* --- the event stream --------------------------------------------------- */
+
+// The poll is correct and is not going away — it is the fallback. What it
+// cannot be is *prompt*: a press changes the television immediately and the
+// phone finds out up to a second later, which is why `pollSoon()` exists at
+// all. An EventSource is told instead of asking, so the cursor mirror and
+// the header keep up with the thumb.
+//
+// It is a fallback rather than a replacement because a held connection is
+// exactly the thing a phone breaks: a screen lock, a Wi-Fi roam, a tab
+// eviction and a captive-portal proxy all end it, some of them silently.
+// Both paths read the same feed on the server, so they cannot disagree
+// about what is on the television.
+let stream = null;
+let streamOk = false;
+
+function startStream() {
+  if (!key || !window.EventSource) return;
+  stopStream();
+  try {
+    stream = new EventSource(`/events?k=${encodeURIComponent(key)}`);
+  } catch (error) {
+    stream = null;
+    return;
+  }
+  stream.addEventListener("open", () => {
+    streamOk = true;
+    setLive(true);
+    // Only now is the poll redundant. Stopping it before the stream is
+    // actually open would leave a phone with neither if /events is refused.
+    stopPolling();
+  });
+  stream.addEventListener("message", (event) => {
+    let data = null;
+    try { data = JSON.parse(event.data); } catch (error) { return; }
+    version = data.v;
+    state = data;
+    render(data);
+    setLive(true);
+  });
+  stream.addEventListener("error", () => {
+    // EventSource retries by itself, and would go on doing so forever
+    // against a television that has been switched off. One failure is
+    // enough to go back to the poll, which knows how to back off and how
+    // to say "Salon isn't answering".
+    stopStream();
+    if (key) startPolling();
+  });
+}
+
+function stopStream() {
+  if (stream) stream.close();
+  stream = null;
+  streamOk = false;
+}
+
 // A press changes what is on the television; waiting up to a second to
 // find out makes the cursor mirror feel broken even though it is correct.
 function pollSoon() {
+  // The stream will say so by itself, and sooner. This is the poll's own
+  // way of not feeling a second behind every press.
+  if (streamOk) return;
   setTimeout(poll, 90);
 }
 
@@ -776,6 +1121,7 @@ $("retry").addEventListener("click", () => {
   misses = 0;
   $("offline-text").textContent = "Trying…";
   startPolling();
+  startStream();
 });
 
 // Polling while the phone is in a pocket is a request a second for nothing.
@@ -783,9 +1129,13 @@ document.addEventListener("visibilitychange", () => {
   if (!key) return;
   if (document.hidden) {
     stopPolling();
+    stopStream();
     releaseAwake();
   } else {
+    // The poll first, always: it is what proves the television is there.
+    // The stream takes over from it once it is actually open.
     startPolling();
+    startStream();
     keepAwake();
   }
 });
@@ -806,6 +1156,8 @@ let renderedSignature = "";
 function render(data) {
   document.documentElement.style.setProperty("--accent", data.accent || "#E8A33D");
   $("screen").textContent = SCREEN_NAMES[data.screen] || data.screen;
+  renderMode(data);
+  renderVolume(data);
 
   // The grid is rebuilt only when the catalogue itself changed. Redrawing
   // two hundred tiles once a second because the cursor moved would drop
@@ -839,6 +1191,52 @@ function render(data) {
     ? "Drag to move the pointer\u200a\u00b7\u200atap to click"
     : "Salon isn't allowed to move the pointer. Settings \u2192 Input \u2192 "
       + "Gamepad cursor.";
+  // The aim-then-type pad only exists when there is something to aim at.
+  $("type-pad").hidden = !data.remoteInput;
+  $("type-pad").textContent = "Aim here, tap the field, then type above";
+  for (const node of document.querySelectorAll("#click-left, #click-right")) {
+    node.disabled = !data.remoteInput;
+  }
+}
+
+let wasInApp = false;
+
+// Everything that changes when an application is covering the television.
+// Salon deliberately goes quiet while one is in front — a native app reads
+// the same gamepad device directly, so fighting it for button presses is
+// not a thing Salon can win — which means the D-pad, OK, Back, Search and
+// Options genuinely do nothing. This is the page saying so instead of
+// offering nine buttons of which two work.
+function renderMode(data) {
+  const app = data.app || "";
+  const inApp = Boolean(app);
+  document.body.classList.toggle("in-app", inApp);
+  for (const node of document.querySelectorAll(".app-name")) node.textContent = app;
+  for (const node of document.querySelectorAll(".close-app")) {
+    node.textContent = `Close ${app}`;
+  }
+  for (const node of document.querySelectorAll("[data-tv-only]")) node.disabled = inApp;
+
+  // Move to the Pad *once*, on the transition, and only from a pane that
+  // has just gone useless. Doing it on every render would fight anyone who
+  // deliberately went to Apps to launch something else; not doing it at all
+  // leaves a thumb resting on a dead D-pad.
+  if (inApp && !wasInApp && (tab === "remote" || tab === "apps")) showTab("pad");
+  wasInApp = inApp;
+}
+
+function renderVolume(data) {
+  const strip = $("volume");
+  const known = typeof data.volume === "number" && data.volume >= 0;
+  strip.classList.toggle("on", known);
+  if (!known) return;
+  // Not while a thumb is on it: writing the television's value back into
+  // the slider mid-drag is what makes a remote slider fight the finger
+  // holding it.
+  if (!draggingVolume) $("vol").value = Math.round(data.volume * 100);
+  $("mute").classList.toggle("muted", Boolean(data.muted));
+  $("mute").textContent = data.muted ? "\u{1F507}" : "\u{1F50A}";
+  strip.classList.toggle("off", Boolean(data.muted));
 }
 
 function renderRows(rows) {
@@ -903,15 +1301,46 @@ function tileNode(tile, aspect) {
   node.append(caption);
 
   node.addEventListener("click", () => {
-    buzz(12);
-    node.classList.add("pressed");
-    post("/launch", { id: tile.id }).then((result) => {
-      node.classList.remove("pressed");
-      if (result) toast(`Opening ${tile.title}`);
-      pollSoon();
-    });
+    // A long press has already opened the sheet and cancelled itself; the
+    // click the browser sends afterwards must not also launch the thing.
+    if (node.dataset.held === "1") {
+      delete node.dataset.held;
+      return;
+    }
+    launchTile(tile, node);
   });
+  bindLongPress(node, () => openSheet(tile));
   return node;
+}
+
+function launchTile(tile, node) {
+  buzz(12);
+  node.classList.add("pressed");
+  post("/launch", { id: tile.id }).then((result) => {
+    node.classList.remove("pressed");
+    if (result) toast(`Opening ${tile.title}`);
+    pollSoon();
+  });
+}
+
+// 450ms with the finger still. Deliberately not a right-click equivalent
+// or a second tap target: a long press is the gesture every phone already
+// teaches, and the television reaches the same menu with OPTIONS.
+function bindLongPress(node, run) {
+  let timer = null;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  node.addEventListener("pointerdown", () => {
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      node.dataset.held = "1";
+      buzz(18);
+      run();
+    }, 450);
+  });
+  for (const name of ["pointerup", "pointercancel", "pointerleave", "pointermove"]) {
+    node.addEventListener(name, cancel);
+  }
 }
 
 function blankArt(tile) {
@@ -1016,6 +1445,170 @@ for (const button of document.querySelectorAll("[data-transport]")) {
   });
 }
 
+/* --- the per-tile sheet -------------------------------------------------- */
+
+let sheetTile = null;
+
+function openSheet(tile) {
+  sheetTile = tile;
+  $("sheet-title").textContent = tile.title;
+  // The verb, not a state: a button labelled "Pinned" leaves you working
+  // out whether that is what it is or what it will do.
+  $("sheet-pin").textContent = tile.pinned
+    ? "Remove from Favourites"
+    : "Pin to Favourites";
+  // Recents, Favourites and the apps grid all produce tiles that no row in
+  // tiles.json contains. There is nothing to edit or delete for those, and
+  // offering it would open an editor for a row that does not exist.
+  $("sheet-edit").hidden = !tile.removable;
+  $("sheet-remove").hidden = !tile.removable;
+  $("sheet").classList.add("on");
+}
+
+function closeSheet() {
+  $("sheet").classList.remove("on");
+  sheetTile = null;
+}
+
+$("sheet").addEventListener("click", (event) => {
+  // The scrim only. A tap inside the card is a tap on one of its buttons.
+  if (event.target === $("sheet")) closeSheet();
+});
+$("sheet-cancel").addEventListener("click", closeSheet);
+
+$("sheet-open").addEventListener("click", () => {
+  const tile = sheetTile;
+  closeSheet();
+  if (!tile) return;
+  buzz(12);
+  post("/launch", { id: tile.id }).then((result) => {
+    if (result) toast(`Opening ${tile.title}`);
+    pollSoon();
+  });
+});
+
+for (const [id, what] of [
+  ["sheet-pin", "pin"],
+  ["sheet-edit", "edit"],
+  ["sheet-remove", "remove"],
+]) {
+  $(id).addEventListener("click", async () => {
+    const tile = sheetTile;
+    closeSheet();
+    if (!tile) return;
+    buzz(10);
+    // "pin" on something already pinned is the unpin: the label said so.
+    const action = what === "pin" && tile.pinned ? "unpin" : what;
+    const result = await post("/tile", { id: tile.id, what: action });
+    // The server answers with a sentence, because these are the actions
+    // whose consequence is not visible on the phone — "edit" opens a screen
+    // on the television, and a button that changes something in another
+    // room with no acknowledgement is indistinguishable from a dead one.
+    if (result && result.said) toast(result.said);
+    pollSoon();
+  });
+}
+
+/* --- search --------------------------------------------------------------- */
+
+// Debounced, because every keystroke is a request and the television
+// answers them on the thread that draws its own interface. 140ms is under
+// the gap between two letters typed quickly and over the gap inside one.
+const SEARCH_DEBOUNCE_MS = 140;
+let searchTimer = null;
+let searchSeq = 0;
+
+async function runSearch() {
+  const query = $("q").value.trim();
+  document.body.classList.toggle("searching", Boolean(query));
+  if (!query) {
+    $("results").textContent = "";
+    return;
+  }
+  // Answers can overtake each other on a slow link, and a result list for
+  // "net" arriving after the one for "netflix" would show the wrong thing
+  // with no way to tell.
+  const seq = ++searchSeq;
+  const result = await post("/search", { q: query });
+  if (!result || seq !== searchSeq) return;
+  renderResults(result.results || []);
+}
+
+function renderResults(results) {
+  const host = $("results");
+  host.textContent = "";
+  if (!results.length) {
+    const empty = document.createElement("div");
+    empty.id = "results-empty";
+    empty.textContent = "Nothing matched. Try fewer letters.";
+    host.append(empty);
+    return;
+  }
+  const grid = document.createElement("div");
+  grid.className = "row-tiles wide";
+  for (const tile of results) grid.append(tileNode(tile, "wide"));
+  host.append(grid);
+}
+
+$("q").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, SEARCH_DEBOUNCE_MS);
+});
+$("q").addEventListener("search", runSearch);
+$("q-clear").addEventListener("click", () => {
+  $("q").value = "";
+  $("q").blur();
+  runSearch();
+});
+
+/* --- volume --------------------------------------------------------------- */
+
+let draggingVolume = false;
+let volumeTimer = null;
+
+// Throttled to one request per 60ms while the thumb is down. A range input
+// fires on every pixel, and a slider dragged across the screen would
+// otherwise be two hundred requests, each of which spawns a `wpctl` on the
+// television.
+function sendVolume() {
+  clearTimeout(volumeTimer);
+  volumeTimer = setTimeout(() => {
+    post("/volume", { level: Number($("vol").value) / 100 });
+  }, 60);
+}
+
+$("vol").addEventListener("input", () => {
+  draggingVolume = true;
+  sendVolume();
+});
+for (const name of ["change", "pointerup", "pointercancel"]) {
+  $("vol").addEventListener(name, () => {
+    draggingVolume = false;
+    sendVolume();
+  });
+}
+$("mute").addEventListener("click", () => {
+  buzz(8);
+  post("/volume", { mute: true });
+  pollSoon();
+});
+
+/* --- closing what is in front --------------------------------------------- */
+
+// The same MENU that a controller's START sends and that the television's
+// own handler turns into "close the child and come back". Not a new verb:
+// the press arrives over HTTP into Salon's own process, so unlike a
+// keyboard it does not need the compositor's focus to be heard.
+for (const node of document.querySelectorAll(".close-app")) {
+  node.addEventListener("click", () => {
+    buzz(14);
+    node.classList.add("pressed");
+    setTimeout(() => node.classList.remove("pressed"), 180);
+    post("/action", { action: "menu" });
+    pollSoon();
+  });
+}
+
 /* --- tabs --------------------------------------------------------------- */
 
 function showTab(name) {
@@ -1071,59 +1664,183 @@ for (const [id, character] of [["key-back", "\b"], ["key-enter", "\n"]]) {
 
 /* --- trackpad ----------------------------------------------------------- */
 
-// Motion is batched to one post per animation frame. A touchmove stream is
-// far faster than the network, and posting every event turns a flick into a
-// queue of requests that arrive after the finger has stopped.
-const pad = $("pad");
-let last = null;
-let dx = 0;
-let dy = 0;
-let queued = false;
-let travelled = 0;
+// The gesture vocabulary, and why each one is here:
+//
+//   one finger, drag        move the pointer
+//   one finger, tap         left click
+//   two fingers, drag       scroll  — the gesture everyone tries first
+//   two fingers, tap        right click
+//   three fingers, tap      middle click (paste on X11, close a browser tab)
+//   long press, then drag   hold the left button down and move: this is
+//                           what selects text and drags a window, and a tap
+//                           that releases itself 50ms later never could
+//   double-tap, then drag   the same, for the hand that learned it on a
+//                           laptop
+//
+// All of it goes through the same RemoteDesktop grant the right stick uses,
+// so a phone is a mouse over a browser tile that was never built for a
+// remote — which is the whole reason the trackpad exists.
 
-function flush() {
-  queued = false;
-  if (dx || dy) {
-    post("/pointer", { dx: dx, dy: dy });
-    dx = 0;
-    dy = 0;
-  }
+const TAP_SLOP_PX = 12;        // a finger on glass always moves a little
+const TAP_MS = 350;            // longer than this and it was not a tap
+const HOLD_MS = 500;           // press-and-hold before a drag begins
+const DOUBLE_TAP_MS = 300;
+// A finger travels far more pixels than a wheel does clicks. This turns
+// the drag into scroll units the compositor recognises without a flick
+// throwing the page to the bottom.
+const SCROLL_DIVISOR = 2.2;
+
+function bindPad(surface) {
+  let touches = 0;        // the most fingers seen during this gesture
+  let last = null;
+  let startedAt = 0;
+  let travelled = 0;
+  let dx = 0;
+  let dy = 0;
+  let sx = 0;
+  let sy = 0;
+  let queued = false;
+  let holding = false;    // the left button is down and we are dragging
+  let holdTimer = null;
+  let lastTapAt = 0;
+  let scrolled = false;
+
+  // One post per animation frame. A touchmove stream is far faster than
+  // the network, and posting every event turns a flick into a queue of
+  // requests that arrive after the finger has stopped.
+  const flush = () => {
+    queued = false;
+    const body = {};
+    if (dx || dy) { body.dx = dx; body.dy = dy; dx = dy = 0; }
+    if (sx || sy) { body.sx = sx; body.sy = sy; sx = sy = 0; }
+    if (body.dx || body.dy || body.sx || body.sy) post("/pointer", body);
+  };
+
+  const queue = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(flush);
+  };
+
+  const releaseHold = () => {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    if (!holding) return;
+    holding = false;
+    post("/pointer", { hold: "up", button: "left" });
+  };
+
+  const centre = (event) => {
+    // The midpoint of however many fingers are down, so a two-finger drag
+    // does not lurch when one of them lands a frame after the other.
+    let x = 0;
+    let y = 0;
+    for (const touch of event.touches) { x += touch.clientX; y += touch.clientY; }
+    const count = event.touches.length || 1;
+    return { clientX: x / count, clientY: y / count };
+  };
+
+  surface.addEventListener("touchstart", (event) => {
+    event.preventDefault();
+    touches = Math.max(touches, event.touches.length);
+    last = centre(event);
+    if (event.touches.length === 1) {
+      startedAt = Date.now();
+      travelled = 0;
+      scrolled = false;
+      surface.classList.add("live");
+      // A second tap in quick succession, held: drag. The browser will not
+      // tell us this happened, so the first tap's timestamp is kept.
+      if (Date.now() - lastTapAt < DOUBLE_TAP_MS) {
+        holding = true;
+        buzz(12);
+        post("/pointer", { hold: "down", button: "left" });
+      } else {
+        holdTimer = setTimeout(() => {
+          holdTimer = null;
+          if (travelled >= TAP_SLOP_PX || touches > 1) return;
+          holding = true;
+          buzz(18);
+          post("/pointer", { hold: "down", button: "left" });
+        }, HOLD_MS);
+      }
+    }
+    if (event.touches.length > 1) {
+      // Two fingers means scroll, not drag — including if a hold had
+      // already started, because that was a misread of the first finger.
+      clearTimeout(holdTimer);
+      holdTimer = null;
+      releaseHold();
+      surface.classList.add("scrolling");
+    }
+  }, { passive: false });
+
+  surface.addEventListener("touchmove", (event) => {
+    event.preventDefault();
+    const point = centre(event);
+    if (last) {
+      const mx = point.clientX - last.clientX;
+      const my = point.clientY - last.clientY;
+      travelled += Math.abs(mx) + Math.abs(my);
+      if (event.touches.length >= 2) {
+        // Inverted, and on purpose: dragging two fingers *up* pushes the
+        // content up, which is what the same gesture does on every laptop
+        // trackpad and on the phone's own screen.
+        sx -= mx / SCROLL_DIVISOR;
+        sy -= my / SCROLL_DIVISOR;
+        scrolled = true;
+      } else {
+        dx += mx;
+        dy += my;
+      }
+      queue();
+    }
+    last = point;
+  }, { passive: false });
+
+  const end = (event) => {
+    event.preventDefault();
+    last = event.touches.length ? centre(event) : null;
+    if (event.touches.length) return;  // some fingers are still down
+
+    surface.classList.remove("live", "scrolling");
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    const quick = Date.now() - startedAt < TAP_MS;
+    const still = travelled < TAP_SLOP_PX;
+    const wasHolding = holding;
+    releaseHold();
+
+    if (!wasHolding && quick && still && !scrolled) {
+      // Which button depends on how many fingers took part, which is why
+      // `touches` is the high-water mark rather than the current count:
+      // by the time the last finger lifts, the others are already gone.
+      const button = touches >= 3 ? "middle" : touches === 2 ? "right" : "left";
+      buzz(button === "left" ? 8 : 14);
+      post("/pointer", { click: true, button: button });
+      if (button === "left") lastTapAt = Date.now();
+    }
+    if (scrolled) post("/pointer", { scrollEnd: true });
+    touches = 0;
+  };
+
+  surface.addEventListener("touchend", end, { passive: false });
+  surface.addEventListener("touchcancel", end, { passive: false });
 }
 
-pad.addEventListener("touchstart", (event) => {
-  last = event.touches[0];
-  travelled = 0;
-  pad.classList.add("live");
-  event.preventDefault();
-}, { passive: false });
+bindPad($("pad"));
+bindPad($("type-pad"));
 
-pad.addEventListener("touchmove", (event) => {
-  const touch = event.touches[0];
-  if (last) {
-    dx += touch.clientX - last.clientX;
-    dy += touch.clientY - last.clientY;
-    travelled += Math.abs(touch.clientX - last.clientX)
-      + Math.abs(touch.clientY - last.clientY);
-    if (!queued) {
-      queued = true;
-      requestAnimationFrame(flush);
-    }
-  }
-  last = touch;
-  event.preventDefault();
-}, { passive: false });
-
-pad.addEventListener("touchend", (event) => {
-  last = null;
-  pad.classList.remove("live");
-  // A tap is a touch that never really moved. 10px of slop, because a
-  // finger on glass always moves a little.
-  if (travelled < 10) {
-    buzz(8);
-    post("/pointer", { click: true });
-  }
-  event.preventDefault();
-}, { passive: false });
+// The same two clicks as buttons, for a thumb that does not know the
+// gestures yet and for anyone who cannot make a two-finger tap land.
+$("click-left").addEventListener("click", () => {
+  buzz(8);
+  post("/pointer", { click: true, button: "left" });
+});
+$("click-right").addEventListener("click", () => {
+  buzz(14);
+  post("/pointer", { click: true, button: "right" });
+});
 
 /* --- keeping the screen on ---------------------------------------------- */
 

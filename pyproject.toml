@@ -15,6 +15,11 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# The gate that would have caught the controller regression: two methods
+# were inserted into the middle of GamepadSource.__init__, leaving the
+# device-monitor setup stranded after a `return`. Nothing complained, and
+# no controller worked. Unreachable code is never intentional here.
+warn_unreachable = true
 packages = ["salon.core", "salon.input"]
 exclude = ["build", ".venv"]
 

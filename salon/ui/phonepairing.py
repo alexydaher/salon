@@ -34,6 +34,7 @@ from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from salon.input.actions import Action  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
+from salon.ui import motion  # noqa: E402
 from salon.ui.overlays import point_at  # noqa: E402
 from salon.ui.qrcode import QrCode  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
@@ -50,7 +51,7 @@ _STATUS_POLL_MS = 1000
 _CONNECTED_DWELL_MS = 1600
 
 
-class PhonePairing(Gtk.Box):
+class PhonePairing(Gtk.Box, motion.FadesIn):
     """Scrim, card, QR code. Navigated with LEFT/RIGHT and OK like the
     system menu it is opened from, and clickable throughout because the
     mouse is a first-class input here."""
@@ -65,6 +66,7 @@ class PhonePairing(Gtk.Box):
         on_stop: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._init_fade()
         self.add_css_class("salon-system-menu-scrim")
         self.set_hexpand(True)
         self.set_vexpand(True)
@@ -163,6 +165,7 @@ class PhonePairing(Gtk.Box):
         self._update_selection()
         self._refresh()
         self.set_visible(True)
+        self._begin_fade()
         if self._poll_id is None:
             self._poll_id = GLib.timeout_add(_STATUS_POLL_MS, self._on_poll)
         return True

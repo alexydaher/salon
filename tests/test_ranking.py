@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
+from salon.core import ranking
 from salon.core.ranking import rank, score
 
 
@@ -55,3 +56,29 @@ def test_rank_is_case_insensitive() -> None:
 def test_rank_preserves_input_order_for_ties() -> None:
     items = [("a", "Apple"), ("b", "Apricot")]
     assert rank("ap", items) == ["a", "b"]
+
+
+# --- rank_best: the shared dedupe both search surfaces use -----------------
+
+
+def test_rank_best_drops_duplicates_keeping_the_first_group() -> None:
+    # The catalogue copy of a tile and the installed-app copy of the same
+    # program both match; the catalogue is passed first and is the one kept.
+    ordered = ranking.rank_best(
+        "files",
+        [("files", "Files"), ("app:org.gnome.Nautilus.desktop", "Files")],
+        limit=10,
+    )
+    assert ordered == ["files", "app:org.gnome.Nautilus.desktop"]
+
+    same_id = ranking.rank_best("f", [("files", "Files"), ("files", "Files")], limit=10)
+    assert same_id == ["files"]
+
+
+def test_rank_best_caps_the_result_list() -> None:
+    items = [(f"id{n}", f"Film {n}") for n in range(50)]
+    assert len(ranking.rank_best("film", items, limit=8)) == 8
+
+
+def test_rank_best_of_nothing_is_nothing() -> None:
+    assert ranking.rank_best("zzz", [("a", "Alpha")], limit=10) == []

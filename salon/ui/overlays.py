@@ -26,7 +26,7 @@ from gi.repository import Gdk, Graphene, Gsk, Gtk, Pango  # noqa: E402
 from salon.core import tokens  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.services.artwork import glow_color  # noqa: E402
-from salon.ui import theme  # noqa: E402
+from salon.ui import motion, theme  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 
@@ -91,13 +91,14 @@ class _AccentScrim(Gtk.Widget):
         snapshot.append_radial_gradient(bounds, center, radius, radius, 0.0, 1.0, [inner, outer])
 
 
-class LaunchingOverlay(Gtk.Overlay):
+class LaunchingOverlay(Gtk.Overlay, motion.FadesIn):
     """Absorbs all input until the child window takes focus (or a 12s
     timeout shows a recovery message instead) — that's what prevents a
     second OK press from double-launching while it's up."""
 
     def __init__(self, scale: Scale) -> None:
         super().__init__()
+        self._init_fade()
         self.set_visible(False)
         # Absorb input so a second OK/BACK press can't double-launch or
         # leak through to whatever's behind the overlay while it's up.
@@ -149,6 +150,7 @@ class LaunchingOverlay(Gtk.Overlay):
         self._hint_label.set_visible(bool(hint))
         self._spinner.set_spinning(True)
         self.set_visible(True)
+        self._begin_fade()
 
     def show_timed_out(self) -> None:
         self._message_label.set_label(
@@ -168,7 +170,7 @@ class SystemMenuItem:
     danger: bool = False
 
 
-class SystemMenu(Gtk.Box):
+class SystemMenu(Gtk.Box, motion.FadesIn):
     """A D-pad-navigable *and* mouse-driven menu — every row is a real
     Gtk.Button, so clicks work for free, hover moves the selection so the
     pointer and the D-pad never disagree about what's highlighted, and a
@@ -184,6 +186,7 @@ class SystemMenu(Gtk.Box):
 
     def __init__(self, items: list[SystemMenuItem], scale: Scale) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._init_fade()
         self.add_css_class("salon-system-menu-scrim")
         self.set_halign(Gtk.Align.FILL)
         self.set_valign(Gtk.Align.FILL)
@@ -265,6 +268,7 @@ class SystemMenu(Gtk.Box):
         self._selected = 0
         self._update_selection()
         self.set_visible(True)
+        self._begin_fade()
 
     def hide(self) -> None:
         self.set_visible(False)

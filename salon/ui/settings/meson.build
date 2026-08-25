@@ -2,6 +2,7 @@ python_sources = [
   '__init__.py',
   'context.py',
   'widgets.py',
+  'popup.py',
   'panels.py',
   'tiles.py',
   'providers.py',

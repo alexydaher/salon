@@ -58,6 +58,10 @@ _WRAPPER_EXIT_GRACE_MS = 2500
 # point of the button that sends it is that the user is stuck.
 _CLOSE_GRACE_SECONDS = 4
 
+# How often a closing .desktop child's pid is checked for having actually
+# gone. Fast enough that MENU feels like one press rather than two.
+_CLOSE_POLL_MS = 400
+
 
 def detect_browser() -> tuple[str, ...]:
     for name in _BROWSER_CANDIDATES:
@@ -96,6 +100,7 @@ class LauncherService:
         self._launched_at_ms = 0
 
         self._overlay_timeout_id: int | None = None
+        self._watch_id: int | None = None
         self._return_debounce_id: int | None = None
         self._inhibit_cookie: int | None = None
         self._inhibit_release_id: int | None = None
@@ -119,6 +124,31 @@ class LauncherService:
         """True only during phase 1 (awaiting child focus) — the window
         where BACK should cancel the attempt rather than do nothing."""
         return self._awaiting_child_focus
+
+    @property
+    def has_child(self) -> bool:
+        """True from the moment something is spawned until return is
+        confirmed, across *both* phases.
+
+        The UI's own `_child_active` flag is set from `on_child_focused`,
+        which only fires if the window-activity edge is seen — and that edge
+        does not exist when Salon's window was already inactive at launch
+        time, which is exactly the case when the phone launches a tile while
+        another app is in front. MENU asking this instead means "get me out"
+        stays true whether or not the focus signal ever arrived.
+        """
+        return self._awaiting_child_focus or self._awaiting_return
+
+    def abandon(self) -> None:
+        """Stop tracking a child Salon has no handle on.
+
+        `close_child()` returning False means the pid was a wrapper that had
+        already exited, so nothing here will ever see that app go away.
+        Holding `has_child` True on its account would make MENU answer "I
+        can't close that" forever, including long after the user closed the
+        app themselves.
+        """
+        self._finish_return()
 
     def launch(self, tile: Tile) -> None:
         # Gio.DesktopAppInfo can only see entries inside the sandbox, so
@@ -279,8 +309,29 @@ class LauncherService:
                 return False
             pid = self._child_pid
             GLib.timeout_add_seconds(_CLOSE_GRACE_SECONDS, lambda: self._force_kill(pid))
+            # And watch it go. A .desktop launch has no Gio.Subprocess to
+            # wait on, so the only other thing that would ever notice this
+            # app ending is Salon's window going active again — which does
+            # not happen if it never went inactive in the first place.
+            # Without this the state machine stayed convinced the app was
+            # still out there: MENU closed it, and then every following MENU
+            # tried to close it again instead of opening the system menu.
+            # Measured, with a real child: it took two presses.
+            self._watch_id = GLib.timeout_add(_CLOSE_POLL_MS, lambda: self._poll_closed(pid))
             return True
         return False
+
+    def _poll_closed(self, pid: int) -> bool:
+        if pid != self._child_pid:
+            self._watch_id = None
+            return GLib.SOURCE_REMOVE
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            self._watch_id = None
+            self._finish_return()
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
 
     def _force_exit(self, proc: Gio.Subprocess) -> bool:
         if proc is self._subprocess:
@@ -316,10 +367,32 @@ class LauncherService:
             self.on_child_focused()
 
     def _on_overlay_timeout(self) -> bool:
+        """Twelve seconds without the window-activity edge. Two different
+        things look like this, and they need opposite answers.
+
+        If Salon still has focus, nothing is covering it: the app is slow or
+        it never started, the overlay says so, and BACK gives up. That is
+        the case this timeout was written for.
+
+        If Salon does *not* have focus, something is in front of it and the
+        edge was simply never generated — a window that maps while Salon is
+        already inactive produces no notify at all, which is what happens
+        every time the phone opens a tile from behind another app. Waiting
+        longer cannot help; the launch has plainly succeeded. Treating it as
+        arrival is what keeps MENU meaning "close this and come back".
+        """
         self._overlay_timeout_id = None
-        if self._awaiting_child_focus and self.on_launch_timed_out is not None:
+        if not self._awaiting_child_focus:
+            return GLib.SOURCE_REMOVE
+        if not self._salon_has_focus():
+            self._child_took_focus()
+            return GLib.SOURCE_REMOVE
+        if self.on_launch_timed_out is not None:
             self.on_launch_timed_out()
         return GLib.SOURCE_REMOVE
+
+    def _salon_has_focus(self) -> bool:
+        return any(window.get_property("is-active") for window in self._application.get_windows())
 
     def _clear_overlay_timeout(self) -> None:
         if self._overlay_timeout_id is not None:
@@ -352,6 +425,9 @@ class LauncherService:
         self._awaiting_return = False
         self._awaiting_child_focus = False
         self._clear_overlay_timeout()
+        if self._watch_id is not None:
+            GLib.source_remove(self._watch_id)
+            self._watch_id = None
         if self._return_debounce_id is not None:
             GLib.source_remove(self._return_debounce_id)
             self._return_debounce_id = None

@@ -228,11 +228,11 @@ toast > label {
   box-shadow: inset 0 0 0 var(--focus-ring) @accent;
 }
 
-/* A row that has been stepped into: LEFT and RIGHT now belong to it, and
-   that has to be readable from three metres. The selected state is a tint
-   and a ring; this is the tint at full strength with a heavier ring, so the
-   difference between "the cursor is here" and "this row has the buttons" is
-   a difference in weight rather than one more small glyph. */
+/* A row whose value list is open. The selected state is a tint and a ring;
+   this is the tint at full strength with a heavier ring, so the row the
+   popup belongs to stays unmistakable behind it — the list is anchored on
+   the value, and at three metres a small panel floating near a list of
+   twenty rows needs its row named. */
 .salon-settings-row.adjusting {
   background-color: alpha(@accent, 0.32);
   box-shadow: inset 0 0 0 calc(var(--focus-ring) * 1.75) @accent;
@@ -444,4 +444,77 @@ toast > label {
   color: @text-secondary;
   font-size: var(--font-settings-body);
   font-weight: var(--weight-settings-body);
+}
+
+/* The standing pairing card (ui/remotehint.py). Shown only when there is
+   no controller and no phone — i.e. when the user has nothing to press —
+   so it is allowed to sit on the artwork permanently, but it is deliberately
+   quieter than the menus: dimmed until the pointer finds it, so it reads as
+   an offer in the corner rather than a dialog nobody dismissed. */
+.salon-remote-hint {
+  background-color: @surface-1;
+  border: var(--focus-ring) solid alpha(@text-primary, 0.06);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-m);
+  opacity: 0.80;
+  transition: opacity 160ms ease;
+}
+
+.salon-remote-hint:hover {
+  opacity: 1;
+}
+
+.salon-remote-hint-title {
+  color: @text-primary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-menu-item);
+}
+
+.salon-remote-hint-detail {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
+  font-weight: var(--weight-tile-subtitle);
+  font-feature-settings: "tnum" 1;
+}
+
+/* --- The value list (ui/settings/popup.py) ----------------------------- */
+
+/* A console dropdown, not a desktop menu: the same card as the system menu,
+   opened on the row whose value it holds. Deliberately not styled as a GTK
+   popover — the default has a pointed arrow and a light background, and this
+   sits on a full-bleed dark field a few metres from the viewer. */
+.salon-value-popup > contents {
+  background-color: @surface-1;
+  border: var(--focus-ring) solid alpha(@text-primary, 0.08);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-s);
+  box-shadow: none;
+}
+
+.salon-value-option {
+  background-color: transparent;
+  border: none;
+  outline: none;
+  border-radius: var(--radius);
+  padding: var(--pad-s) var(--pad-m);
+  color: @text-primary;
+  font-size: var(--font-settings-body);
+  font-weight: var(--weight-settings-body);
+  transition: background-color 120ms ease;
+}
+
+.salon-value-option.selected {
+  background-color: @accent;
+  color: @surface-0;
+}
+
+/* The tick marks what is set, which is not the same thing as what the
+   cursor is on — the whole point of showing the list is being able to move
+   away from the current value and see where you came from. */
+.salon-value-option-tick {
+  color: @accent;
+}
+
+.salon-value-option.selected .salon-value-option-tick {
+  color: @surface-0;
 }

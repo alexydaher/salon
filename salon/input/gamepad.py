@@ -96,6 +96,7 @@ class GamepadSource:
         on_action_release: Callable[[Action], None] | None = None,
         bindings: Bindings | None = None,
         on_raw: Callable[[int], None] | None = None,
+        on_devices_changed: Callable[[int], None] | None = None,
     ) -> None:
         self._on_action = on_action
         self._on_right_stick = on_right_stick
@@ -109,20 +110,13 @@ class GamepadSource:
         # capture. Delivered whether or not the code maps to anything, which
         # is the point: an unmapped button is exactly what needs binding.
         self._on_raw = on_raw
+        # How many pads are plugged in, whenever that changes. The home
+        # screen uses it to decide whether anyone has a remote at all —
+        # with no controller and no phone there is nothing to drive Salon
+        # with, and that is when the pairing code goes on screen.
+        self._on_devices_changed = on_devices_changed
 
-    def set_bindings(self, bindings: Bindings) -> None:
-        self._bindings = bindings
-
-    def _resolve(self, button: int) -> Action | None:
-        override = self._bindings.action_for(GAMEPAD, button)
-        if override is not None:
-            # Including the empty string, which means the user silenced this
-            # button and must beat the default rather than fall through it.
-            try:
-                return Action(override) if override else None
-            except ValueError:
-                return None
-        return _BUTTON_ACTIONS.get(button)
+        self._devices: set[Manette.Device] = set()
         self._axis_state: dict[tuple[Manette.Device, int], int] = {}
         self._right_stick_raw: dict[tuple[Manette.Device, int], float] = {}
         self._monitor = Manette.Monitor.new()
@@ -135,14 +129,54 @@ class GamepadSource:
             self._connect_device(device)
 
         self._monitor.connect("device-connected", self._on_device_connected)
+        self._monitor.connect("device-disconnected", self._on_device_disconnected)
 
         if self._on_right_stick is not None:
             GLib.timeout_add(_POLL_INTERVAL_MS, self._poll_right_stick)
 
+    def set_bindings(self, bindings: Bindings) -> None:
+        self._bindings = bindings
+
+    @property
+    def device_count(self) -> int:
+        """Pads currently plugged in. Counted from the monitor's own
+        connect/disconnect signals rather than re-walking `iterate()`,
+        which is what makes an unplug visible at all: nothing else in
+        Salon ever asks libmanette a second time."""
+        return len(self._devices)
+
+    def _resolve(self, button: int) -> Action | None:
+        override = self._bindings.action_for(GAMEPAD, button)
+        if override is not None:
+            # Including the empty string, which means the user silenced this
+            # button and must beat the default rather than fall through it.
+            try:
+                return Action(override) if override else None
+            except ValueError:
+                return None
+        return _BUTTON_ACTIONS.get(button)
+
     def _on_device_connected(self, monitor: Manette.Monitor, device: Manette.Device) -> None:
         self._connect_device(device)
+        self._notify_devices()
+
+    def _on_device_disconnected(self, monitor: Manette.Monitor, device: Manette.Device) -> None:
+        self._devices.discard(device)
+        # Whatever it was holding is not coming back. Left latched, an
+        # unplugged pad's last direction would repeat forever, because the
+        # release event that clears it arrives from a device that is gone.
+        for key in [k for k in self._axis_state if k[0] is device]:
+            del self._axis_state[key]
+        for key in [k for k in self._right_stick_raw if k[0] is device]:
+            del self._right_stick_raw[key]
+        self._notify_devices()
+
+    def _notify_devices(self) -> None:
+        if self._on_devices_changed is not None:
+            self._on_devices_changed(len(self._devices))
 
     def _connect_device(self, device: Manette.Device) -> None:
+        self._devices.add(device)
         device.connect("button-press-event", self._on_button_press)
         device.connect("button-release-event", self._on_button_release)
         device.connect("absolute-axis-event", self._on_axis)

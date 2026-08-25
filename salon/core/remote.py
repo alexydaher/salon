@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -63,6 +64,13 @@ class RemoteTile:
     # `texture` for the same reason) and a phone that ignored it would show
     # a wall of 64px icons stretched across 16:9 cards.
     fit: str = "cover"
+    # Whether this is in `favourite-tile-ids`, and whether it is a tile in
+    # `tiles.json` that could be deleted. Both are here so the phone's
+    # per-tile menu can offer the right verb — "Unpin" for something already
+    # pinned, no "Remove" at all for a provider's row, which the phone
+    # cannot edit because nothing in `tiles.json` describes it.
+    pinned: bool = False
+    removable: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +80,8 @@ class RemoteTile:
             "accent": self.accent,
             "art": self.has_art,
             "fit": self.fit,
+            "pinned": self.pinned,
+            "removable": self.removable,
         }
 
 
@@ -149,10 +159,27 @@ class RemoteState:
     # phone is a second screen of the same launcher and should not be the
     # one surface that ignores the theme.
     accent: str = "#E8A33D"
+    # The title of the application currently covering the television, or ""
+    # for none. `screen` already carries the same name, but as one string
+    # among six reserved words — the page cannot tell "an app called
+    # Settings is in front" from "the Settings screen is open" without
+    # this, and it now reshapes itself completely on the answer. Half the
+    # buttons on the remote do nothing while an app is up, and a remote that
+    # does not say which half is a remote you learn by failing.
+    app: str = ""
+    # 0..1, or -1 when the sink could not be read. The phone draws a slider
+    # rather than two repeat-buttons: volume is the one control guaranteed
+    # to work from behind any application, and it is the one a touchscreen
+    # is unambiguously better at than a physical remote.
+    volume: float = -1.0
+    muted: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "rows": [row.to_dict() for row in self.rows],
+            "app": self.app,
+            "volume": self.volume,
+            "muted": self.muted,
             "playing": self.now_playing.to_dict() if self.now_playing else None,
             "focus": list(self.focus) if self.focus else None,
             "screen": self.screen,
@@ -219,6 +246,44 @@ class StateFeed:
         naming anything else is refused rather than looked up: the phone
         cannot be a way to reach something that isn't on the screen."""
         return frozenset(tile.id for row in self.state.rows for tile in row.tiles)
+
+
+@dataclass(slots=True)
+class OfferedIds:
+    """Every tile id the phone has been handed outside the state snapshot.
+
+    `/launch` and `/art` answer only for things the phone was shown, and
+    until search existed the published state was the whole of that set. It
+    is not any more: a search result is a tile the phone has been given and
+    can reasonably tap, and it is deliberately *not* in the snapshot —
+    putting a transient result list into the state the television publishes
+    would bump the version for every keystroke on somebody's phone.
+
+    So results are recorded here as they are served, and the check becomes
+    "shown to the phone" rather than "currently on the television". The set
+    is bounded because it is fed from a network endpoint: without a cap, a
+    phone typing letters at a large application list is a memory leak with
+    a user interface. Oldest ids fall out first, which is the right end —
+    a result from forty searches ago is not one anybody is still tapping.
+    """
+
+    limit: int = 400
+    _ids: dict[str, None] = field(default_factory=dict, repr=False)
+
+    def offer(self, ids: Iterable[str]) -> None:
+        for item_id in ids:
+            # Re-inserting moves it to the end, so an id that keeps coming
+            # back in results keeps its place instead of ageing out.
+            self._ids.pop(item_id, None)
+            self._ids[item_id] = None
+        while len(self._ids) > self.limit:
+            self._ids.pop(next(iter(self._ids)))
+
+    def __contains__(self, item_id: object) -> bool:
+        return item_id in self._ids
+
+    def clear(self) -> None:
+        self._ids.clear()
 
 
 # Written out rather than deferred to `ipaddress.is_private`, which does not

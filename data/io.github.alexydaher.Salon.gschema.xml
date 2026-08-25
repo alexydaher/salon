@@ -115,10 +115,25 @@
       <summary>Key repeat interval</summary>
       <description>Interval between repeats before acceleration kicks in.</description>
     </key>
+    <key name="remote-hint" type="b">
+      <default>true</default>
+      <summary>Show the pairing code when nothing is connected</summary>
+      <description>With no controller plugged in and no phone talking to Salon, a small QR code stands in the bottom-right corner offering to make a phone the remote. It disappears as soon as either turns up. Reaching the full pairing screen needs something to press with, which is exactly what is missing in that state; turning this off removes the only route to a remote that does not already require one.</description>
+    </key>
     <key name="gamepad-pointer" type="b">
       <default>true</default>
       <summary>Gamepad pointer control in browser tiles</summary>
       <description>When on, the right stick drives the system cursor over a browser-hosted tile so a controller can operate a site that has no remote-friendly UI. The desktop asks for remote-control permission once; the grant is remembered in remote-desktop-restore-token.</description>
+    </key>
+    <key name="input-injection" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="mutter"/>
+        <choice value="portal"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>How Salon injects pointer and keyboard input</summary>
+      <description>The phone trackpad, phone typing and gamepad pointer control all need to move the system cursor, which on Wayland only the compositor may do. "auto" asks mutter directly (org.gnome.Mutter.RemoteDesktop) and falls back to the desktop portal if that is not there; mutter grants it without a dialog, which is the only route a television with no keyboard or mouse attached can complete, since the portal's consent dialog can only be dismissed with the pointer it is gating. "portal" always takes the sanctioned route and its one-time consent dialog — correct where the sandbox boundary matters more than unattended setup, and required under Flatpak. "mutter" refuses to fall back, so a misconfigured appliance fails loudly rather than putting an unanswerable dialog on the television.</description>
     </key>
     <key name="remote-desktop-restore-token" type="s">
       <default>''</default>

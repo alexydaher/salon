@@ -52,7 +52,7 @@ gi.require_version("Gsk", "4.0")
 
 from gi.repository import Adw, Gdk, GLib, Graphene, Gsk, Gtk  # noqa: E402
 
-from salon.ui import theme  # noqa: E402
+from salon.ui import motion, theme  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +259,7 @@ class Backdrop(Gtk.Widget):
             blurred = self._blurred(paintable)
             if blurred is not None:
                 self._to_art = _Blurred(texture=blurred, full_bleed=full_bleed)
+        self._animation.set_duration(motion.duration_ms(_FADE_MS))
         self._animation.reset()
         self._animation.play()
         return GLib.SOURCE_REMOVE

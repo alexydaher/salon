@@ -1474,3 +1474,620 @@ first and says so, the way `screenlock.py` already did for its own host
 key. Inside the Flatpak the schema always exists, so this was only ever
 reachable from a Meson install on a non-GNOME desktop — which is exactly
 the configuration nobody here runs.
+
+## 2026-08-23 (evening) — one press, one thing
+
+**No controller worked, and no gate said so.** `d2bab02` added
+`set_bindings()` and `_resolve()` to `GamepadSource` and put them *inside*
+`__init__`, between the last assignment and the device-monitor setup.
+Everything from `self._axis_state = …` down — creating `Manette.Monitor`,
+enumerating the pads already plugged in, connecting the three signal
+handlers, arming the right-stick poll — became unreachable code after a
+`return`. The object constructed fine, raised nothing and did nothing.
+Ruff has no rule for it and mypy's `warn_unreachable` is off by default, so
+355 passing tests and a green CI had exactly as much to say about it as
+they would have about a comment. `warn_unreachable = true` is on now, and
+it flags the original line; reverting `gamepad.py` under the new setting
+reproduces the error, which is the only way to know a gate works. The
+milestone list called the gamepad "done, mapping confirmed", and it was —
+on 2026-08-19, four days before the commit that silently switched it off.
+Verified after the fix against the DualSense that is attached: libmanette
+enumerates it, 1284 axis events arrive in eight seconds from the resting
+stick alone, and `GamepadSource` turns presses into `Action`s again.
+
+**MENU asks the launcher whether a child exists, not the UI's own flags.**
+`_child_active` and `_pointer_mode` are set from `on_child_focused`, which
+fires on Salon's window going *inactive*. A window that is already inactive
+cannot go inactive, so when a launch starts from behind another app the
+edge is never generated and both flags stay False — at which point MENU
+fell through to opening the system menu underneath the running app, where
+it is invisible and swallows the following press to close itself again.
+That is the "MENU works every other time" everyone was seeing, and the
+phone is what made it common, because the phone is the only remote that can
+open a tile while an app is already covering the television.
+`LauncherService.has_child` is true across both phases and is now the third
+thing MENU checks.
+
+**Launching over a running app closes it first.** Same cause, worse effect:
+`launch()` overwrote `_subprocess` with the new child, so the old app was
+still on screen with nothing tracking it at all — MENU would then close the
+*new* one and leave the old one unreachable forever. `_launch_tile` now
+queues the tile, returns from the current child, and starts the new one
+250ms after the return, which gives the compositor time to hand focus back
+so the next launch's detection edge exists.
+
+**A closing `.desktop` child is watched for actually going.** There is no
+`Gio.Subprocess` on that path, so the only other signal is the window
+activity that had already been missed. Measured with a real child: MENU
+closed the app, the launcher stayed convinced it was out there, and it took
+a second press to get anywhere. The pid is polled every 400ms after
+SIGTERM, and `close_child()` returning False now calls `abandon()` so a
+wrapper pid Salon never had a handle on cannot pin the state machine open.
+
+**The 12s launch timeout resolves instead of just complaining.** If Salon
+still has focus, nothing is covering it — the app is slow or dead, the
+overlay says so and BACK gives up, unchanged. If Salon does *not* have
+focus, something is plainly in front and the edge was simply never
+generated, so the launch is treated as arrived. Waiting longer could not
+have helped, and the alternative was a launcher that never armed its return
+detection at all.
+
+**SEARCH, POWER and PLAY_PAUSE moved below the "an app is in front" guard.**
+Flagged as measured-but-unfixed on 2026-08-22 and fixed here, because
+PLAY_PAUSE is the one that broke MENU: with nothing playing it falls
+through to launching the focused tile, which is how a phone with a paused
+player opened GeForce NOW behind the app already running. Volume and mute
+stay above the guard — they act on the system's audio, not on a window, and
+turning the television down while watching something is the single most
+obvious thing a remote should do. In pointer mode SEARCH still toggles
+GNOME's on-screen keyboard, which was always deliberate.
+
+**Bluetooth devices can be forgotten, and a paired one opens a panel.**
+`BluetoothService.forget` had existed since the panel was written and
+nothing ever called it, so a television accumulated pairings and could not
+shed them: seven on this machine, one of them connected, most of them
+neither present nor wanted. Forgetting is also the only repair for a
+pairing that has gone bad, since BlueZ will not re-pair a device it thinks
+it already knows. An unpaired row still pairs on OK — one useful action
+does not need a menu — while a paired one opens Connect/Disconnect/Forget,
+with the same confirmation screen tile deletion uses. That helper moved
+from `tiles.py` to `context.py`: deleting a row, deleting a tile and
+unpairing a device are the same question, and a confirmation that looks
+different each time teaches nobody where Cancel is.
+
+**Panels can be told when they leave.** `Panel.on_leave` exists because
+`_bluetooth_panel`'s own docstring claimed discovery "stops when the panel
+closes" and `stop_discovery` had no callers anywhere in the tree — the
+adapter scanned until Salon exited, which costs power and keeps the radio
+busy while a paired controller is trying to use it. Verified by reading
+`org.bluez.Adapter1.Discovering` across the transition: True with the panel
+open, False after Settings closes.
+
+## 2026-08-23 (night) — the phone stops being a keyboard with buttons
+
+Six changes, all from one observation: the page looked identical whether the
+television was on its home screen or three levels into Netflix, even though
+what the buttons *do* changes completely.
+
+**The page reshapes itself around `state.app`.** `screen` already carried
+the same string, but as one of six reserved words — the page cannot tell "an
+app called Settings is in front" from "the Settings screen is open" without
+a separate field, and it now hides half its own controls on the answer. With
+an application up, the D-pad, OK, Back, Search, Options and the group keys
+are greyed with one line saying why, "Close *Netflix*" becomes the prominent
+action, and the pane switches to the trackpad *once*, on the transition,
+from a pane that has just gone useless. Volume and Play/Pause stay live and
+now visibly so: they act on the system's audio and on MPRIS, not on a window.
+Rejected: hiding the dead controls. A remote that is a different shape every
+time you glance down teaches nothing; one that is visibly unavailable
+teaches the rule.
+
+**Search lives in the Apps pane, not behind a fifth tab.** What you are
+looking for is an application and that is the pane with the applications in
+it. It searches every *installed* app as well as the catalogue, which closes
+the "11 tiles against 53 installed" gap without the `show-apps-row`
+workaround that also changes the television. `core/ranking.rank_best` is now
+shared with `ui/search.py` — the same dedupe-and-cap loop had been written
+out at both call sites, and two search surfaces that ordered results
+differently would be two things to learn.
+
+**`/search` answers synchronously, on the main loop.** Soup dispatches
+there, which is where the catalogue and the installed-app cache already
+live, so the handler can simply ask: no thread, no request id, no second
+round trip. The price is that the callback must stay cheap, which is why the
+installed-app scan happens once when the remote starts rather than per
+query — scanning every `.desktop` file inside a keystroke handler would
+stall the frame clock on the television while somebody types on a phone.
+
+**`core/remote.OfferedIds` widens "what the phone may reach" from "what is
+on the television" to "what it has been shown".** A search result is
+deliberately not published — putting a transient result list into the state
+snapshot would bump the version on every keystroke — so the ids are recorded
+as they are served. Bounded at 400, oldest out first, because it is fed from
+a network endpoint and the alternative is a memory leak with a user
+interface. `/launch` and `/art` both go through the one `_may_touch` check,
+so there is still nothing anywhere in that file that joins an id onto a path.
+
+**`/art` resolves search results too.** It looked only in the catalogue, so
+every installed application in a result list advertised artwork the server
+then 404ed, and the card fell back to a coloured letter after a wasted
+request. Found by looking at a screenshot of the real page, not by reading
+the code — the API response said `art: true` and the picture said otherwise.
+
+**Volume is a slider, and absolute.** Two repeat-buttons still send
+VOLUME_UP and VOLUME_DOWN as ordinary Actions; this is the other thing. A
+finger dragged a third of the way along is asking for a third of the way
+along, and expressing that as nineteen step presses is how a volume control
+ends up lagging behind the thumb moving it. Throttled to one request per
+60ms, and the television's value is not written back into the slider while a
+thumb is on it — that is what makes a remote slider fight the finger holding
+it. Every existing volume path was rerouted through `_on_volume_read` so a
+press on the television moves the slider in someone's hand.
+
+**A long press on a tile opens the per-tile menu.** `Action.OPTIONS` has
+reached the same set on the television since the reachability pass, and the
+phone — the one surface that shows every tile at once — was the one where
+none of them could be changed. Edit opens the *television's* editor rather
+than reimplementing a form with eight fields on a phone, and the endpoint
+answers with a sentence to say so: a screen changing in another room with no
+acknowledgement in your hand is indistinguishable from a dead button.
+
+**`/events` is server-sent events, and the poll is the fallback, not the
+loser.** The poll cannot be prompt — a press changes the television now and
+the phone finds out up to a second later, which is why `pollSoon()` existed
+at all. A held connection is also exactly what a phone breaks: a screen
+lock, a Wi-Fi roam, a tab eviction and a captive-portal proxy all end it,
+some silently. So the page opens a stream, keeps polling until it is
+actually open, and falls back on any error. Both read the same `StateFeed`,
+so they cannot disagree. `tests/test_pairing.py` holds a raw socket open and
+watches a published change arrive, because "libsoup will let later writes
+reach the socket" is the assumption the whole feature rests on and is not
+obvious from the API.
+
+One claim here was wrong and is worth recording: the first version of the
+comment said accumulation had to be off or nothing would be delivered.
+Measured — it is delivered either way. Accumulation is off because libsoup
+otherwise retains every byte ever written to a response that is meant to
+live for hours, which is a slow leak per connected phone rather than a
+broken feature. The test was rewritten to claim only what it proves.
+
+**The trackpad has gestures.** One finger moves and taps; two fingers
+scroll and right-click; three fingers middle-click; a long press or a
+double-tap-and-hold drags. The last one needed `press`/`release` on
+`PointerInjector` as separate calls — a click that releases itself 50ms
+later cannot move a window or select a line of text, which are the two
+things a trackpad is for that a D-pad is not. Scrolling uses
+`NotifyPointerAxis` rather than `…AxisDiscrete`: the discrete call moves in
+whole wheel clicks, so a continuous gesture would jump in three-line steps,
+and the `finish` option is what stops kinetic scrolling drifting on after
+the fingers lift. The legend under the pad is not decoration — a gesture
+nobody is told about is a gesture nobody has — and Click/Right click stay as
+buttons for the thumb that has not learned them yet.
+
+**Harness note.** The page was driven in real headless Chrome at a phone
+viewport over the DevTools protocol, from Node with no dependencies (Node 22
+has a WebSocket client built in), against a real `HomeView` with the remote
+switched on: launch an app from the phone, watch the page reshape, press
+Close, watch it come back. Worth keeping. It also produced a false alarm
+worth writing down — the harness runs the phone's browser *on the
+television*, so the muted keep-awake video makes the desktop emit
+`XF86AudioPlay`, which Salon maps to `PLAY_PAUSE`, which with nothing
+playing deliberately launches the focused tile. Intermittent, alarming, and
+entirely an artefact of a phone and a television being the same machine.
+
+## 2026-08-23 (late) — a second compositor underneath, and a stale install
+
+**The session files on this machine were four days old and pre-fix.** Before
+anything else, `~/.local/share/gnome-session/sessions/salon.session` was
+found still reading `RequiredComponents=org.gnome.Shell;rocks.salon.Salon;` —
+dead twice over: the key gnome-session 50 does not act on, naming an
+application id renamed away in `80dfdb5`. `~/.local/share/systemd/user/` did
+not exist at all, and neither did `~/.local/bin/salon`. So `meson install`
+had not run since `ba288af`, the commit that made the session real, and
+picking *Salon* at the login screen would have started gnome-session with no
+components: no compositor, no launcher, a black screen.
+
+This is worth recording as a class of bug rather than an incident. An
+installed tree is a snapshot, `bin/salon` deliberately runs from source, and
+every gate in `check.sh` reads the source too — so nothing in the loop ever
+looks at what is deployed. The tree was right the whole time. Only the
+machine was wrong, and only in the one place no test can see. The check that
+found it was `ls -l` on the install prefix, which is not a sophisticated
+instrument.
+
+It also leaves a claim in CLAUDE.md unresolved: the human reports logging
+into the Salon session on 2026-08-23 and getting the Shell and Salon. That
+cannot have come from the file above. Either a system-prefix install
+happened and has since been overwritten, or what came up was not this
+session. Left as an open question rather than quietly corrected — the report
+is evidence too, and guessing which half is wrong would throw it away.
+
+**GNOME Kiosk is offered as a second session, not as a replacement.** The
+suggestion on the table was to stop starting GNOME Shell and start
+`gnome-kiosk` instead — a Mutter-based compositor with no panel, dash, dock
+or overview. Three things made it cheap enough to just do:
+
+- The Ubuntu package ships almost nothing beyond the compositor:
+  `org.gnome.Kiosk.target` and `org.gnome.Kiosk@wayland.service`, shaped
+  exactly like `org.gnome.Shell@.service` and composed the same way
+  `gnome-session@ubuntu.target.d/ubuntu.session.conf` composes the desktop.
+  So the difference between the two sessions is one `Requires=` line.
+- `gnome-kiosk` links `libmutter-18.so.0`, the same soname already installed.
+  Not a second Mutter — the same one, driven by a different shell.
+- Salon never talks to `org.gnome.Shell`. Grepped: the only compositor-
+  adjacent thing in the tree is `org.freedesktop.portal.RemoteDesktop` in
+  `services/pointer_injector.py`.
+
+The reason to want it is not the 309 MB of `gnome-shell` RSS, though that is
+real. It is that **GNOME Kiosk fullscreens every window it is handed**, and
+50 adds a `window-config.ini` with `set-fullscreen=true` matched by window
+class. That is the one gap on the "what is still missing" list that no
+amount of work inside Salon can close: a native application decides its own
+window state, and no Wayland client may override another's. A compositor
+may.
+
+The reason not to make it the only session is that the RemoteDesktop portal
+path under it is **reasoned about, not measured**. `xdg-desktop-portal-gnome`
+reaches `org.gnome.Mutter.RemoteDesktop`, which lives in libmutter and so
+should be there — but if it is not, the phone trackpad, `/type` into a
+launched app and gamepad pointer control all die together, and they die in a
+session with no overview to escape to. Two entries at the login screen costs
+two small files and keeps a way back.
+
+**`DesktopNames=GNOME;Salon;` stays in the kiosk entry**, and the file says
+why in a comment, because the obvious edit is to remove it once GNOME Shell
+is not running. `/usr/share/xdg-desktop-portal/portals/gnome.portal` is
+`UseIn=gnome`: dropping GNOME from `XDG_CURRENT_DESKTOP` picks a different
+portal backend, or none.
+
+The drop-in requires `org.gnome.Kiosk.target` rather than
+`org.gnome.Kiosk@wayland.service` directly. The service is templated on
+session *type* and carries `ConditionEnvironment=XDG_SESSION_TYPE=%I`; the
+target is upstream's entry point. It `Wants=` the instance rather than
+`Requires=` it, which would normally be a way to get a session with no
+compositor — but the instance carries its own
+`OnFailure=gnome-session-shutdown.target`, so a compositor that fails still
+takes the session down instead of leaving a black screen up.
+
+Both sessions share `io.github.alexydaher.Salon.service`. Salon does not know
+which compositor it connected to, and a second copy of the `Restart=always`
+policy is a second place for it to drift.
+
+## 2026-08-23 (late, cont.) — why the session entry was never at the login screen
+
+**GDM does not read the user's data directory, and cannot.** The session
+entries had been installed to `~/.local/share/wayland-sessions/` since
+2026-08-19 and were never once offered at the login screen. `strings` on
+`/usr/sbin/gdm3` gives the whole answer — the search paths are compiled in
+and absolute:
+
+```
+/etc/X11/sessions/
+/usr/share/gdm/greeter/wayland-sessions/
+/usr/share/wayland-sessions/
+/usr/share/xsessions/
+/usr/share/gnome-session/sessions/%s.session
+```
+
+The last one matters as much as the others: GDM checks a session's *runnable*
+state against that exact path, so the `.session` definition has to be
+system-wide too, not just the `wayland-sessions` entry. And the bare
+`wayland-sessions` / `xsessions` strings alongside them are for building
+`$XDG_DATA_DIRS/wayland-sessions` — but GDM's `XDG_DATA_DIRS` is the system
+default, never anyone's home. There is no path by which a home directory is
+consulted. It isn't a permissions problem (the daemon is root and could read
+it); it is a design decision, and the right one: a session entry is a thing
+that runs before authentication finishes.
+
+**So `meson setup --prefix=$HOME/.local` can never produce a working session
+entry.** That is worth stating plainly because the build directory in this
+tree is configured exactly that way, and everything else about it is fine —
+the schema, the gresource, the icons and the systemd *user* units all work
+from a user prefix, because `systemd --user`, `gnome-session` and GTK all run
+as the user after login. Only the four files GDM itself reads are different
+in kind, and nothing in the build system distinguishes them.
+
+This also closes the question left open earlier the same day about the human
+having logged into a Salon session on 2026-08-23. Whatever that was, it was
+not a session picked from these files: GDM had never seen them. The
+`RequiredComponents=` archaeology stands on its own — the installed copy
+really was four days stale and really would not have worked — but it was
+never the reason the entry did not appear.
+
+The fix applied is the four files copied into `/usr/share/wayland-sessions/`
+and `/usr/share/gnome-session/sessions/`, leaving the units and the binary
+under `~/.local`. A full `--prefix=/usr` install is the tidier long-term
+answer, but it has a footgun worth knowing about first:
+`~/.local/share/systemd/user` sorts *before* `/usr/share/systemd/user` on
+systemd's unit path, so a leftover user-prefix `io.github.alexydaher.Salon.service`
+silently shadows the system one and keeps pointing `ExecStart=` at a stale
+`~/.local/bin/salon`. Remove one before installing the other.
+
+## 2026-08-23 (evening, cont.) — four changes that came from using it
+
+### The pairing code stands in the corner when nothing is connected
+
+`ui/phonepairing.py` is a screen you have to *navigate to*, and the state it
+is most needed in is the one where there is nothing to navigate with. No
+controller plugged in and no phone talking to us means Salon's only inputs
+are a keyboard and a mouse — which is not what is in a living room, and not
+what this is for. The way to the remote required the remote.
+
+So `ui/remotehint.py` is a small card in the bottom-right holding the same QR
+the full screen holds, on screen for exactly as long as `gamepad count == 0
+and not pairing.connected`. Plug a pad in or scan the code and it is gone.
+
+Three things had to be true for it to work:
+
+* **libmanette had to be asked about unplugging.** `GamepadSource` connected
+  `device-connected` and not `device-disconnected`, so nothing in Salon had
+  ever noticed a pad leave. It now keeps the device set and reports its size,
+  and the disconnect handler also drops that device's latched axis state —
+  a pad unplugged mid-direction would otherwise stay latched forever, since
+  the release event that clears it can only come from the device that is gone.
+* **The server has to be running to have a code**, so the card takes its own
+  holder on `PairingServer`. Separate from `_REMOTE_HOLDER` deliberately: the
+  Settings toggle means "keep the remote on", the card means "there is nothing
+  to press with", and those are different claims that must not be able to stop
+  each other's server.
+* **The hold is dropped a beat late.** `release()` stops the server outright
+  once the last holder lets go. Releasing the instant a phone connects would
+  tear down the session that phone had just opened. The card hides
+  immediately; the hold goes when there is no longer a phone to lose.
+
+The card does *not* take the RemoteDesktop grant when it starts the server.
+That grant puts a permission dialog on screen the first time, which is fair
+when the user has just switched the remote on and unreasonable when Salon
+started it by itself because nothing was plugged in. It is taken when a phone
+actually answers the card instead — a moment the user caused.
+
+### Status left, actions right
+
+The top bar was one right-aligned strip: network, battery, date, clock, then
+five buttons. Splitting it puts the state where every television, phone and
+set-top box already puts it, and stops the only *pressable* part of the bar
+from being crowded by five glyphs that are not.
+
+Two overlay children rather than one full-width bar, which is not a style
+choice: a `Gtk.Box` spanning the screen is picked for pointer events across
+its whole width, and the tile rows scroll under that strip. `set_can_target`
+is no help — turning it off on the box takes the buttons with it.
+
+### A value is chosen from a list, not stepped into
+
+Settings' horizontal axis has now been through three designs. LEFT/RIGHT
+changing a value in place made the button that means "back" everywhere else
+silently edit a setting (fixed 2026-08-19 by the *engage* mode: RIGHT steps
+into a row, then LEFT/RIGHT walk its values, OK or BACK leaves).
+
+Engaging fixed the ambiguity and kept the part nobody liked. A direction key
+was still what changed the setting; the values went past one at a time with
+no way to see the set; and how many presses a change cost depended on where
+in the list the current value happened to sit. "Theme" has four values and
+you could only ever see one of them.
+
+`ui/settings/popup.py` raises them as a list instead — anchored on the row's
+own value so it opens where the setting is written, UP/DOWN to walk it with
+every alternative on screen, OK to pick, BACK or LEFT to leave it alone. It
+is what a console does, and the reason a console does it is that it is the
+only arrangement where the alternatives are visible before one is chosen.
+
+Ranges are enumerated into that same list rather than kept as steppers. Every
+range here is a set of coarse, deliberately chosen steps — 5% of a scale,
+50ms of a repeat delay — and the longest is 41 entries in a list that
+scrolls, which beats pressing RIGHT forty times. Their keys are indices, not
+values, because two neighbouring steps can format identically ("Off" and
+"0 s") and the key has to be the one thing that is unique.
+
+Toggles are the exception and stay a direct switch. A popup offering two
+items, one of which is what the row already says, is two presses and a panel
+to do what one press already does — and unlike a palette or a range there is
+nothing to *see* in the set of alternatives.
+
+`set_autohide(False)` on the popover, for the same reason Salon has no other
+modal GTK anything: an autohiding popover takes a GTK input grab, and none of
+Salon's input arrives through GTK focus. A grab would silently take the
+gamepad, the phone and the CEC remote away from the screen underneath.
+
+### Log out
+
+`services/power.py` was logind-only, and logging out is the one action here
+that is not logind's to do first: gnome-session owns the session's lifetime
+and knows how to shut its components down in order. So `Logout(1)` on
+`org.gnome.SessionManager` first, `Terminate()` on
+`/org/freedesktop/login1/session/self` as the fallback — and the fallback is
+not decoration, because the Salon (Kiosk) session runs gnome-kiosk instead of
+the Shell, and a Salon running as a plain app under some other desktop may
+have no session manager on the bus at all.
+
+Mode 1 is "no confirmation dialog". Salon is fullscreen over everything, so a
+GNOME confirmation prompt would be a dialog the user can neither see nor
+answer with a remote. The menu row is a deliberate press on a screen the user
+is looking at; that is the confirmation.
+
+It sits between Suspend and Restart in the menu, and it is a different thing
+from "Exit Salon" below it: under the session unit's `Restart=always`,
+exiting Salon gets you Salon again, and only logging out gets you somewhere
+else.
+
+## 2026-08-23 (evening, cont.) — the rows stop at the bars instead of fading under them
+
+The top bar and the detail strip are the two things on the home screen that
+*report* rather than act: the time, the network and the battery above; what
+the cursor is on and what OK will do with it below. Artwork sliding under
+either one is unreadable in both directions — the text loses its background
+and the tile loses its top.
+
+That was already known, and the answer was a fade: `_LayoutViewport` spanned
+the whole window and masked its content out over exactly the two bands the
+bars occupy. It kept the clock legible. It also meant there were always
+half-transparent tiles behind the clock, which is a different thing from
+there being nothing behind it.
+
+The band is now inset instead. `_viewport_host` takes real top and bottom
+margins, so `Gtk.Overflow.HIDDEN` on the viewport clips at the bars' edges
+and no tile pixel is drawn in either strip. Both margins are *measured* —
+`_top_inset()` is the taller of the two status widgets' natural heights,
+`_bottom_inset()` was already measuring the detail strip — because both
+carry their own safe-area margin and both move with the du scale, and
+`STATUS_BAR_HEIGHT_DU` is a design figure rather than what the widgets ask
+for. (`_bottom_inset` learned this lesson already: a guessed constant was
+104px against a real 165.)
+
+`_row_anchor_y()` moves into band coordinates, where 0 is the top of the gap.
+The anchor line stays measured on the *window* — 38% of a television is a
+claim about where a human looks, not about where this widget starts — so it
+is converted with a `- top_inset`. Worked through, every term shifts by
+exactly that inset and the scroll behaviour is unchanged in screen terms:
+the same content rests in the same place. Only the clipping is different,
+which is the point.
+
+The fade stays, at 40du rather than the height of a bar. It is no longer
+keeping anything legible — the clip does that — and is only there because a
+tile cut by a hard edge reads as a rendering fault and a tile's bloom needs
+somewhere to go.
+
+Setting margins from `_layout_rows`, which runs from inside an allocation,
+is safe because GTK's margin setters return early on an unchanged value: the
+steady state assigns nothing and there is no resize loop.
+
+This applies to the home screen only. The all-apps grid and search are
+full-bleed overlays that cover both bars and carry their own title and
+legend, so there is nothing there to scroll underneath.
+
+## 2026-08-23 (evening, cont.) — the inset was real, the band was not
+
+The previous entry made the row band stop at the two bars instead of fading
+under them. It set the margins correctly and they did nothing: tiles were
+still drawn straight across the detail strip, and a screenshot of the home
+screen with something playing has the now-playing readout with a tile behind
+each line of it.
+
+The margins were being applied to a widget that then overhung the screen
+anyway. `_viewport_host` is a `SizeReporter`, and it was built without
+`propagate_minimum=False` — so it forwarded the `Gtk.Fixed`'s minimum, which
+is whatever its children add up to, which for four rows of tiles is about
+1540px against a 1101px gap. An overlay child asking for more than the
+overlay has is given it. The margins held the top of the band where they
+said, the bottom simply ran off the screen, and `Gtk.Overflow.HIDDEN`
+clipped at a boundary that was below the window's own.
+
+This is the same trap the all-apps grid, the search results and both
+settings lists were each fixed for. The home screen — the one that had it
+first and worst — was the one place still missing the flag.
+
+Two other symptoms turn out to have been the same fault, which is why it is
+worth writing down rather than just fixing:
+
+- **The home screen had stopped scrolling.** `_on_viewport_resized` reported
+  the *content's* height as the band height, so `_row_anchor_y`'s
+  `content_height <= band_height` was true by construction and it returned 0
+  every time. Every row after the first screenful was unreachable with the
+  cursor still moving onto it — the failure mode the `SizeReporter`
+  docstring predicts, verbatim.
+- **The band's bottom fade was never visible.** It was painted at the bottom
+  of a viewport that ended below the screen.
+
+Two consequences had to be dealt with once the clip was real.
+
+**The last row's focused tile was sliced.** `_content_height_px` measured to
+the last card's bottom edge, so the scroll limit put the focus growth
+(`FOCUS_SCALE_FOCUSED` is 1.09) and the whole bloom past the end of the
+band, and the clip took them. The last row's `bleed` now counts as content:
+it exists precisely to hold those two things, and every row's viewport is
+already positioned to span it.
+
+**The edge fades are a function of overflow, not a constant.** A permanent
+40du ramp at the top of the band is wrong at rest, because the top of the
+band is exactly where the first row's heading sits when nothing is scrolled
+— "Favourites" was dimmed for the entire life of the screen, on top of the
+0.45 that already applies to a heading whose row isn't current, with no row
+passing under it to justify the softening. Each end now fades by
+`min(overflow, 40du)`: nothing when the content ends inside the band,
+ramping in over the first pixels of travel, at full strength once a row is
+genuinely leaving. That needed the anchor spring to report every frame
+rather than only its target, or the fade would snap to full while the rows
+were still moving; `_AxisSpring` takes an `on_value` callback for it.
+
+The general lesson is the one the reachability pass keeps producing: a
+layout constant that is *computed* from a widget's allocation is only as
+true as the allocation, and an overlay will hand a child any size it asks
+for. `_viewport_height` was wrong by 40% and nothing anywhere said so —
+not a gate, not a warning, not a visibly broken frame, because the two
+things it broke both looked like deliberate design.
+
+## 2026-08-23 (night, cont.) — the consent dialog nobody could click
+
+**Salon asks mutter for input injection directly, and only falls back to
+the portal.** The symptom is a deadlock, not a nuisance. A ten-foot
+appliance's *first* input device is the phone it has not paired yet: fresh
+machine, no controller, no keyboard, no mouse. The phone's D-pad works
+immediately — those presses arrive over HTTP into Salon's own process and
+need no grant at all — but the trackpad and `/type` need to move the system
+cursor, so `PointerInjector` asks
+`org.freedesktop.portal.RemoteDesktop`, and xdg-desktop-portal-gnome puts
+"Allow remote interaction" on the television with a Share button and a
+Cancel button. **The only device that can dismiss that dialog is the
+pointer the dialog is gating.** `persist_mode=2` and the restore token,
+which this project already had, skip the second dialog and every one after
+it; they can never skip the first. The machine is unusable on the exact
+run where it matters.
+
+The fix is not to automate the dialog — it cannot be, and should not be.
+It is to stop asking that question of that answerer.
+`org.gnome.Mutter.RemoteDesktop` is on the session bus, owned by
+gnome-shell, and the dialog belongs to *the portal backend*, which is a
+client of this interface rather than a layer beneath it. Measured here:
+`CreateSession` + `Start` is two synchronous calls, about 4 ms, no dialog,
+and the session object carries a method set that maps 1:1 onto the portal's
+— `NotifyPointerMotionRelative`, `NotifyPointerButton`, the *continuous*
+`NotifyPointerAxis` the trackpad needs (with `finish` as a flag bit where
+the portal spells it as an `a{sv}` option), and `NotifyKeyboardKeysym`.
+This is the same door gnome-remote-desktop goes through. Verified through
+the real `PointerInjector` against a live GTK window: 22 motion events, one
+click, the scrolled window's adjustment moved 0 → 360, and exactly
+`s a l o n Return` arrived. The portal path, kept intact underneath, was
+re-measured the same way and still works — 7.3 s to ready against mutter's
+4 ms, most of it the portal's three round trips.
+
+Rejected: **`/dev/uinput` and a virtual evdev device**, which was the
+obvious suggestion and is genuinely compositor-agnostic. It is `root:root
+0600` here with no udev rule, so it needs a rule, a group and a
+provisioning step outside the application before it can ever work — a
+larger and more privileged surface than a bus name, injecting *below* the
+compositor rather than through it, to solve a problem only GNOME has here.
+Worth revisiting only if Salon grows a non-mutter target. Also rejected:
+**shipping only the mutter route.** It is a private interface (`Version` 1,
+no stability promise), and a compositor that is not mutter has no such
+name; the portal stays as the fallback and as the honest answer for anyone
+who wants the sandbox boundary back.
+
+**gnome-kiosk gets this for free**, which matters because the kiosk session
+is the one with no overview to escape to. The name lives in
+`libmutter-18.so.0` and `ldd /usr/bin/gnome-kiosk` links exactly that
+library — so the interface is present there by construction. Not yet
+measured in a live kiosk login, which remains on the gap list.
+
+**The Flatpak deliberately does not get it.** `--talk-name=` for that name
+would hand a sandboxed app system-wide input injection with no prompt and
+no revocation, which is the sandbox failing at its one job; Flathub would
+be right to reject it. The line is simply absent from the manifest,
+`call_sync` fails immediately inside the sandbox, and `auto` falls through
+to the portal on its own. The absence *is* the configuration.
+
+**`input-injection` has three values, not two.** `auto` prefers mutter and
+falls back; `portal` always takes the sanctioned route; `mutter` refuses to
+fall back. The third exists because falling back is the wrong behaviour for
+an appliance that was deliberately configured this way — a silent fallback
+would put the unanswerable dialog back on the television, which is the
+whole thing being avoided. Better to fail loudly and leave the trackpad
+dead than to hang the screen on a question nobody can answer.
+
+Two things found while measuring, both worth keeping. **`ready` was True on
+the portal path while `backend` was still `""`** — the portal's success
+handler set the flag but never the label, so Settings would have reported
+"not started yet" over a working session. And the verification harness spent
+two runs lying, because `sys.path` had `build/` ahead of the source tree and
+it was importing meson's *copy* of the module — the same "installed tree
+goes stale silently" trap CLAUDE.md already documents, one directory closer
+to home than expected.

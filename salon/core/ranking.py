@@ -55,6 +55,29 @@ def score(query: str, title: str) -> float:
     return 0.0
 
 
+def rank_best(query: str, items: list[tuple[str, str]], limit: int) -> list[str]:
+    """`rank`, deduplicated and capped.
+
+    The same three lines were written out at both call sites — the
+    television's search screen and, once the phone could search too, the
+    remote — and they have to agree, because a result list that ranks
+    differently depending on which screen you are looking at is a result
+    list nobody can learn. Duplicates are real: a tile for an application
+    that is also installed appears in both groups, and the catalogue copy
+    is passed first precisely so that it is the one kept.
+    """
+    seen: set[str] = set()
+    best: list[str] = []
+    for item_id in rank(query, items):
+        if item_id in seen:
+            continue
+        seen.add(item_id)
+        best.append(item_id)
+        if len(best) >= limit:
+            break
+    return best
+
+
 def rank(query: str, items: list[tuple[str, str]]) -> list[str]:
     """Rank (id, title) pairs against query, best first. Ties keep input
     order (Python's sort is stable), which is how callers give catalogue

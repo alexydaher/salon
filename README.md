@@ -36,6 +36,11 @@ skin over one. It launches the applications and web apps you already have.
   looking up. It keeps the phone's screen on while it's open, and on an
   iPhone you can Add to Home Screen for a fullscreen icon. Runs only while
   you have it switched on; see the limits below.
+* **With nothing connected, the code is already on screen.** If there is no
+  controller plugged in and no phone talking to Salon, a small pairing code
+  sits in the bottom-right corner and goes away the moment either turns up.
+  Reaching the pairing *screen* needs something to press with, which is
+  exactly what is missing in that state. Settings › Input turns it off.
 * **Launch anything**: desktop entries, Flatpaks, plain commands, and web
   apps opened fullscreen in a browser with their own profile so one
   sign-in can't disturb another's.
@@ -147,6 +152,57 @@ no business changing that.
 
 For a gentler version, Settings → System → **Start Salon at login** just
 adds an autostart entry to your normal desktop session.
+
+Your normal desktop session is untouched by any of this. The Salon entries
+sit alongside it at the login screen; picking one is a per-login choice, and
+nothing about installing them changes the desktop you already have.
+
+**The login screen needs a system-wide install, and a Flatpak cannot give
+you one.** GDM's search paths are compiled in and absolute — it reads
+`/usr/share/wayland-sessions/` and `/usr/share/gnome-session/sessions/`, and
+never a user's home — so `meson install --prefix="$HOME/.local"` puts a
+perfectly good Salon on the machine with no entry at the login screen.
+Flatpak is the same wall from the other side: it exports only
+`applications`, `icons`, `metainfo` and a couple of others out of the
+sandbox, and `wayland-sessions`, `gnome-session/sessions` and
+`systemd/user` are not on that list. Installing Salon from Flathub gets you
+the app in your Applications grid; the session is a separate step, and needs
+either `--prefix=/usr` or four files copied by hand:
+
+```sh
+sudo install -Dm644 build/data/salon.desktop        /usr/share/wayland-sessions/salon.desktop
+sudo install -Dm644 build/data/salon-kiosk.desktop  /usr/share/wayland-sessions/salon-kiosk.desktop
+sudo install -Dm644 build/data/salon.session        /usr/share/gnome-session/sessions/salon.session
+sudo install -Dm644 build/data/salon-kiosk.session  /usr/share/gnome-session/sessions/salon-kiosk.session
+```
+
+A session built around a Flatpak would also need its unit's `ExecStart=` to
+read `flatpak run io.github.alexydaher.Salon` instead of a path to a binary.
+
+### Salon (Kiosk)
+
+Installing also puts a second entry, **Salon (Kiosk)**, at the login screen.
+It is the same session with [GNOME Kiosk][kiosk] underneath instead of GNOME
+Shell — a Mutter-based compositor with no panel, dash, dock or overview, so
+there is no desktop for a remote to fall into. It needs the `gnome-kiosk`
+package, which is not installed by Salon:
+
+```sh
+sudo apt install gnome-kiosk      # or your distribution's equivalent
+```
+
+The reason to want it: GNOME Kiosk fullscreens every window it is handed. A
+Wayland client cannot set another client's window state, which is why only
+URL tiles can be launched fullscreen under GNOME Shell — under Kiosk, native
+applications go fullscreen too.
+
+The reason it is a second entry and not a replacement: it has far less road
+under it. In particular the RemoteDesktop portal — which the phone's
+trackpad, the phone's Type tab and gamepad pointer control all depend on —
+has not been verified in a Kiosk session. If something is wrong there, log
+out and pick **Salon**.
+
+[kiosk]: https://gitlab.gnome.org/GNOME/gnome-kiosk
 
 ## Configuration
 
