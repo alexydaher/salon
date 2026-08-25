@@ -21,7 +21,7 @@
 # still the easiest way to hand someone a build.
 #
 # ---------------------------------------------------------------------
-# For a Flathub submission: four linter errors survive here on purpose.
+# For a Flathub submission: five linter errors survive here on purpose.
 # `flatpak-builder-lint manifest` reports them; each is answered below,
 # and these are the paragraphs to paste into the submission PR.
 #
@@ -184,4 +184,4 @@ modules:
       # one stays tag-only, for building the app from a clean checkout.
       - type: git
         url: https://github.com/alexydaher/salon.git
-        tag: v0.1.0
+        tag: v0.2.0

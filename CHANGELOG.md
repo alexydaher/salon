@@ -8,6 +8,8 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.0 — 2026-08-25
+
 ### The phone is a second screen
 
 * **Scan and you're connected.** MENU → Connect a phone shows a QR code

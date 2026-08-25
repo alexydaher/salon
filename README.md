@@ -97,9 +97,10 @@ a launched app has the screen it closes that app and brings you back.
 
 * GNOME on Wayland. Salon is Wayland-only by design and does not fall back
   to X11.
-* GTK 4.16 or newer (for CSS `var()`), libadwaita 1.5+, PyGObject.
-* Optional: `libmanette` for gamepads, `wpctl` (PipeWire) for volume,
-  `cec-client` for HDMI-CEC, Chrome or Chromium for web tiles.
+* GTK 4.16 or newer (for CSS `var()`), libadwaita 1.5+, PyGObject, and
+  `libmanette` 0.2+.
+* Optional: `wpctl` (PipeWire) for volume, `cec-client` for HDMI-CEC, Chrome
+  or Chromium for web tiles.
 
 ## Building and running
 
@@ -245,7 +246,7 @@ turns on debug output, including GTK's own.
 
 ## What hasn't been tested
 
-Salon is 0.1. The gates are green — ruff, `mypy --strict`, 235 tests, and
+Salon is 0.2. The gates are green — ruff, `mypy --strict`, 398 tests, and
 the AppStream and desktop-entry validators, on every push — but green tests
 are not the same as a verified appliance, and some of this needs hardware
 that wasn't attached to the machine it was written on.

@@ -1,11 +1,12 @@
 project(
   'salon',
-  version: '0.1.0',
+  version: '0.2.0',
   meson_version: '>= 1.3.0',
 )
 
 python = import('python')
 py_installation = python.find_installation('python3', modules: ['gi'])
+dependency('manette-0.2', version: '>= 0.2.0')
 
 gnome = import('gnome')
 
