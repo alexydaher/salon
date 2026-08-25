@@ -19,6 +19,7 @@ from salon.ui.tile_geometry import (  # noqa: E402
     _mix,
     _point,
     _rect,
+    _rounded,
     _stops,
     _with_alpha,
     font_description,
@@ -117,12 +118,38 @@ class TileArtworkRenderer:
         )
 
         icon_box = self._icon_box(rect)
+        self.snapshot_icon_well(snapshot, icon_box)
         if self._artwork.icon_texture is not None:
             self.snapshot_icon_texture(snapshot, icon_box)
         elif self._artwork.icon is not None:
             self.snapshot_icon(snapshot, icon_box)
         else:
             self.snapshot_initial(snapshot, icon_box)
+
+    def snapshot_icon_well(self, snapshot: Gtk.Snapshot, icon_box: Graphene.Rect) -> None:
+        """Give unrelated application icons one shared visual home.
+
+        Desktop and web icons arrive with wildly different silhouettes and
+        intrinsic padding. This translucent medallion makes them read as one
+        system without redrawing or masking the original artwork.
+        """
+        inset = icon_box.get_width() * -0.20
+        well = _rect(
+            icon_box.get_x() + inset,
+            icon_box.get_y() + inset,
+            icon_box.get_width() - 2 * inset,
+            icon_box.get_height() - 2 * inset,
+        )
+        rounded = _rounded(well, well.get_width() * 0.28)
+        snapshot.push_rounded_clip(rounded)
+        snapshot.append_color(_with_alpha(theme.color("surface-0"), 0.28), well)
+        snapshot.pop()
+        edge = max(1.0, self._scale.du(1.0))
+        snapshot.append_border(
+            rounded,
+            [edge] * 4,
+            [_with_alpha(theme.color("text-primary"), 0.10)] * 4,
+        )
 
     def _icon_box(self, rect: Graphene.Rect) -> Graphene.Rect:
         """Centred in the space above the title band, not in the tile — an

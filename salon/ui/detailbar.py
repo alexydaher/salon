@@ -77,7 +77,7 @@ class DetailBar(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("salon-detail-bar")
         self.set_valign(Gtk.Align.END)
-        self.set_halign(Gtk.Align.FILL)
+        self.set_halign(Gtk.Align.START)
         self.set_can_target(False)
         # Announced by the container that owns the cursor instead: this is a
         # readout of the selection, and a screen reader that read it as well
@@ -116,13 +116,14 @@ class DetailBar(Gtk.Box):
         self.set_margin_start(margin)
         self.set_margin_end(margin)
         self.set_margin_bottom(margin)
+        self.set_size_request(scale.px(760.0), -1)
         # Clear air above the strip, and deliberately part of the widget's
         # own height: HomeView reserves whatever this measures, so keeping
         # the gap here means there is exactly one place that decides how
         # much room the strip takes. Without it the last row's title and
         # the strip's title touch, which reads as one broken paragraph.
         self.set_margin_top(scale.px(28.0))
-        self.set_spacing(scale.px(2.0))
+        self.set_spacing(scale.px(3.0))
 
     def set_tile(self, tile: Tile | None) -> None:
         self._tile = tile

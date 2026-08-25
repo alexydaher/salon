@@ -129,17 +129,17 @@ class StatusBar(Gtk.Box):
         margin = scale.px(
             tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
         )
-        self.set_spacing(scale.px(24.0))
+        self.set_spacing(scale.px(12.0))
         self.set_margin_top(margin)
         self.set_margin_end(margin)
-        size = scale.px(52.0)
+        size = scale.px(54.0)
         self._button_height = size
         for button in self._buttons:
             button.set_size_request(-1, size)
         for index, box in enumerate(self._button_boxes):
             box.set_spacing(scale.px(10.0))
             box.set_size_request(size, -1)
-            self._button_images[index].set_pixel_size(scale.px(30.0))
+            self._button_images[index].set_pixel_size(scale.px(28.0))
             badge_size = scale.px(10.0)
             self._connection_badges[index].set_size_request(badge_size, badge_size)
         self._controller_icon.set_pixel_size(scale.px(26.0))

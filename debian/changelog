@@ -1,3 +1,9 @@
+salon (0.2.7-1) unstable; urgency=medium
+
+  * Refresh the Home screen with ambient depth and unified visual treatments.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Tue, 25 Aug 2026 22:06:00 +0200
+
 salon (0.2.6-1) unstable; urgency=medium
 
   * Improve safety, input consistency, search, tile actions, and Settings UX.

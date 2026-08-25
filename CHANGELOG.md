@@ -8,6 +8,20 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.7 — 2026-08-25
+
+### A more cohesive Home screen
+
+* Salon now ships a restrained ambient background with subtle texture and
+  edge lighting, while custom wallpapers and a flat-background opt-out remain
+  available.
+* Generated application tiles place icons in a shared translucent medallion,
+  giving unrelated desktop, web and symbolic icons one visual language.
+* Shortcut buttons are clearer and more cohesive, the focused row has an
+  accent marker, and selected-tile context sits in a compact glass card.
+* Background feedback begins sooner and settles more smoothly as focus moves
+  between tiles.
+
 ## 0.2.6 — 2026-08-25
 
 ### Safer and easier to control

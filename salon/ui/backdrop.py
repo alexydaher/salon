@@ -25,9 +25,11 @@ from salon.ui.backdrop_renderer import (  # noqa: E402
     same_color,
 )
 
-_FADE_MS = 220
-_DEBOUNCE_MS = 150
+_FADE_MS = 280
+_DEBOUNCE_MS = 80
 _WALLPAPER_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".avif")
+_DEFAULT_WALLPAPER = "resource:///io/github/alexydaher/Salon/backgrounds/salon-ambient.png"
+_DEFAULT_WALLPAPER_DIM = 0.38
 
 
 class Backdrop(Gtk.Widget, BackdropRenderer):
@@ -78,10 +80,17 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         alphabetical because a slideshow that always opens on the same
         picture is not one.
         """
-        self._wallpaper_dim = max(0.0, min(1.0, dim))
-        if source != self._wallpaper_source:
-            self._wallpaper_source = source
-            self._wallpaper = self._load(source)
+        # Empty is the designed Salon ambience. A single dash is the
+        # deliberate opt-out for people who want the palette's flat surface.
+        effective_source = _DEFAULT_WALLPAPER if not source else source
+        if source == "-":
+            effective_source = ""
+        self._wallpaper_dim = (
+            _DEFAULT_WALLPAPER_DIM if not source else max(0.0, min(1.0, dim))
+        )
+        if effective_source != self._wallpaper_source:
+            self._wallpaper_source = effective_source
+            self._wallpaper = self._load(effective_source)
         self.queue_draw()
 
     def next_wallpaper(self) -> None:
@@ -92,6 +101,11 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
     def _load(self, source: str) -> Gdk.Texture | None:
         if not source:
             return None
+        if source.startswith("resource://"):
+            try:
+                return Gdk.Texture.new_from_resource(source.removeprefix("resource://"))
+            except GLib.Error:
+                return None
         path = Path(os.path.expanduser(source))
         if path.is_dir():
             try:

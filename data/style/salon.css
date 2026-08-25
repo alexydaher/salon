@@ -25,11 +25,14 @@ window {
   font-weight: var(--weight-row-heading);
   letter-spacing: 0.01em;
   opacity: 0.68;
+  border-left: var(--focus-ring) solid transparent;
+  padding-left: var(--pad-s);
   transition: opacity 180ms ease;
 }
 
 .salon-row-heading.row-focused {
   opacity: 1;
+  border-left-color: @accent;
 }
 
 .salon-status-bar {
@@ -310,14 +313,15 @@ toast > label {
    unless they are on screen. Dim until hovered, so they read as
    available without competing with the tiles for attention. */
 .salon-status-button {
-  background-color: transparent;
-  border: none;
+  background-color: alpha(@surface-1, 0.46);
+  border: var(--focus-ring) solid alpha(@text-primary, 0.06);
   outline: none;
   border-radius: var(--radius-pill);
   padding: var(--pad-s);
   color: @text-secondary;
-  opacity: 0.55;
-  transition: opacity 120ms ease, background-color 120ms ease;
+  opacity: 0.82;
+  box-shadow: 0 var(--focus-ring) var(--pad-s) alpha(@surface-0, 0.24);
+  transition: opacity 160ms ease, background-color 160ms ease;
 }
 
 .salon-status-button:hover {
@@ -471,6 +475,14 @@ toast > label {
   color: @text-primary;
   font-size: var(--font-row-heading);
   font-weight: var(--weight-row-heading);
+}
+
+.salon-detail-bar {
+  background-color: alpha(@surface-0, 0.66);
+  border: var(--focus-ring) solid alpha(@text-primary, 0.07);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 var(--focus-ring) var(--pad-m) alpha(@surface-0, 0.34);
+  padding: var(--pad-s) var(--pad-m);
 }
 
 .salon-detail-body {

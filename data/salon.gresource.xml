@@ -3,6 +3,9 @@
   <gresource prefix="/io/github/alexydaher/Salon">
     <file compressed="true">style/tokens.css</file>
     <file compressed="true">style/salon.css</file>
+    <!-- A quiet built-in home backdrop. It is deliberately part of the
+         resource bundle so native and Flatpak installs render identically. -->
+    <file compressed="true">backgrounds/salon-ambient.png</file>
     <!-- The phone remote's page (§6.12), served by services/pairing.py. In
          the bundle rather than beside the module so an installed Salon and
          a Flatpak one both find it by the same path, and so it cannot go

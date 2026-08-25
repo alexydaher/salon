@@ -126,9 +126,9 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
             TextRow(
                 "Background image",
-                lambda: settings.get_string("wallpaper-path") or "None",
+                lambda: settings.get_string("wallpaper-path") or "Salon ambient",
                 lambda: _edit_wallpaper(context, settings),
-                detail="A picture, or a folder of them to rotate. Leave empty for none.",
+                detail="A picture, a rotating folder, or empty for Salon ambient. Use - for none.",
             ),
             ActionRow(
                 "Choose background image…",
@@ -208,7 +208,9 @@ def _choose_wallpaper(context: SettingsContext, settings: Gio.Settings, *, folde
 def _check_wallpaper(context: SettingsContext, settings: Gio.Settings) -> None:
     value = settings.get_string("wallpaper-path").strip()
     if not value:
-        context.toast("No background image is configured.")
+        context.toast("Salon ambient background is active.")
+    elif value == "-":
+        context.toast("The background image is disabled.")
     elif Path(value).exists():
         context.toast("Background path is available.")
     else:
