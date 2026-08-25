@@ -93,6 +93,8 @@ class HomeCatalogSetup(ServiceComponent):
         self._owner._apply_metrics()
         self._owner._rebuild_row_widgets()
         self._owner._refresh_catalog(preserve_focus=False)
+        if self._owner._starter_expected is not None:
+            appinfo.discover_starter_async(self._owner._finish_starter_discovery)
         self._owner._repeater = Repeater(time.monotonic, self._owner._repeat_timing())
         self._owner._repeat_action: Action | None = None
         self._owner._repeat_timer_id: int | None = None

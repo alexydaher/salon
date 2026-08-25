@@ -1,3 +1,9 @@
+salon (0.2.4-1) unstable; urgency=medium
+
+  * Add smart, editable TV-focused starter rows.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Tue, 25 Aug 2026 16:10:00 +0200
+
 salon (0.2.3-1) unstable; urgency=medium
 
   * Publish a signed Flatpak repository and native Debian package.

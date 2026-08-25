@@ -27,6 +27,7 @@ python_sources = [
   'ranking.py',
   'siteicon.py',
   'status.py',
+  'starter.py',
   'tokens.py',
 ]
 

@@ -2,8 +2,8 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core import starter
 from salon.services.component import ServiceComponent
-from salon.ui.home_rows import _seed_rows
 from salon.ui.home_shared import (
     Adw,
     Callable,
@@ -21,12 +21,38 @@ class HomeCatalogController(ServiceComponent):
 
     def _load_config(self) -> tile_config.Config:
         if not self._owner._config_path.exists():
-            tile_config.save(tile_config.Config(rows=_seed_rows()), self._owner._config_path)
+            config = starter.pending_starter_config()
+            self._owner._starter_expected = starter.fingerprint(config)
+            return config
         try:
-            return tile_config.load(self._owner._config_path)
+            config = tile_config.load(self._owner._config_path)
         except ConfigError as exc:
             self._toast(f"Your tiles file couldn't be read, so none are shown. {exc}")
+            self._owner._starter_expected = None
             return tile_config.Config()
+        self._owner._starter_expected = (
+            starter.fingerprint(config) if starter.is_legacy_seed(config) else None
+        )
+        return config
+
+    def _finish_starter_discovery(self, discovery: starter.StarterDiscovery) -> None:
+        """Persist an async starter only while its original state is untouched."""
+        expected = self._owner._starter_expected
+        self._owner._starter_expected = None
+        if expected is None:
+            return
+        disk_config = None
+        if self._owner._config_path.exists():
+            try:
+                disk_config = tile_config.load(self._owner._config_path)
+            except ConfigError:
+                return
+        if not starter.can_finalize(self._owner._config, disk_config, expected):
+            return
+        self._owner._config = starter.build_starter_config(discovery)
+        self._owner._settings_screen.set_config(self._owner._config)
+        self._save_config()
+        self._owner._refresh_catalog(preserve_focus=True)
 
     def _save_config(self) -> None:
         """The tile editor's only write path.

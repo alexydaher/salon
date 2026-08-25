@@ -1,6 +1,6 @@
 # Salon physical release checklist
 
-Release candidate: `0.2.3`
+Release candidate: `0.2.4`
 Checklist updated: 2026-08-25  
 Status: **not physically verified**
 

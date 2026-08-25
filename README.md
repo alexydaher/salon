@@ -33,14 +33,14 @@ Flatpak updates.
 If you prefer a standalone download, open the [latest release][latest-release]
 and download the bundle for your computer:
 
-* `Salon-v0.2.3-x86_64.flatpak` for most Intel and AMD PCs.
-* `Salon-v0.2.3-aarch64.flatpak` for ARM64 computers.
+* `Salon-v0.2.4-x86_64.flatpak` for most Intel and AMD PCs.
+* `Salon-v0.2.4-aarch64.flatpak` for ARM64 computers.
 
 Open the downloaded file with your software installer, or install it from a
 terminal:
 
 ```sh
-flatpak install --user ~/Downloads/Salon-v0.2.3-x86_64.flatpak
+flatpak install --user ~/Downloads/Salon-v0.2.4-x86_64.flatpak
 ```
 
 Use the `aarch64` filename instead on ARM64. If you are unsure which one you
@@ -59,7 +59,7 @@ Standalone bundles do not update automatically. To upgrade one, download the
 bundle from the next release and install it over the existing copy:
 
 ```sh
-flatpak install --user --or-update ~/Downloads/Salon-v0.2.3-x86_64.flatpak
+flatpak install --user --or-update ~/Downloads/Salon-v0.2.4-x86_64.flatpak
 ```
 
 Your settings and catalogue are preserved. To uninstall Salon and remove its
@@ -74,7 +74,7 @@ Each release also includes `SHA256SUMS` if you want to verify the download.
 Run the following from the directory containing both files:
 
 ```sh
-grep 'Salon-v0.2.3-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
+grep 'Salon-v0.2.4-x86_64.flatpak$' SHA256SUMS | sha256sum --check -
 ```
 
 Change the filename to the ARM64 bundle when appropriate.
@@ -82,12 +82,12 @@ Change the filename to the ARM64 bundle when appropriate.
 ### Native Debian package
 
 The native package enables Salon's login-screen sessions, host power actions,
-and the rest of its GNOME integration. Download `salon_0.2.3-1_all.deb` from
+and the rest of its GNOME integration. Download `salon_0.2.4-1_all.deb` from
 the [latest release][latest-release], then install it with APT so dependencies
 are resolved automatically:
 
 ```sh
-sudo apt install ~/Downloads/salon_0.2.3-1_all.deb
+sudo apt install ~/Downloads/salon_0.2.4-1_all.deb
 ```
 
 The package is architecture-independent and works on both AMD64 and ARM64,
@@ -390,11 +390,11 @@ The capture uses a fixed clock, local artwork, isolated settings/cache
 directories, and real in-process GTK rendering at 1280×720.
 
 A tag matching that checked version triggers the release build. For example,
-after the 0.2.3 changes have been committed and pushed:
+after the 0.2.4 changes have been committed and pushed:
 
 ```sh
-git tag -a v0.2.3 -m "Salon 0.2.3"
-git push origin v0.2.3
+git tag -a v0.2.4 -m "Salon 0.2.4"
+git push origin v0.2.4
 ```
 
 GitHub Actions builds x86-64 and ARM64 Flatpak bundles and a native Debian

@@ -25,6 +25,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 from salon.core.model import LaunchKind, LaunchSpec, Tile  # noqa: E402
+from salon.core.starter import StarterDiscovery  # noqa: E402
 
 # Namespaced so an installed app can never collide with a user's tile id —
 # they share an id space once both are in a search result list.
@@ -80,8 +81,39 @@ def list_installed_async(callback: Callable[[list[Tile]], None]) -> None:
     threading.Thread(target=worker, name="salon-appinfo", daemon=True).start()
 
 
+def discover_starter_async(callback: Callable[[StarterDiscovery], None]) -> None:
+    """Discover installed tiles and useful default handlers off the UI loop."""
+
+    def worker() -> None:
+        try:
+            tiles = tuple(_scan())
+            browser_id = _info_id(Gio.AppInfo.get_default_for_uri_scheme("http"))
+            file_manager_id = _info_id(
+                Gio.AppInfo.get_default_for_type("inode/directory", False)
+            )
+        except Exception:  # noqa: BLE001 — startup remains useful with web fallbacks
+            tiles = ()
+            browser_id = None
+            file_manager_id = None
+        discovery = StarterDiscovery(tiles, browser_id, file_manager_id)
+        GLib.idle_add(lambda: _deliver_starter(callback, discovery))
+
+    threading.Thread(target=worker, name="salon-starter-appinfo", daemon=True).start()
+
+
+def _info_id(info: Gio.AppInfo | None) -> str | None:
+    return None if info is None else (info.get_id() or info.get_name())
+
+
 def _deliver(callback: Callable[[list[Tile]], None], tiles: list[Tile]) -> bool:
     callback(tiles)
+    return GLib.SOURCE_REMOVE
+
+
+def _deliver_starter(
+    callback: Callable[[StarterDiscovery], None], discovery: StarterDiscovery
+) -> bool:
+    callback(discovery)
     return GLib.SOURCE_REMOVE
 
 

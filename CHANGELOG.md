@@ -8,6 +8,15 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.4 — 2026-08-25
+
+### Improved
+
+* Fresh installs now start with a short, detected set of TV-friendly apps
+  alongside editable Netflix, Prime Video, Disney+, YouTube and GeForce NOW
+  tiles. Untouched older starter catalogues are upgraded without changing
+  catalogues their owners have edited.
+
 ## 0.2.3 — 2026-08-25
 
 ### Packaging
