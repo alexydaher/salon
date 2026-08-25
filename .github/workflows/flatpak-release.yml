@@ -72,7 +72,6 @@ jobs:
           bundle: Salon-${{ github.ref_name }}-${{ matrix.variant.arch }}.flatpak
           arch: ${{ matrix.variant.arch }}
           cache-key: flatpak-builder-${{ github.sha }}
-          artifact-name: salon-${{ github.ref_name }}-${{ matrix.variant.arch }}
           verbose: true
 
   release:
@@ -94,7 +93,10 @@ jobs:
       - name: Download Flatpak bundles
         uses: actions/download-artifact@v4
         with:
-          pattern: salon-${{ github.ref_name }}-*
+          # flatpak-builder@v6 names each artifact from the bundle and adds
+          # the architecture, for example
+          # Salon-v0.2.1-x86_64-x86_64.flatpak.
+          pattern: Salon-${{ github.ref_name }}-*.flatpak
           path: release
           merge-multiple: true
 
