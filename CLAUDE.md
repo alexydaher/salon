@@ -96,6 +96,16 @@ symptoms deep: tiles drawn across the detail strip, a bottom edge fade
 painted below the screen, and a home screen that had silently stopped
 scrolling because `_viewport_height` was the content's height.
 
+**Same trap, horizontal, 2026-08-25:** a row viewport is a `Gtk.Fixed`
+inside another `Gtk.Fixed`, so it is allocated its *natural* width — 1468px
+for four tiles inside a 1280px window — no matter what size request it was
+given. Anything positioned from `get_width()` therefore lands off the
+screen. The new right-edge fade was computed correctly, drawn 188px past
+the window edge and faded nothing; the left ramp worked, which is what made
+it look implemented. `_RowWidgets.visible_width` carries the window's width
+in from the layout pass instead. **Do not ask a row viewport how wide it
+is.**
+
 ## Input vocabulary
 
 `Action` (salon/input/actions.py) is the only currency; every source
@@ -107,6 +117,14 @@ normalises to it.
 | MENU | START | Menu | 0x09 |
 | OPTIONS | X | F10 or `o` | 0x0B, 0x71 |
 | SEARCH | Y | `/` | — |
+
+**The legend at the bottom right names the button, not the action.**
+`core/buttons.py` (pure, tested) maps (action, source) to a caption and
+`ui/legend.py` renders it; `HomeView._input_source` follows whichever
+source sent the last press, so a DualSense is told about Square and Cross
+rather than X and A (`GamepadSource.device_name` picks the family). It is
+keyed on the *mode* — tiles, top bar, menu, app in front — and on nothing
+else, which is why it lives outside the detail strip.
 
 **MENU is the one button that always means the same thing.** On the home
 screen it is the system menu; inside Settings it closes Settings; while a
@@ -163,12 +181,23 @@ verified.** What remains is hardware that isn't attached to this machine
   `$XDG_CACHE_HOME/salon/art/`, app icon composited on a gradient built
   from its own dominant colour, and a hashed gradient with the title's
   initial. `services/artwork.py` owns resolution, caching by (path, mtime)
-  and dominant-colour extraction.
+  and dominant-colour extraction. **The home screen's tiles do not draw
+  their subtitle** (`show_subtitle=False`, 2026-08-25) — the detail strip
+  one row below carries it, unellipsized, and printing it in both places
+  spent the bottom fifth of every card on an echo. The all-apps grid and
+  the search results still draw it: they have no strip, and it is often the
+  only thing separating two near-identically named `.desktop` entries.
 - **M4 (home screen) — done, verified on screen.** Rows are positioned at
   absolute y (not stacked in a box — tile bleed makes consecutive rows
   overlap), row viewports span the full window width so the only horizontal
   clip is the screen edge, and both axes clamp their scroll to the content
-  bounds. `ui/backdrop.py` is a bounded pool of accent light behind the
+  bounds. **Both axes now fade at the ends** (2026-08-25): each row softens
+  whichever end has tiles hanging past it, capped at the safe-area margin so
+  the focused tile — which rests exactly one margin from the left edge — is
+  never the thing being faded. **A catalogue shorter than the band is
+  centred in the band**, which reverses the 2026-08-23 top-pin rule; that
+  rule was written when the band was the whole window. Centring measures
+  without the last row's bleed, which is transparent. `ui/backdrop.py` is a bounded pool of accent light behind the
   focused tile rather than a full-screen wash. **The scrolling band is inset
   to the gap between the two bars** (`_apply_viewport_insets`, 2026-08-23):
   the viewport host takes real top/bottom margins measured off the status
@@ -181,6 +210,11 @@ verified.** What remains is hardware that isn't attached to this machine
   band edge — scaled to how much is actually overhanging that edge, so an
   end with nothing past it isn't faded at all, which is what used to dim the
   first row's heading permanently.
+  **The bottom band is one row** (2026-08-25): `ui/detailbar.py` expands on
+  the left, `ui/legend.py` takes its natural width on the right, and the
+  bottom inset is measured off the row rather than the strip. They were two
+  overlay children and each got its natural size, so at 1280 wide the
+  description ran straight through the legend's first chip.
   `ui/statusbar.py`
   carries the clock, the date and (§6.9) the network and battery glyphs —
   `services/netinfo.py` over NetworkManager and `services/battery.py` over
@@ -214,6 +248,23 @@ verified.** What remains is hardware that isn't attached to this machine
   bundle, *not* a Python string any more) — four panes: the catalogue with
   real artwork, a D-pad, a trackpad, a keyboard, plus a now-playing card.
   Read DECISIONS.md 2026-08-22 before changing any of it. The shape:
+  - **The page is markup only; everything else is in `data/remote/ui/`**
+    (2026-08-26). Four stylesheets and twenty ES modules, all bundled and
+    served at `/ui/<name>`, none over 190 lines — the page was 1911 and had
+    stopped being editable. **Still no build step**, which is why they are
+    plain modules and plain CSS. Two rules keep it honest: every file is
+    listed in `salon.gresource.xml` (GResource has no globs), and
+    `tests/test_phone_page.py` walks the page's references *and* every
+    module's imports in both directions against that manifest, so a file
+    on disk that nobody bundled, and a bundled file nobody imports, are
+    both failures. `/ui/<name>` is matched against
+    `^[a-z0-9_-]+\.(css|js)$` **before** the name is joined to anything —
+    no traversal to get wrong rather than one that is handled.
+  - **`main.js` is the only module that wires anything.** Nothing below it
+    imports anything above it, and the two directions that would be a cycle
+    — the feed handing a snapshot to the renderer, the renderer asking the
+    feed to poll again — meet through `bus.js`. A cycle in ES modules is a
+    half-initialised module that fails at whichever call site runs first.
   - **Two credentials.** A 128-bit token is the session credential and is
     what the QR carries, **in the URL fragment** (`#k=…`) so it never
     reaches a server log. The four-digit code is a bootstrap credential
@@ -232,6 +283,42 @@ verified.** What remains is hardware that isn't attached to this machine
   - **`/launch` and `/art` check ids against the published state**, never
     the catalogue and never the filesystem. That is also why traversal is
     structurally impossible.
+  - **The header carries MENU, Power and the way out of a launched app**
+    (2026-08-26). Those are the three presses whose meaning does not depend
+    on which pane is showing. With an application in front the MENU icon is
+    *hidden* rather than greyed — there MENU already means "close the app",
+    and the named button says so. It used to be duplicated into two panes
+    and missing from the other two, so browsing Apps with Netflix up left
+    no way back.
+  - **The Buttons pane mirrors the cursor, and the D-pad plate swipes**
+    (2026-08-26). The card at the top draws whatever `focus` is resting on,
+    artwork and all, so you stop looking up at the television to find out
+    where you are. The plate is a gesture surface *as well as* four buttons:
+    one step per 38px dragged. `data-on-release` on the middle key is what
+    makes that possible — a swipe starts in the centre, and an OK firing on
+    the way down would select something every time. Back sits in the row
+    directly under the plate, where the thumb already is.
+  - **The trackpad accelerates**: gain `1 + 1.9 × px/ms`, capped at 4.5.
+    At 1:1 a 350px pad needs eleven swipes to cross a 4K television.
+    Scrolling is deliberately *not* accelerated.
+  - **`wants_text` opens the keyboard** (2026-08-26). It had been in the
+    payload since the phone stopped being only a keyboard and nothing acted
+    on it. `RemoteState.text` goes with it, so the phone's field shows what
+    the television's field holds and Send sends the *difference*.
+    `KeyboardModel.apply_remote_text` is the pure rule for the `\b` and
+    `\n` the phone sends — they used to be appended literally into a field
+    Salon was drawing.
+  - **The Type pane's aim pad is first**, above the field. It was last, so
+    focusing the field raised the phone's keyboard over the one control the
+    hint tells you to use before typing.
+  - **`/apps` is the browse half of search** (2026-08-26): every installed
+    application A-Z with an index rail, which is a job a touchscreen is
+    plainly better at than forty rows of D-pad. `/np-art` serves the cover
+    of a local player; a streaming player's `https://` cover goes to the
+    phone in the snapshot and the phone fetches it itself.
+  - **`--on-accent` is computed from the accent's luminance.** Every
+    accented surface hardcoded near-black ink, which a deep blue accent
+    makes unreadable.
   - **The top bar's phone button** (and MENU → Connect a phone) opens
     `ui/phonepairing.py`; the screen closes itself ~1.6s after a phone
     authenticates, and closing it leaves the remote running. `core/qr.py`
@@ -376,6 +463,12 @@ verified.** What remains is hardware that isn't attached to this machine
   confirmation dialog, which Salon's fullscreen window would hide anyway.
   Log Out is a different thing from "Exit Salon": under the session unit's
   `Restart=always`, exiting gets you Salon again.
+  **MENU is four rows and power is behind one of them** (2026-08-25):
+  Settings, the phone, Power…, About. `SystemMenu.set_items(..., on_back=…)`
+  makes BACK there mean "up a level"; `has_back` is what the legend reads to
+  stop saying "Close". Neither menu carries a "Cancel" row any more — BACK,
+  MENU and a scrim click all cancel — except the danger confirmations, where
+  it is first and pre-selected.
   `ui/overlays.py`'s `SystemMenu` is bound to `Action.MENU`
   and checked *before* every other mode in `_handle_action`, including
   `pointer_mode`/`child_active`, so it survives a stuck launch. The status
@@ -671,7 +764,16 @@ sub-item is finer than the report was.
   of the page's four panes had been verified — the panes by rendering the
   real page in headless Chrome at a phone viewport against a running
   server. The harness pattern is worth keeping: drive `HomeView` directly,
-  then talk HTTP to it from a worker thread. What a browser could not tell
+  then talk HTTP to it from a worker thread. **The 2026-08-26 rebuild was
+  verified the same way and has not been near a phone**: a real
+  `PairingServer` on a GLib loop, headless Chromium from a worker thread at
+  390×844 and again at 844×390, every pane captured plus the in-app,
+  waiting-for-text and now-playing states, and the swipe D-pad driven with
+  synthetic pointer moves and checked against the actions the server
+  received. Six layout bugs were found that way and none by reading. What a
+  browser still cannot tell us is unchanged: touch feel, `navigator.vibrate`
+  (absent on iOS, so every haptic here is an Android enhancement), the wake
+  fallback, and Add to Home Screen. What a browser could not tell
   us — touch events, `navigator.vibrate`, the wake fallback, Add to Home
   Screen, the trackpad's feel — is reported working rather than measured
   here, and no one timed how long a phone screen actually stays lit.
@@ -697,9 +799,9 @@ sub-item is finer than the report was.
   `services/power.py`. The power actions work, which is precisely why that
   branch is unreachable from the machine they were tested on.
 - **Worth doing next if anything:** pre-blurred backdrop artwork, and an
-  A–Z rail in the all-apps grid — 200 apps at five columns is 40 rows of
-  D-pad. On the phone: the all-apps list (it shows the *catalogue*, not
-  every installed application), and search from the phone rather than
-  through the television's search screen.
+  A–Z rail in the *television's* all-apps grid — 200 apps at five columns is
+  40 rows of D-pad. The phone got both halves of that on 2026-08-26 (search
+  since 2026-08-23, `/apps` with an index rail now), so the gap is the
+  television's alone.
 - `DECISIONS.md` has the dated reasoning for every judgement call made
   without an explicit spec answer.

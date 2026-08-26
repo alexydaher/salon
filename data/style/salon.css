@@ -41,8 +41,12 @@ window {
   font-feature-settings: "tnum" 1;
 }
 
+/* @text-secondary, not @text-primary. Between the size drop in
+   core/tokens.py and this, the clock stops being the brightest thing on a
+   screen whose entire purpose is the artwork below it. It is still first
+   in its corner and still the largest item there. */
 .salon-status-clock {
-  color: @text-primary;
+  color: @text-secondary;
   font-size: var(--font-clock);
   font-weight: var(--weight-clock);
 }
@@ -99,7 +103,7 @@ window {
 }
 
 .salon-system-menu-scrim {
-  background-color: alpha(@surface-0, 0.88);
+  background-color: alpha(@surface-0, 0.78);
 }
 
 .salon-system-menu-card {
@@ -121,14 +125,49 @@ window {
   transition: background-color 120ms ease;
 }
 
+.salon-system-menu-item-content {
+  min-height: var(--pad-l);
+}
+
+.salon-system-menu-icon,
+.salon-system-menu-trailing {
+  color: @text-secondary;
+}
+
+.salon-system-menu-item.selected .salon-system-menu-icon,
+.salon-system-menu-item.selected .salon-system-menu-trailing {
+  color: @surface-0;
+}
+
+.salon-system-menu-danger {
+  color: @danger;
+  background-color: alpha(@danger, 0.06);
+}
+
+.salon-system-menu-danger label,
+.salon-system-menu-danger .salon-system-menu-icon {
+  color: @danger;
+}
+
 .salon-system-menu-item.selected {
   background-color: @accent;
   color: @surface-0;
 }
 
-.salon-system-menu-item.danger.selected {
+.salon-system-menu-danger.selected {
   background-color: @danger;
   color: @text-primary;
+}
+
+.salon-system-menu-danger.selected label,
+.salon-system-menu-danger.selected .salon-system-menu-icon {
+  color: @text-primary;
+}
+
+.salon-system-menu-description {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
+  padding-top: var(--pad-s);
 }
 
 /* Toasts are libadwaita's, so they arrive desktop-sized; scale the text up
@@ -382,8 +421,27 @@ toast > label {
 .salon-system-menu-title {
   color: @text-secondary;
   font-size: var(--font-settings-body);
-  font-weight: var(--weight-settings-body);
+  font-weight: var(--weight-menu-item);
   padding: var(--pad-s) var(--pad-m);
+}
+
+.salon-now-playing {
+  background-color: alpha(@surface-1, 0.72);
+  border: var(--focus-ring) solid alpha(@text-primary, 0.08);
+  border-radius: var(--radius-pill);
+  padding: var(--pad-s) var(--pad-m);
+  color: @text-secondary;
+}
+
+.salon-now-playing-title {
+  color: @text-primary;
+  font-size: var(--font-tile-subtitle);
+  font-weight: var(--weight-tile-title);
+}
+
+.salon-now-playing-detail {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
 }
 
 /* Section icons in the settings list: present enough to aim at from a
@@ -478,12 +536,15 @@ toast > label {
   font-weight: var(--weight-row-heading);
 }
 
+/* No card. This had a fill, a border, a radius and a drop shadow, which
+   made a readout of the current selection look like a dialog somebody had
+   left open in the corner. The rows are inset out of this band
+   (HomeView._apply_viewport_insets), so there is nothing drawn behind the
+   text for a scrim to separate it from — the only thing under it is the
+   backdrop's ambient glow, which @text-primary sits on top of perfectly
+   well. Chrome on a television is type on the picture. */
 .salon-detail-bar {
-  background-color: alpha(@surface-0, 0.66);
-  border: var(--focus-ring) solid alpha(@text-primary, 0.07);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 var(--focus-ring) var(--pad-m) alpha(@surface-0, 0.34);
-  padding: var(--pad-s) var(--pad-m);
+  padding: 0;
 }
 
 .salon-detail-body {
@@ -492,10 +553,22 @@ toast > label {
   font-weight: var(--weight-settings-body);
 }
 
-.salon-detail-actions {
+/* The button legend (ui/legend.py), bottom right. The caption sits in a
+   pill so the eye can tell "press this" from "this happens" without
+   reading either — at three metres the two words otherwise run together
+   into one grey phrase. */
+.salon-legend-key {
+  color: @text-primary;
+  background-color: alpha(@text-primary, 0.14);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--pad-s);
+  font-size: var(--font-tile-subtitle);
+  font-weight: var(--weight-tile-title);
+}
+
+.salon-legend-meaning {
   color: @text-secondary;
   font-size: var(--font-tile-subtitle);
-  opacity: 0.72;
 }
 
 /* The standing pairing card (ui/remotehint.py). Shown only when there is

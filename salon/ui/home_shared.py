@@ -53,8 +53,8 @@ gi.require_version("Pango", "1.0")
 from gi.repository import Adw, Gdk, GdkWayland, Gio, GLib, Graphene, Gsk, Gtk  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
+from salon.core import buttons, editing, nowplaying, ranking, tokens  # noqa: E402
 from salon.core import config as tile_config  # noqa: E402
-from salon.core import editing, nowplaying, ranking, tokens  # noqa: E402
 from salon.core.bindings import CEC, GAMEPAD, KEYBOARD, Bindings  # noqa: E402
 from salon.core.catalog import Catalog, sanitize  # noqa: E402
 from salon.core.errors import ConfigError  # noqa: E402
@@ -93,10 +93,12 @@ from salon.ui import motion  # noqa: E402
 from salon.ui.appsgrid import AppsGrid  # noqa: E402
 from salon.ui.backdrop import Backdrop  # noqa: E402
 from salon.ui.detailbar import DetailBar  # noqa: E402
+from salon.ui.legend import Legend  # noqa: E402
 from salon.ui.motion import SizeReporter  # noqa: E402
+from salon.ui.nowplaying_status import NowPlayingStatus  # noqa: E402
 from salon.ui.onboarding import Onboarding  # noqa: E402
 from salon.ui.osd import VolumeOsd  # noqa: E402
-from salon.ui.overlays import LaunchingOverlay, SystemMenu, SystemMenuItem  # noqa: E402
+from salon.ui.overlays import LaunchingOverlay, MenuFrame, SystemMenu, SystemMenuItem  # noqa: E402
 from salon.ui.phonepairing import PhonePairing  # noqa: E402
 from salon.ui.remotehint import RemoteHint  # noqa: E402
 from salon.ui.scale import Scale, ScaleManager  # noqa: E402

@@ -39,9 +39,16 @@ from salon.core import tokens  # noqa: E402
 
 @dataclass(frozen=True, slots=True)
 class Scale:
-    """An immutable du -> px conversion for one viewport height."""
+    """Application-wide layout metrics for one viewport height.
+
+    The safe area is part of this value rather than recomputed by every
+    widget.  That makes the Appearance preference a contract shared by all
+    surfaces instead of a home-row-only setting with eleven default-margin
+    exceptions.
+    """
 
     viewport_height_px: int
+    safe_area_percent: float = tokens.SAFE_AREA_DEFAULT_PERCENT
 
     @property
     def factor(self) -> float:
@@ -52,6 +59,19 @@ class Scale:
 
     def px(self, value: float) -> int:
         return round(self.du(value))
+
+    @property
+    def safe_margin(self) -> float:
+        return self.du(
+            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * self.safe_area_percent / 100.0
+        )
+
+    @property
+    def safe_margin_px(self) -> int:
+        return round(self.safe_margin)
+
+    def with_safe_area(self, percent: float) -> Scale:
+        return Scale(self.viewport_height_px, percent)
 
 
 _DEFAULT_SCALE = Scale(int(tokens.REFERENCE_VIEWPORT_HEIGHT_PX))

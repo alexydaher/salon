@@ -61,17 +61,15 @@ class HomeIdleController(ServiceComponent):
             self._owner._screensaver.hide()
 
     def _on_now_playing(self, player: nowplaying.Player | None) -> None:
-        """Hand the detail strip over to the player, or give it back.
-
-        The strip shows one thing at a time on purpose: a television has
-        exactly one place the eye looks for "what is happening right now",
-        and splitting it between the cursor and the music would make both
-        harder to read from a sofa.
-        """
+        """Update the compact player status without erasing tile context."""
         self._owner._current_player = player
         self._owner._publish_remote_state()
         if player is None:
-            self._owner._detail_bar.clear_override()
+            self._owner._now_playing_status.clear()
             return
-        title, detail = nowplaying.describe(player)
-        self._owner._detail_bar.set_override(title, detail)
+        title, detail = nowplaying.describe(player, include_status=False)
+        self._owner._now_playing_status.set_track(
+            title,
+            detail,
+            playing=player.status == nowplaying.PLAYING,
+        )

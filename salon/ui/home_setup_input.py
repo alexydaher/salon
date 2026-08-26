@@ -24,6 +24,10 @@ class HomeInputSetup(ServiceComponent):
         self, application: Gtk.Application, scale_manager: ScaleManager, theme_manager: ThemeManager
     ) -> None:
         controller = Gtk.EventControllerKey()
+        # Menu rows take real GTK focus for Orca.  Capture keeps the
+        # application-wide action router authoritative before a focused
+        # Gtk.Button can consume arrows, Enter, MENU, or BACK itself.
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         controller.connect("key-pressed", self._owner._on_key_pressed)
         controller.connect("key-released", self._owner._on_key_released)
         self._owner.add_controller(controller)
@@ -44,6 +48,7 @@ class HomeInputSetup(ServiceComponent):
         self._owner._pointer_mode = False
         self._owner._child_active = False
         self._owner._pending_launch: Tile | None = None
+        self._owner._open_power_on_return = False
         self._owner._current_launch_is_browser = False
         self._owner._pointer = PointerInjector(
             on_ready=self._owner._on_pointer_ready,

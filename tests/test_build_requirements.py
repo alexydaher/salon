@@ -60,3 +60,23 @@ def test_release_ci_builds_and_publishes_native_package() -> None:
     assert "dpkg-buildpackage --build=binary --no-sign" in workflow
     assert "lintian --fail-on error" in workflow
     assert "salon-deb-${{ github.ref_name }}" in workflow
+
+
+def test_every_module_is_listed_for_installation() -> None:
+    """A module Meson does not know about is absent from `meson install`.
+
+    Nothing else catches it: `bin/salon` runs from source and every gate
+    reads source, so an unlisted file works perfectly right up until it is
+    installed — and then the import fails at startup in a session with no
+    shell to read the traceback in. Found the hard way on 2026-08-26, with
+    three new `phone_remote_*` modules.
+    """
+    root = Path(__file__).resolve().parent.parent / "salon"
+    missing = []
+    for directory in sorted({path.parent for path in root.rglob("*.py")}):
+        build = directory / "meson.build"
+        listed = build.read_text() if build.is_file() else ""
+        for module in sorted(directory.glob("*.py")):
+            if f"'{module.name}'" not in listed:
+                missing.append(str(module.relative_to(root)))
+    assert not missing, "not listed in a meson.build:\n" + "\n".join(missing)

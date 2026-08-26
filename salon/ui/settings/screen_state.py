@@ -13,7 +13,6 @@ from salon.ui.settings.screen_shared import (
     panel_builders,
     provider_panels,
     tile_panels,
-    tokens,
 )
 
 
@@ -123,9 +122,7 @@ class SettingsStateController(ServiceComponent):
 
     def set_scale(self, scale: Scale) -> None:
         self._owner._scale = scale
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         self._owner._content.set_margin_start(margin)
         self._owner._content.set_margin_end(margin)
         self._owner._content.set_margin_top(margin)

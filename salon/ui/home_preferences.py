@@ -95,11 +95,7 @@ class HomePreferences(ServiceComponent):
         # as the row widgets are rebuilt.
         self._owner._tile_scale = self._owner._settings.get_double("tile-scale")
         self._owner._metrics = metrics_for(scale, size_scale=self._owner._tile_scale)
-        self._owner._safe_margin = scale.du(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX
-            * self._owner._settings.get_double("safe-area-percent")
-            / 100.0
-        )
+        self._owner._safe_margin = scale.safe_margin
         heading = tokens.type_token("row-heading")
         self._owner._heading_height = scale.du(heading.size_du * 1.35)
         self._owner._heading_gap = scale.du(tokens.ROW_HEADING_GAP_DU)
@@ -157,12 +153,22 @@ class HomePreferences(ServiceComponent):
         return self._owner._content_height_px
 
     def _on_scale_changed(self, scale: Scale) -> None:
+        scale = scale.with_safe_area(self._owner._settings.get_double("safe-area-percent"))
         self._owner._scale = scale
         self._apply_metrics()
+        self._apply_scale_to_surfaces(scale)
+        self._owner._launcher.browser_scale_factor = tokens.browser_scale_factor(
+            scale.viewport_height_px
+        )
+        self._owner._rebuild_row_widgets()
+
+    def _apply_scale_to_surfaces(self, scale: Scale) -> None:
         self._owner._status_info.set_scale(scale)
         self._owner._remote_hint.set_scale(scale)
         self._owner._status_bar.set_scale(scale)
         self._owner._detail_bar.set_scale(scale)
+        self._owner._now_playing_status.set_scale(scale)
+        self._owner._legend.set_scale(scale)
         self._owner._launching_overlay.set_scale(scale)
         self._owner._osd.set_scale(scale)
         self._owner._system_menu.set_scale(scale)
@@ -173,10 +179,6 @@ class HomePreferences(ServiceComponent):
         self._owner._text_entry.set_scale(scale)
         self._owner._phone_pairing.set_scale(scale)
         self._owner._onboarding.set_scale(scale)
-        self._owner._launcher.browser_scale_factor = tokens.browser_scale_factor(
-            scale.viewport_height_px
-        )
-        self._owner._rebuild_row_widgets()
 
     def _on_viewport_resized(self, width: int, height: int) -> None:
         self._owner._viewport_width = width
@@ -185,7 +187,11 @@ class HomePreferences(ServiceComponent):
         self._owner._update_focus(animate=False)
 
     def _apply_layout_settings(self) -> None:
+        self._owner._scale = self._owner._scale.with_safe_area(
+            self._owner._settings.get_double("safe-area-percent")
+        )
         self._apply_metrics()
+        self._apply_scale_to_surfaces(self._owner._scale)
         self._owner._rebuild_row_widgets()
 
     def _repeat_timing(self) -> RepeaterTiming:

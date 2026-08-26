@@ -2,6 +2,6 @@
 """Compatibility facade for full-screen overlays."""
 
 from salon.ui.launching_overlay import LaunchingOverlay
-from salon.ui.system_menu import SystemMenu, SystemMenuItem, point_at
+from salon.ui.system_menu import MenuFrame, SystemMenu, SystemMenuItem, point_at
 
-__all__ = ["LaunchingOverlay", "SystemMenu", "SystemMenuItem", "point_at"]
+__all__ = ["LaunchingOverlay", "MenuFrame", "SystemMenu", "SystemMenuItem", "point_at"]

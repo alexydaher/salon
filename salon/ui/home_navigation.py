@@ -15,13 +15,68 @@ from salon.ui.home_shared import (
 class HomeNavigationController(ServiceComponent):
     def _set_nav_focused(self, focused: bool) -> None:
         self._owner._nav_focused = focused
-        self._owner._status_bar.set_nav_focused(focused, index=0 if focused else None)
+        self._owner._status_bar.set_nav_focused(focused)
+        self._publish_nav_detail()
         widget = self._owner._focused_widget()
         if widget is not None:
             self._owner._publish_active_descendant(widget)
         # Only one thing on screen may carry the strong highlight at a time,
         # so the tile under the cursor drops its ring while the bar has it.
         self._owner._update_focus()
+
+    def _visible_menu(self):
+        for name in ("_system_menu", "_tile_menu"):
+            menu = getattr(self._owner, name, None)
+            if menu is None:
+                continue
+            if menu.get_visible():
+                return menu
+        return None
+
+    def _on_menu_changed(self) -> None:
+        """Make a visible menu the sole interaction and accessibility owner."""
+        menu = self._visible_menu()
+        if menu is not None:
+            if not self._owner._menu_focus_owned:
+                self._owner._menu_focus_owned = True
+                self._owner._menu_origin_nav_focused = self._owner._nav_focused
+            self._owner._nav_focused = False
+            self._owner._status_bar.set_nav_focused(False)
+            self._owner._detail_bar.clear_nav_target()
+            self._owner._update_focus()
+            self._on_menu_selection_changed()
+        elif self._owner._menu_focus_owned:
+            restore_nav = self._owner._menu_origin_nav_focused
+            self._owner._menu_focus_owned = False
+            self._owner.grab_focus()
+            self._owner._nav_focused = restore_nav
+            self._owner._status_bar.set_nav_focused(restore_nav)
+            if restore_nav:
+                self._publish_nav_detail()
+            else:
+                self._owner._detail_bar.clear_nav_target()
+            self._owner._update_focus()
+        self._owner._update_legend()
+        self._owner._publish_remote_state()
+
+    def _on_menu_selection_changed(self) -> None:
+        menu = self._visible_menu()
+        if menu is None or menu.selected_row is None:
+            return
+        self._owner.update_relation(
+            [Gtk.AccessibleRelation.ACTIVE_DESCENDANT], [menu.selected_row]
+        )
+        # Entering or leaving a submenu changes BACK from "Close" to
+        # "Back a step" even though the menu itself never changes visibility.
+        self._owner._update_legend()
+
+    def _publish_nav_detail(self) -> None:
+        """Point the detail strip at whatever the ring is actually on."""
+        if not self._owner._nav_focused:
+            self._owner._detail_bar.clear_nav_target()
+            return
+        title, detail = self._owner._status_bar.selected_hint
+        self._owner._detail_bar.set_nav_target(title, detail)
 
     def _handle_nav_action(self, action: Action) -> None:
         if action is Action.DOWN or action is Action.BACK:
@@ -31,8 +86,11 @@ class HomeNavigationController(ServiceComponent):
             self._owner._rubber_band(Bump.UP)
             return
         if action in (Action.LEFT, Action.RIGHT):
-            if not self._owner._status_bar.move(-1 if action is Action.LEFT else 1):
-                self._owner._rubber_band(Bump.LEFT if action is Action.LEFT else Bump.RIGHT)
+            # The toolbar has no scrolling surface of its own.  At either
+            # end, leave it still: rubber-banding here moves the remembered
+            # app row underneath even though that row does not own focus.
+            self._owner._status_bar.move(-1 if action is Action.LEFT else 1)
+            self._publish_nav_detail()
             return
         if action is Action.OK:
             # Whatever it opens covers the home screen, so hand focus back

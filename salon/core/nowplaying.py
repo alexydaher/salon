@@ -45,6 +45,10 @@ class Player:
     changed_at: float = 0.0
     can_go_next: bool = False
     can_go_previous: bool = False
+    # `mpris:artUrl` exactly as the player published it, or "". Not resolved
+    # here: this module is pure, and resolving it means either a filesystem
+    # path or a decision to let a phone fetch someone else's CDN.
+    art_url: str = ""
 
     @property
     def active(self) -> bool:
@@ -72,17 +76,18 @@ class Selection:
         return max(pool, key=lambda p: (p.changed_at, p.bus_name))
 
 
-def describe(player: Player) -> tuple[str, str]:
-    """The two lines the detail strip shows: what it is, and what is going
-    on with it.
+def describe(player: Player, *, include_status: bool = True) -> tuple[str, str]:
+    """The two lines a now-playing surface shows.
 
     The title line is the track, not the application — "Blue Monday" is
     what the room wants to know; that it arrived via Firefox is not. The
-    application's name goes on the second line, where the state is, because
-    that is where "is this the thing I think it is" gets answered.
+    artist and application go on the second line. Surfaces with a separate
+    state icon can omit the redundant status word.
     """
     title = player.title.strip() or player.identity or "Now playing"
-    state = "Playing" if player.status == PLAYING else "Paused"
     parts = [part for part in (player.artist.strip(), player.identity.strip()) if part]
-    detail = " · ".join([state, *parts])
+    if include_status:
+        state = "Playing" if player.status == PLAYING else "Paused"
+        parts.insert(0, state)
+    detail = " · ".join(parts)
     return title, detail

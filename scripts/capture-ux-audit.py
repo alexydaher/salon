@@ -34,6 +34,10 @@ CAPTURE = runpy.run_path(str(ROOT / "scripts" / "capture-release-screenshots.py"
 
 def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    # Orca needs time to consume each AT-SPI transition.  Keep normal visual
+    # captures quick, while allowing the same real-window journey to be
+    # slowed down for a screen-reader audit.
+    delay_factor = max(1.0, float(os.environ.get("SALON_CAPTURE_DELAY_FACTOR", "1")))
     with tempfile.TemporaryDirectory(prefix="salon-ux-audit-") as temporary:
         state = Path(temporary)
         for name in ("CONFIG", "CACHE", "DATA", "STATE"):
@@ -91,6 +95,7 @@ def main() -> int:
             steps = [
                 ("onboarding", lambda: home._onboarding.start(), 350),
                 ("system-menu", lambda: (home._onboarding.finish(), home._show_system_menu()), 350),
+                ("power-menu", lambda: home._show_power_menu(), 350),
                 (
                     "system-confirm",
                     lambda: home._confirm_system_action("Shut Down", lambda: None),
@@ -123,7 +128,9 @@ def main() -> int:
                     "now-playing-detail",
                     lambda: (
                         home._phone_pairing.close(),
-                        home._detail_bar.set_override("Blue Monday", "New Order"),
+                        home._now_playing_status.set_track(
+                            "Blue Monday", "New Order", playing=True
+                        ),
                     ),
                     1800,
                 ),
@@ -137,7 +144,7 @@ def main() -> int:
                         return finish()
                     _name, action, delay = steps[index]
                     action()
-                    GLib.timeout_add(delay, run_step, index + 1)
+                    GLib.timeout_add(round(delay * delay_factor), run_step, index + 1)
                 except Exception as error:  # noqa: BLE001
                     return finish(error)
                 return GLib.SOURCE_REMOVE

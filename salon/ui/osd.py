@@ -13,7 +13,6 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.ui import motion  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
@@ -46,9 +45,7 @@ class VolumeOsd(Gtk.Box):
 
     def set_scale(self, scale: Scale) -> None:
         self.set_spacing(scale.px(20.0))
-        self.set_margin_bottom(
-            scale.px(tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0)
-        )
+        self.set_margin_bottom(scale.safe_margin_px)
         self._icon.set_pixel_size(scale.px(40.0))
         self._bar.set_size_request(scale.px(360.0), scale.px(8.0))
 

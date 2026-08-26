@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import gi
 
@@ -16,17 +15,13 @@ gi.require_version("Pango", "1.0")
 from gi.repository import Graphene, Gtk, Pango  # noqa: E402
 
 from salon.ui import motion  # noqa: E402
+from salon.ui.legend import Hint, Legend  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
+from salon.ui.system_menu_model import MenuFrame, SystemMenuItem  # noqa: E402
+from salon.ui.system_menu_render import SystemMenuRenderer  # noqa: E402
 
 
-@dataclass(frozen=True, slots=True)
-class SystemMenuItem:
-    label: str
-    action: Callable[[], None]
-    danger: bool = False
-
-
-class SystemMenu(Gtk.Box, motion.FadesIn):
+class SystemMenu(Gtk.Box, motion.FadesIn, SystemMenuRenderer):
     """A D-pad-navigable *and* mouse-driven menu — every row is a real
     Gtk.Button, so clicks work for free, hover moves the selection so the
     pointer and the D-pad never disagree about what's highlighted, and a
@@ -40,7 +35,14 @@ class SystemMenu(Gtk.Box, motion.FadesIn):
     a tile menu's contents depend on which tile is under the cursor.
     """
 
-    def __init__(self, items: list[SystemMenuItem], scale: Scale) -> None:
+    def __init__(
+        self,
+        items: list[SystemMenuItem],
+        scale: Scale,
+        *,
+        on_visibility_changed: Callable[[], None] | None = None,
+        on_selection_changed: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._init_fade()
         self.add_css_class("salon-system-menu-scrim")
@@ -49,6 +51,7 @@ class SystemMenu(Gtk.Box, motion.FadesIn):
         self.set_hexpand(True)
         self.set_vexpand(True)
         self.set_visible(False)
+        self.set_accessible_role(Gtk.AccessibleRole.MENU)
 
         self._card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._card.add_css_class("salon-system-menu-card")
@@ -63,14 +66,32 @@ class SystemMenu(Gtk.Box, motion.FadesIn):
 
         self._title = Gtk.Label()
         self._title.add_css_class("salon-system-menu-title")
+        self._title.set_halign(Gtk.Align.START)
+        self._title.set_xalign(0.0)
         self._title.set_ellipsize(Pango.EllipsizeMode.END)
         self._title.set_visible(False)
         self._card.append(self._title)
 
+        self._scroller = Gtk.ScrolledWindow()
+        self._scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._scroller.set_propagate_natural_height(True)
+        self._items_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._scroller.set_child(self._items_box)
+        self._card.append(self._scroller)
+
+        self._description = Gtk.Label()
+        self._description.add_css_class("salon-system-menu-description")
+        self._description.set_halign(Gtk.Align.START)
+        self._description.set_xalign(0.0)
+        self._description.set_wrap(True)
+        self._description.set_visible(False)
+        self._card.append(self._description)
+
         self._scale = scale
-        self._items: list[SystemMenuItem] = []
+        self._on_visibility_changed = on_visibility_changed
+        self._on_selection_changed = on_selection_changed
+        self._frames: list[MenuFrame] = []
         self._rows: list[Gtk.Button] = []
-        self._selected = 0
         # Hover only moves the selection when the pointer is genuinely in
         # use. GTK delivers a motion event when a widget maps under a
         # stationary cursor, so without this the menu opens with whatever
@@ -78,37 +99,35 @@ class SystemMenu(Gtk.Box, motion.FadesIn):
         self._hover_enabled = False
         self.set_items(items)
 
+        self._legend = Legend(scale)
+        self._legend.set_visible(False)
+        self.append(self._legend)
+
         dismiss = Gtk.GestureClick()
         dismiss.connect("released", self._on_scrim_clicked)
         self.add_controller(dismiss)
 
         self.set_scale(scale)
 
-    def set_items(self, items: list[SystemMenuItem], *, title: str = "") -> None:
-        for row in self._rows:
-            self._card.remove(row)
-        self._items = items
-        self._rows = []
-        self._selected = 0
-        self._title.set_label(title)
-        self._title.set_visible(bool(title))
-        for index, item in enumerate(items):
-            row = Gtk.Button(label=item.label)
-            row.add_css_class("salon-system-menu-item")
-            if item.danger:
-                row.add_css_class("danger")
-            row.connect("clicked", lambda _btn, i=index: self._activate(i))
-            motion = Gtk.EventControllerMotion()
-            motion.connect("motion", lambda *_, i=index: self._on_hover(i))
-            row.add_controller(motion)
-            self._card.append(row)
-            self._rows.append(row)
-        self._update_selection()
+    def set_items(
+        self,
+        items: list[SystemMenuItem],
+        *,
+        title: str = "",
+        frame_id: str = "root",
+        selected: int = 0,
+    ) -> None:
+        """Replace the root frame when dynamic labels or capabilities change."""
+        self._frames = [MenuFrame(frame_id, title, items, selected)]
+        self._render_frame()
 
-    def set_scale(self, scale: Scale) -> None:
-        self._scale = scale
-        self._card.set_spacing(scale.px(6.0))
-        self._card.set_size_request(scale.px(560.0), -1)
+    def push_frame(self, frame: MenuFrame) -> None:
+        """Enter a submenu without unmapping the scrim or losing its parent."""
+        self._frames.append(frame)
+        self._render_frame()
+        self.announce(
+            f"{frame.title} menu", Gtk.AccessibleAnnouncementPriority.MEDIUM
+        )
 
     def _on_scrim_clicked(
         self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float
@@ -121,21 +140,80 @@ class SystemMenu(Gtk.Box, motion.FadesIn):
         self.hide()
 
     def show(self) -> None:
-        self._selected = 0
-        self._update_selection()
+        # Only fade a card that was not already on screen. Pushing a second
+        # level, or a confirmation, replaces the items of a menu that is
+        # already visible — fading the whole scrim up again there reads as
+        # the screen flinching rather than as a card arriving.
+        was_visible = self.get_visible()
         self.set_visible(True)
-        self._begin_fade()
+        self._update_selection()
+        if not was_visible:
+            self._begin_fade()
+        self._notify_visibility()
 
     def hide(self) -> None:
         self.set_visible(False)
+        if len(self._frames) > 1:
+            self._frames = self._frames[:1]
+            self._render_frame()
+        self._notify_visibility()
+
+    def _notify_visibility(self) -> None:
+        if self._on_visibility_changed is not None:
+            self._on_visibility_changed()
+
+    @property
+    def has_back(self) -> bool:
+        """Whether BACK here goes up a level rather than closing."""
+        return len(self._frames) > 1
+
+    @property
+    def selected_row(self) -> Gtk.Button | None:
+        if not self._rows or not self._frames:
+            return None
+        index = self._frames[-1].selected
+        return self._rows[index] if 0 <= index < len(self._rows) else None
+
+    @property
+    def selected_item(self) -> SystemMenuItem | None:
+        if not self._frames:
+            return None
+        frame = self._frames[-1]
+        return frame.items[frame.selected] if 0 <= frame.selected < len(frame.items) else None
+
+    @property
+    def current_title(self) -> str:
+        return self._frames[-1].title if self._frames else ""
+
+    @property
+    def current_frame_id(self) -> str:
+        return self._frames[-1].frame_id if self._frames else ""
+
+    def set_hints(self, hints: tuple[Hint, ...]) -> None:
+        self._legend.set_hints(hints)
+
+    def back(self) -> None:
+        """BACK: up one level if this card is one, closed if it is not."""
+        if len(self._frames) > 1:
+            self._frames.pop()
+            self._render_frame()
+            title = self.current_title
+            if title:
+                self.announce(
+                    f"{title} menu", Gtk.AccessibleAnnouncementPriority.MEDIUM
+                )
+            return
+        self.hide()
 
     def move(self, delta: int) -> None:
         if not self._rows:
             return
-        self._select(max(0, min(self._selected + delta, len(self._rows) - 1)))
+        frame = self._frames[-1]
+        self._select(max(0, min(frame.selected + delta, len(self._rows) - 1)))
 
     def activate_selected(self) -> None:
-        self._activate(self._selected)
+        if self._frames:
+            self._activate(self._frames[-1].selected)
 
     def set_hover_enabled(self, enabled: bool) -> None:
         self._hover_enabled = enabled
@@ -145,22 +223,23 @@ class SystemMenu(Gtk.Box, motion.FadesIn):
             self._select(index)
 
     def _select(self, index: int) -> None:
-        if index == self._selected:
+        if not self._frames or index == self._frames[-1].selected:
             return
-        self._selected = index
+        self._frames[-1].selected = index
         self._update_selection()
 
     def _activate(self, index: int) -> None:
-        self.hide()
-        self._items[index].action()
-
-    def _update_selection(self) -> None:
-        for i, row in enumerate(self._rows):
-            if i == self._selected:
-                row.add_css_class("selected")
-            else:
-                row.remove_css_class("selected")
-
+        if not self._frames:
+            return
+        item = self._frames[-1].items[index]
+        if item.submenu is not None:
+            self.push_frame(item.submenu())
+            return
+        if item.action is None:
+            return
+        if item.closes:
+            self.hide()
+        item.action()
 
 def point_at(x: float, y: float) -> Graphene.Point:
     point = Graphene.Point()

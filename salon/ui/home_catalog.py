@@ -97,6 +97,9 @@ class HomeCatalogController(ServiceComponent):
     def _show_system_menu(self) -> None:
         self._owner._rebuild_system_menu()
         self._owner._system_menu.show()
+        # MENU replaces a contextual tile menu; it never stacks above one
+        # only to reveal it again when the global menu closes.
+        self._owner._tile_menu.hide()
 
     def _open_settings(self, panel_id: str = "") -> None:
         self._clear_for_settings()
@@ -106,11 +109,7 @@ class HomeCatalogController(ServiceComponent):
             self._owner._settings_screen.open()
 
     def _clear_for_settings(self) -> None:
-        self._owner._system_menu.hide()
-        if self._owner._search.get_visible():
-            self._owner._search.close()
-        if self._owner._apps_grid.get_visible():
-            self._owner._apps_grid.close()
+        self._owner._clear_global_surfaces("settings")
         # A mouse can click the top bar's buttons without the D-pad ever
         # having gone up there, and a click that leaves the bar highlighted
         # behind a full-screen overlay is a cursor in two places at once.
@@ -134,7 +133,12 @@ class HomeCatalogController(ServiceComponent):
                     return row.id, tile.id
         return None
 
-    def _refresh_catalog(self, *, preserve_focus: bool) -> None:
+    def _refresh_catalog(
+        self,
+        *,
+        preserve_focus: bool,
+        fallback_position: tuple[int, int] | None = None,
+    ) -> None:
         """Ask the providers for a fresh catalogue (§6.10).
 
         Asynchronous, because `collect()` waits up to three seconds and one
@@ -158,11 +162,17 @@ class HomeCatalogController(ServiceComponent):
         generation = self._owner._catalog_generation
         self._owner._provider_registry.build_async(
             self._owner._config,
-            lambda build: self._on_catalog_built(build, generation, target_id),
+            lambda build: self._on_catalog_built(
+                build, generation, target_id, fallback_position
+            ),
         )
 
     def _on_catalog_built(
-        self, build: CatalogBuild, generation: int, target_id: str | None
+        self,
+        build: CatalogBuild,
+        generation: int,
+        target_id: str | None,
+        fallback_position: tuple[int, int] | None = None,
     ) -> None:
         # Edits can outrun a slow provider; an older build landing after a
         # newer one would silently undo it.
@@ -195,4 +205,8 @@ class HomeCatalogController(ServiceComponent):
             pos = self._owner._catalog.find(target_id)
             if pos is not None:
                 self._owner._focus.jump_to(*pos)
+            elif fallback_position is not None:
+                self._owner._focus.jump_to(*fallback_position)
+        elif fallback_position is not None:
+            self._owner._focus.jump_to(*fallback_position)
         self._owner._rebuild_row_widgets()

@@ -148,6 +148,27 @@ class KeyboardModel:
         self._text = self._text[:-1]
         return True
 
+    def apply_remote_text(self, text: str) -> bool:
+        r"""Apply a run of characters from the phone. True to submit.
+
+        The phone's keyboard sends "\b" for Backspace and "\n" for Enter,
+        because the other end of `/type` — a launched application, reached
+        through the input grant — takes them as real keysyms. Appended
+        literally into a field Salon is drawing they became a control
+        character in the middle of somebody's query, and Enter did nothing
+        at all. Pure and here rather than in the pane so the rule is one
+        the tests can state.
+        """
+        submit = False
+        for character in text:
+            if character == "\b":
+                self.backspace()
+            elif character in "\r\n":
+                submit = True
+            else:
+                self.insert_text(character)
+        return submit
+
     def jump_to(self, row: int, col: int) -> None:
         """Point the cursor straight at a key — how a mouse click or a
         pointer hover moves it, since neither arrives as a direction."""

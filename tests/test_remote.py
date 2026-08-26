@@ -258,3 +258,40 @@ def test_a_tile_says_whether_it_is_pinned_and_whether_it_can_be_removed() -> Non
     payload = RemoteTile(id="x", title="X", pinned=True, removable=False).to_dict()
     assert payload["pinned"] is True
     assert payload["removable"] is False
+
+
+def test_the_field_on_the_television_is_mirrored_to_the_phone() -> None:
+    """Two keyboards pointed at one box have to agree about what is in it:
+    without this the phone shows an empty field whose Send appends a second
+    copy of a half-typed title."""
+    payload = RemoteState(wants_text=True, text="netfli").to_dict()
+    assert payload["wantsText"] is True
+    assert payload["text"] == "netfli"
+
+
+def test_nothing_asking_for_text_carries_no_text() -> None:
+    assert RemoteState().to_dict()["text"] == ""
+
+
+def test_cover_art_travels_by_whichever_of_two_routes_applies() -> None:
+    """A streaming player publishes an https URL and the phone fetches it
+    directly — proxying someone else's CDN through the television buys
+    nothing. A local file is the other case, and only Salon can serve it."""
+    streamed = RemoteNowPlaying(
+        title="Blue Train", detail="John Coltrane", playing=True,
+        art_url="https://example.invalid/cover.jpg",
+    ).to_dict()
+    assert streamed["artUrl"] == "https://example.invalid/cover.jpg"
+    assert streamed["art"] is False
+
+    local = RemoteNowPlaying(
+        title="Blue Train", detail="John Coltrane", playing=False, has_art=True
+    ).to_dict()
+    assert local["artUrl"] == ""
+    assert local["art"] is True
+
+
+def test_a_player_with_no_cover_says_so_both_ways() -> None:
+    payload = RemoteNowPlaying(title="Something", detail="", playing=True).to_dict()
+    assert payload["artUrl"] == ""
+    assert payload["art"] is False

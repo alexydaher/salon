@@ -120,3 +120,35 @@ def test_hardware_text_empty_edits_are_harmless() -> None:
     model = KeyboardModel()
     assert model.insert_text("") is False
     assert model.backspace() is False
+
+
+# --- text arriving from the phone ------------------------------------------
+
+
+def test_the_phone_backspace_deletes_rather_than_arriving_as_a_character() -> None:
+    r"""The phone's Backspace and Enter keys send "\b" and "\n", because the
+    other end of /type — a launched application, reached through the input
+    grant — takes them as real keysyms. Appended literally into a field
+    Salon is drawing, they put a control character in the middle of
+    somebody's query and left Enter doing nothing at all."""
+    model = KeyboardModel("netflix")
+    assert model.apply_remote_text("\b\b") is False
+    assert model.text == "netfl"
+
+
+def test_the_phone_enter_asks_for_a_submit_and_types_nothing() -> None:
+    model = KeyboardModel("bbc")
+    assert model.apply_remote_text("\n") is True
+    assert model.text == "bbc"
+
+
+def test_a_run_from_the_phone_is_applied_in_order() -> None:
+    model = KeyboardModel("")
+    assert model.apply_remote_text("netg\bflix\n") is True
+    assert model.text == "netflix"
+
+
+def test_backspacing_an_empty_field_from_the_phone_is_harmless() -> None:
+    model = KeyboardModel("")
+    assert model.apply_remote_text("\b\b\b") is False
+    assert model.text == ""

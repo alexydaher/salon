@@ -1,3 +1,11 @@
+salon (0.2.11-1) unstable; urgency=medium
+
+  * Clarify Home navigation with device-aware controls and a nested power menu.
+  * Expand the phone remote with app browsing, artwork, typing, and gestures.
+  * Harden remote resources, installed modules, accessibility, and UI tests.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Wed, 26 Aug 2026 15:30:31 +0200
+
 salon (0.2.10-1) unstable; urgency=medium
 
   * Centre the top bar's shortcut icons within their buttons.

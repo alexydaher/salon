@@ -27,7 +27,6 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
@@ -166,9 +165,7 @@ class Onboarding(Gtk.Box):
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         self._content.set_spacing(scale.px(16.0))
         self._content.set_margin_start(margin)
         self._content.set_margin_end(margin)

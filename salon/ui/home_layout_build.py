@@ -13,6 +13,7 @@ from salon.ui.home_shared import (
     TileWidget,
     metrics_for,
 )
+from salon.ui.home_viewport import _RowViewport
 
 
 class HomeLayoutBuilder(ServiceComponent):
@@ -38,7 +39,7 @@ class HomeLayoutBuilder(ServiceComponent):
             heading.add_css_class("salon-row-heading")
             self._owner._rows_content.put(heading, 0, 0)
 
-            row_viewport = Gtk.Fixed()
+            row_viewport = _RowViewport()
             row_viewport.set_overflow(Gtk.Overflow.HIDDEN)
             row_viewport.set_accessible_role(Gtk.AccessibleRole.ROW)
             row_viewport.update_property(
@@ -63,7 +64,16 @@ class HomeLayoutBuilder(ServiceComponent):
                 # the same card rather than two that drift apart.
                 remote_tiles.append(self._owner._remote_tile_from(tile, artwork))
                 widget = TileWidget(
-                    tile, artwork, metrics, self._owner._scale, animations_enabled=animations
+                    tile,
+                    artwork,
+                    metrics,
+                    self._owner._scale,
+                    animations_enabled=animations,
+                    # The detail strip is directly below these rows and
+                    # already carries the subtitle in full, unellipsized.
+                    # Printing it on the card as well spent the bottom fifth
+                    # of every tile echoing a line two rows away.
+                    show_subtitle=False,
                 )
                 self._attach_pointer(widget, row_index, col)
                 # Tiles start at x=0, not at -bleed: a child placed at a
@@ -76,7 +86,18 @@ class HomeLayoutBuilder(ServiceComponent):
             row_viewport.put(tiles_box, 0, 0)
             self._owner._rows_content.put(row_viewport, 0, 0)
 
-            widgets = _RowWidgets(heading, row_viewport, tiles_box, tiles, metrics)
+            # Never wider than the safe-area margin: the focused tile rests
+            # exactly one margin from the left edge, and the last tile of a
+            # row rests one from the right, so a wider ramp would be fading
+            # the tile the cursor is on.
+            widgets = _RowWidgets(
+                heading,
+                row_viewport,
+                tiles_box,
+                tiles,
+                metrics,
+                fade=min(self._owner._scale.du(_EDGE_FADE_DU), self._owner._safe_margin),
+            )
             widgets.scroller.set_animations_enabled(animations)
             self._owner._rows.append(widgets)
             remote_rows.append(
@@ -111,6 +132,10 @@ class HomeLayoutBuilder(ServiceComponent):
             self._owner._rows_content.move(
                 row.viewport, 0.0, self._owner._row_tile_top(index) - row.metrics.bleed
             )
+            # The window's width just changed, and the row's fades are a
+            # function of it as well as of the scroll offset.
+            row.visible_width = float(width)
+            row.update_fades()
         self._owner._rows_content.set_size_request(
             width, max(1, round(self._owner._content_height()))
         )

@@ -112,6 +112,24 @@ from salon.core.remote import (  # noqa: E402
     is_local_address,
 )
 from salon.input.actions import Action  # noqa: E402
+from salon.services.phone_remote_limits import (  # noqa: E402
+    _ART_TYPES,
+    _AWAKE_CLIPS,
+    _CONNECTED_SECONDS,
+    _IDLE_CHECK_SECONDS,
+    _MAX_ART_BYTES,
+    _MAX_REQUEST_BODY_BYTES,
+    _STATUS_CONTENT_TOO_LARGE,
+    _STATUS_TOO_MANY_REQUESTS,
+    _TOKEN_BYTES,
+    _UI_ASSET_NAME,
+    _UI_TYPES,
+    DEFAULT_PORT,
+    MAX_ATTEMPTS,
+    MAX_BROWSE_RESULTS,
+    MAX_SEARCH_RESULTS,
+    SESSION_TIMEOUT_SECONDS,
+)
 
 # What the page is allowed to ask for. Derived from the enum rather than
 # written out again, so a button added to the page and an Action added to
@@ -134,63 +152,6 @@ TILE_ACTIONS = frozenset({"pin", "unpin", "edit", "remove"})
 # wire: the page should not have to know that the middle button is 0x112,
 # and an unknown name is refused rather than passed through to the portal.
 POINTER_BUTTONS = frozenset({"left", "right", "middle"})
-
-# The most results a search will return. A phone screen shows about six at a
-# time and nobody scrolls a remote control; past this the ranking is doing
-# no work that anyone reads.
-MAX_SEARCH_RESULTS = 40
-
-DEFAULT_PORT = 8437
-SESSION_TIMEOUT_SECONDS = 300
-
-# How often the idle deadline is checked. A repeating timer that compares a
-# monotonic stamp, rather than a timeout rescheduled per request: the phone
-# polls once a second, and tearing down and rebuilding a GLib source at that
-# rate to express "still here" is work for nothing.
-_IDLE_CHECK_SECONDS = 15
-
-# How long after the last authenticated request a phone still counts as
-# connected. A little over the page's one-second poll, so a phone sitting on
-# the remote reads as present without flickering between polls.
-_CONNECTED_SECONDS = 4.0
-
-# Wrong codes allowed before the session is burned. Low enough that a brute
-# force gets nowhere, high enough to survive a person mistyping four digits
-# on a phone keyboard a few times.
-MAX_ATTEMPTS = 5
-
-# 128 bits. `token_urlsafe(16)` is 22 characters, which keeps the pairing
-# URL inside QR version 4 at error-correction level M — comfortably within
-# what core/qr.py encodes and what a camera reads off a television.
-_TOKEN_BYTES = 16
-
-# Soup.Status has no TOO_MANY_REQUESTS member in libsoup 3.
-_STATUS_TOO_MANY_REQUESTS = 429
-_STATUS_CONTENT_TOO_LARGE = 413
-_MAX_REQUEST_BODY_BYTES = 64 * 1024
-
-# Artwork is read off disk on the main loop, so a pathological file must not
-# become a stall. Nothing legitimate here is close to this: the largest
-# thing served is a cached poster.
-_MAX_ART_BYTES = 8 * 1024 * 1024
-
-_ART_TYPES = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-    ".gif": "image/gif",
-    ".svg": "image/svg+xml",
-}
-
-# The blank loop the page plays to hold a phone's screen on, in the two
-# containers between them cover every phone: Safari wants H.264, and VP8 has
-# been on Android for longer than anything else. See the `#awake` element.
-_AWAKE_CLIPS = {
-    "/awake.webm": ("awake.webm", "video/webm"),
-    "/awake.mp4": ("awake.mp4", "video/mp4"),
-}
-
 
 def local_address() -> str | None:
     """The address a phone on the same LAN can actually reach.
@@ -228,11 +189,22 @@ def _resource_bytes(name: str) -> bytes | None:
         return bytes(data.get_data() or b"")
     except (ImportError, GLib.Error):
         pass
-    local = Path(__file__).resolve().parents[2] / "data" / "remote" / name
-    try:
-        return local.read_bytes()
-    except OSError:
-        return None
+    data_dir = Path(__file__).resolve().parents[2] / "data"
+    # The icon is an *alias* in the bundle — the same file the desktop entry
+    # uses — so there is nothing at `remote/icon.svg` to fall back to and an
+    # unbundled run answered 500 for it on every page load.
+    candidates = [data_dir / "remote" / name]
+    if name == "icon.svg":
+        candidates.append(
+            data_dir / "icons" / "hicolor" / "scalable" / "apps"
+            / "io.github.alexydaher.Salon.svg"
+        )
+    for candidate in candidates:
+        try:
+            return candidate.read_bytes()
+        except OSError:
+            continue
+    return None
 
 
 class PhoneRemoteComponent:

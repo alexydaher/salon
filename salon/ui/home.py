@@ -11,11 +11,13 @@ from salon.ui.home_focus import HomeFocusController
 from salon.ui.home_idle import HomeIdleController
 from salon.ui.home_launching import HomeLaunchController
 from salon.ui.home_layout_build import HomeLayoutBuilder
+from salon.ui.home_legend import HomeLegendController
 from salon.ui.home_navigation import HomeNavigationController
 from salon.ui.home_overlays import HomeOverlayController
 from salon.ui.home_phone_catalog import HomePhoneCatalogController
 from salon.ui.home_phone_input import HomePhoneInputController
 from salon.ui.home_phone_lifecycle import HomePhoneLifecycleController
+from salon.ui.home_power_menu import HomePowerMenuController
 from salon.ui.home_preferences import HomePreferences
 from salon.ui.home_reload_pointer import HomeReloadAndPointerController
 from salon.ui.home_repeat import HomeRepeatController
@@ -43,6 +45,7 @@ class HomeView(
     HomeReloadAndPointerController,
     HomeBindingController,
     HomeIdleController,
+    HomeLegendController,
     HomePhoneInputController,
     HomePhoneCatalogController,
     HomePhoneLifecycleController,
@@ -51,6 +54,7 @@ class HomeView(
     HomeNavigationController,
     HomeOverlayController,
     HomeLaunchController,
+    HomePowerMenuController,
 ):
     def __init__(
         self, application: Gtk.Application, scale_manager: ScaleManager, theme_manager: ThemeManager

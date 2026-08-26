@@ -43,9 +43,16 @@ class StateFeed:
 
 @dataclass(slots=True)
 class OfferedIds:
-    """A bounded insertion-ordered set of tile IDs shown in search results."""
+    """A bounded insertion-ordered set of tile IDs the phone has been shown.
 
-    limit: int = 400
+    Two sources feed it: search results, and the A-Z list of every installed
+    application. The ceiling has to clear both at once — a phone that
+    browsed the whole app list and then searched once would otherwise have
+    the earliest applications evicted out from under the artwork it is still
+    displaying, and their cards would fall back to a coloured letter.
+    """
+
+    limit: int = 800
     _ids: dict[str, None] = field(default_factory=dict, repr=False)
 
     def offer(self, ids: Iterable[str]) -> None:

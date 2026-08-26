@@ -2109,3 +2109,215 @@ portal.
 `--device=input` instead of `--device=all`. libmanette still receives evdev
 controllers while disks, cameras and unrelated device nodes remain outside
 the sandbox.
+
+## 2026-08-25 (later) — the main menu spends its screen on itself
+
+Seven changes to the home screen, all from one question: what is each part
+of this screen actually telling the user that no other part already is?
+
+**The tile no longer prints its own subtitle; the strip below it does.**
+`ui/detailbar.py` was showing `tile.title` and `tile.subtitle` — the exact
+two strings the focused card was showing two hundred pixels above it — plus
+one clause that was new ("Opens example.com · full screen"). A strip that
+costs a seventh of a 1080p panel cannot spend two thirds of itself on an
+echo. The title stays in both places on purpose: the card ellipsizes at
+about twenty characters and the strip does not, which is the
+"Document Scanner"/"Document Viewer" case the strip was built for. The
+subtitle moves down entirely (`show_subtitle=False`, home rows only —
+the all-apps grid and the search results have no strip and keep it). The
+card gets that height back for artwork.
+
+**The strip is chrome now, not a card.** It had a fill, a border, a radius
+and a drop shadow, which read as a dialog somebody had left open in the
+corner. The rows are inset out of that band already, so nothing is drawn
+behind the text for a scrim to separate it from. Rejected: keeping a faint
+fill "for legibility" — the only thing under it is the backdrop's own glow,
+and `@text-primary` sits on that perfectly well, which was checked by
+sampling the capture rather than by looking at it.
+
+**The button legend moved out to `ui/legend.py` and learned what device it
+is talking to.** It was the third line of the strip, so it was rebuilt on
+every cursor move to say something that had not changed, and it could only
+ever be a fact about the selected tile — it had nothing to say about a
+menu, the top bar, or an app covering the screen. It is now keyed on the
+mode alone. More importantly it names the *button*: "OPTIONS" is printed on
+nothing anybody owns. `core/buttons.py` (pure, tested) maps (action,
+source) to a caption, `salon/input/gamepad.py` grew `device_name`, and the
+DualSense that is the one controller this project has met says Square and
+Cross rather than X and A. Words, not glyphs: `data/fonts/` is empty and a
+missing ⓐ is a tofu box.
+
+**The clock is not the brightest thing on a launcher any more.** 44du/700
+in `@text-primary` made the time heavier than a row heading and a
+competitor to the tile the user is about to open. 32du/600 in
+`@text-secondary`. Nothing on this screen outranks the thing OK will
+launch.
+
+**A catalogue shorter than the band is centred in it.** This reverses
+2026-08-23's rule, and the reversal is the point: that rule was written
+when the band was the whole window, where centring really did mean floating
+in dead space under a distant clock. The band is now exactly the gap
+between the two bars, so centring in it is centring between the two things
+that frame it. Measured without the last row's bleed — that padding is
+transparent room for the bloom, and counting it as content centres a box
+one bleed taller than anything visible.
+
+**Rows fade at whichever end has tiles past it**, which the band has done
+vertically since 2026-08-23 and the horizontal axis never did: the last
+tile was guillotined mid-word at the screen edge, at whatever position a
+television's overscan happens to put it. The ramp is capped at the
+safe-area margin, because the focused tile rests exactly one margin from
+the left edge and the last tile of a row rests one from the right.
+
+This one was found *wrong on the display after being written correctly*.
+`_RowViewport` is a `Gtk.Fixed`, a Gtk.Fixed measures to fit its children,
+and its parent is another Gtk.Fixed handing out natural sizes — so a row of
+four tiles is allocated 1468 px inside a 1280 px window regardless of its
+size request, and the ramp computed from `get_width()` was drawn 188 px
+past the screen edge. It faded nothing. The left ramp worked, which is
+exactly what made it look implemented. The visible span is passed in from
+the layout pass now. That is the third distinct form of the Gtk.Fixed
+sizing trap in CLAUDE.md and the first on the horizontal axis.
+
+**MENU is four rows, and power is behind one of them.** It was a flat list
+of up to nine — Settings, the phone, Suspend, Log Out, Restart, Shut Down,
+About, Exit, Cancel — walked with an accelerating auto-repeat. Two of those
+rows are what anyone opens MENU for and four of them end the session.
+`SystemMenu` gained `set_items(..., on_back=…)` so BACK there means "up one
+level" rather than "closed", and the legend says so. "Cancel" is gone from
+both menus: BACK cancels, MENU cancels, a click on the scrim cancels, and a
+row that does nothing is one more thing for a held direction to stop on. It
+stays in the danger confirmations, where it is first and pre-selected.
+
+**Not done, deliberately: promoting "continue watching" to the first
+tile.** It is the biggest single lever a television launcher has, and it
+changes what `tiles.json` means — position (0,0) would stop being the
+user's choice. That is the owner's call, not a refactor.
+
+## 2026-08-26
+
+**The phone remote's page is twenty-five files, and still has no build
+step.** `data/remote/index.html` was 1911 lines: markup, 600 lines of CSS
+and 1100 of JavaScript in one document, with the module comment explaining
+that keeping it as one file was what made it editable. That stopped being
+true. It is now markup only — 300 lines — beside `data/remote/ui/`: four
+stylesheets and twenty ES modules, none over 190 lines, served from the same
+GResource bundle at `/ui/<name>`. The no-build-step property is untouched,
+which is the whole reason it is ES modules and plain CSS rather than a
+bundler: a launcher that needs npm to change a button is a launcher nobody
+will change a button in. What it costs is twenty-five requests on first
+load instead of one, over a LAN, once per pairing — and a new failure mode,
+a file on disk that is not in the bundle, which is what
+`tests/test_phone_page.py` exists for: it walks the page's own references
+and every module's imports, checks both directions against
+`salon.gresource.xml`, and fails on an orphan as well as on a missing file.
+
+**`/ui/<name>` is matched against a pattern, not sanitised.** One regular
+expression — `^[a-z0-9_-]+\.(css|js)$` — applied before the name is joined
+to anything, so there is no traversal to get wrong rather than a traversal
+that is handled. libsoup turns out to collapse a literal `..` before it
+routes at all and to refuse an encoded separator outright, so the pattern
+is the second line of defence and both are asserted. A name that passes the
+pattern and is not in the bundle is a 404; only the *page* answers 500 with
+"this copy may be installed wrong", because for the page that is true.
+
+**Three things the state already carried and nothing acted on.** All three
+were found by reading the page against `core/remote.py` rather than by
+using it. `wants_text` had a comment in `RemoteState` saying it existed "so
+the phone can open its keyboard without being told to", and the page only
+recoloured a hint with it — so the one moment the phone is unambiguously
+the right tool was the one moment it waited to be asked. It switches to the
+Type tab on the rising edge now, the same one-shot pattern the in-app
+transition already used. The Type pane's aim pad was the *last* element in
+the pane, under the field, so focusing the field raised the phone's own
+keyboard over the control the hint tells you to use first: the documented
+order was unreachable in the rendered one. And the way out of a launched
+application was duplicated into two panes and absent from the other two, so
+browsing Apps with Netflix up left no way back.
+
+**The header carries MENU, Power and "Close *Netflix*".** It was a coloured
+dot and the word "Home" — the emptiest strip on a phone — and those three
+are exactly the presses whose meaning does not depend on which pane you are
+looking at. Power is not a new verb: `Action.POWER` has been as global as
+MENU on the television since the reachability pass, and every remote in the
+room has that button. With an application in front the MENU icon is hidden
+rather than greyed, because there MENU *is* "close the app" and two buttons
+doing one thing is two things to work out.
+
+**The D-pad plate is a swipe surface as well as four buttons.** Buttons is
+how you drive a launcher while looking at your hand; swiping is how you
+drive one while looking at the television, which is what a remote is for.
+Both, rather than either: the keys stay labelled, reachable by a screen
+reader and answering on the way down like a physical key, and dragging
+across the plate emits one step per 38 px on top of them. This is what
+`data-on-release` on the middle key is for — a swipe usually starts in the
+centre, and an OK that fired on the way down would select something every
+time somebody tried to move. OK is also the one key nobody holds, so it is
+the one that can afford to wait for the release.
+
+**The trackpad accelerates.** Motion went through at 1:1, which means a
+350 px pad driving a 3840 px television needs eleven full swipes to cross
+it: the surface worked perfectly and was unusable. Gain is now
+`1 + 1.9 × px/ms`, capped at 4.5 — slow movement is still exactly 1:1 so a
+button is aimable, and a flick multiplies. Scrolling is deliberately not
+accelerated: a scroll is a distance, not a nudge at a target.
+
+**`--on-accent` is computed, not assumed.** Every accented surface — the
+primary button, a pressed key, the selected tab, "Close *Netflix*" —
+hardcoded `#12151A`, which is right for the default amber and unreadable
+the moment somebody picks a deep blue in Settings → Appearance. WCAG
+relative luminance, one variable, recomputed when the accent changes.
+
+**Two keyboards pointed at one box now agree what is in it.** `RemoteState`
+gained `text`, so the phone's field shows what the television's field holds
+and Send computes the *difference* rather than appending — a shared prefix
+costs the tail, anything else costs one backspace per character. That is
+also how a real bug surfaced: the phone's Backspace and Enter keys send
+`\b` and `\n`, which is right for the other end of `/type` (a launched
+application, where they become real keysyms) and was being appended
+literally into a field Salon was drawing. A control character in the middle
+of somebody's query, and Enter doing nothing at all. The rule is
+`KeyboardModel.apply_remote_text`, pure and tested, rather than a loop in
+the pane.
+
+**Cover art travels by whichever of two routes applies.** A streaming
+player publishes an `https://` `mpris:artUrl`; that goes to the phone as it
+stands and the phone fetches it, because it has the network and proxying
+someone else's CDN through the television buys nothing. A local file
+becomes `has_art` and Salon serves it at `/np-art` — with no id in the
+request and deliberately no way to add one, since the only thing it will
+ever serve is the cover of the player in the state the phone has already
+been shown. `has_art` is a string prefix test rather than a stat, because
+the snapshot is republished on every cursor movement.
+
+**Landscape existed and had never been drawn.** There was not one media
+query in the page, so a phone on its side got a 4.6 rem D-pad and four bars
+down a 390 px viewport and the remote became a scrolling document. It is a
+row now — pad on the left, the bars beside it as columns, the swipe hint
+dropped because in landscape a line of prose costs a button. `align-content:
+safe center`, because plain `center` on an overflowing flex container puts
+the first line above the scroll origin where nothing can reach it.
+
+**Tile columns are counted at breakpoints, not fitted.** `auto-fill` with a
+minimum was tried first and is wrong here: the minimum that keeps two 16:9
+cards on a 390 px phone is small enough to put six of them on a tablet, and
+a card is a piece of artwork with a size worth reading rather than a cell.
+
+**Verified by rendering it, not by reading it.** The pattern that works for
+the television works here too: drive a real `PairingServer` on a GLib loop,
+point headless Chromium at it from a worker thread at a phone viewport, and
+capture every pane. Six things were wrong on screen after being written
+carefully — `auto-fill` giving one column at 390 px, the sheet's buttons
+laid out inline because a wrapping div is not a flex container, a cover
+`<img>` that never hid itself because `""` was both the sentinel and a real
+value, a now-playing screen that bunched against the top when the auto
+margins it was spaced with belonged to the element that had just been
+hidden, a landscape grid that placed two bars in one cell, and a 500 on
+`/icon.svg` in any unbundled run because the icon is an *alias* in the
+bundle with nothing at `remote/icon.svg` to fall back to.
+
+**Not done, deliberately: a position bar on the now-playing screen.**
+`core/remote.py` already argues that one out — MPRIS reports position as a
+value that has to be extrapolated against a clock, and a progress bar that
+has to be right to the frame is not worth a poll a second. The screen shows
+artwork, which is the part that was missing.

@@ -63,3 +63,5 @@ class HomeMonitorSetup(ServiceComponent):
         )
         self._owner._update_remote_hint()
         GLib.timeout_add(_HINT_POLL_MS, self._owner._poll_remote_hint)
+        # Last, because it reads the state every stage above has just set.
+        self._owner._update_legend()

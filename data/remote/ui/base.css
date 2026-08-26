@@ -1,0 +1,232 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+
+   Tokens, the shell, the connect screen and the header. Everything here is
+   true on every pane; the two sheets beside this file are the panes
+   themselves. Split out of one 1900-line page for the same reason the
+   Python is split: a stylesheet nobody can hold in their head is a
+   stylesheet people add to rather than edit. */
+
+:root {
+  color-scheme: dark;
+  --bg: #0E1116;
+  --s1: #161B22;
+  --s2: #1F2630;
+  --fg: #F2EDE4;
+  --dim: #9AA3AE;
+  --danger: #D9584B;
+  /* Overwritten from /state with whatever the television is themed to. */
+  --accent: #E8A33D;
+  /* What is legible *on* the accent. Recomputed in JS from the accent's own
+     luminance rather than assumed: the accent is a colour the user picks in
+     Settings, and near-black text on a navy accent is unreadable. */
+  --on-accent: #12151A;
+  --pad: 4vw;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  /* How much room the strips below `main` are taking. Kept as a variable so
+     the toast can sit above whatever is actually there instead of above a
+     hardcoded guess at the tab bar's height. */
+  --strips: 4.5rem;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* The header and the tab strip are `display: flex` below, and a display
+   rule beats the user agent's `[hidden] { display: none }`. Without this
+   the chrome of a connected remote shows through the code screen. */
+[hidden] { display: none !important; }
+
+/* Deliberately not `display: none`, `visibility: hidden` or `opacity: 0`
+   — all three are ways of telling the browser the video does not need to
+   be played, which is the one thing being asked of it. */
+#awake {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0.01;
+  pointer-events: none;
+  z-index: -1;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* dvh, not vh: on a phone the address bar collapses as you scroll and a
+   tab strip pinned with vh spends the first gesture sliding off-screen. */
+body { height: 100dvh; display: flex; flex-direction: column; }
+
+button { font: inherit; color: inherit; border: 0; background: none; }
+
+/* One sprite, referenced with <use>. The tab strip used to be four
+   typographic characters — U+2328 renders as a colour emoji on iOS and as
+   an empty box in several Android system fonts, so the row of tabs looked
+   like a different application on every phone. */
+.i { width: 1.35rem; height: 1.35rem; flex: none; }
+svg.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* --- connect ---------------------------------------------------------- */
+
+#connect {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  padding: var(--pad);
+  padding-top: calc(var(--pad) + var(--safe-t));
+}
+#connect h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
+#connect p { margin: 0; color: var(--dim); }
+#code {
+  width: 100%;
+  padding: 1rem;
+  font-size: 2rem;
+  text-align: center;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  border-radius: 14px;
+  border: 2px solid var(--s2);
+  background: var(--s1);
+  color: var(--fg);
+}
+#code:focus { outline: none; border-color: var(--accent); }
+#connect-status { min-height: 1.4rem; color: var(--danger); }
+.primary {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.primary:disabled { opacity: 0.4; }
+
+/* --- header ----------------------------------------------------------- */
+
+/* The header used to be a dot and the word "Home", which is the emptiest
+   strip on a phone. It now carries the two controls that mean the same
+   thing on every pane — MENU, which is the one button whose meaning never
+   changes, and Power — plus the way out of a launched application, which
+   was previously duplicated into two panes and absent from the other two.
+   Browse to Apps with Netflix up and the escape hatch used to vanish. */
+header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: calc(0.6rem + var(--safe-t)) var(--pad) 0.6rem;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+#dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  transition: background 200ms;
+  flex: none;
+}
+#dot.stale { background: var(--danger); }
+#screen { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header .icon {
+  flex: none;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 50%;
+  background: var(--s1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+header .icon.pressed { background: var(--accent); color: var(--on-accent); }
+header #hdr-power.pressed { background: var(--danger); color: var(--fg); }
+#close-app {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 62%;
+  padding: 0.5rem 0.8rem;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+#close-app.pressed { opacity: 0.6; }
+
+/* "Could not reach Salon" used to be a red dot and a toast, which is the
+   same signal for "your phone was asleep" and "the television is off".
+   This says which, and says that it is still trying. */
+#offline {
+  display: none;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 var(--pad) 0.4rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: rgba(217, 88, 75, 0.14);
+  border: 1px solid rgba(217, 88, 75, 0.4);
+  font-size: 0.82rem;
+}
+#offline.on { display: flex; }
+#offline span { flex: 1; }
+#offline button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 9px;
+  background: var(--s2);
+  font-size: 0.8rem;
+}
+
+main { flex: 1; overflow: hidden; position: relative; }
+.pane {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: 0 var(--pad);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pane.on { display: flex; }
+
+/* Not hidden — greyed and still there. A control that vanishes while an
+   app is up makes the remote a different shape every time you glance
+   down; one that is visibly unavailable teaches what the rule is. */
+button:disabled { opacity: 0.3; }
+.why {
+  display: none;
+  color: var(--dim);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.1rem 0 0.4rem;
+}
+body.in-app .why { display: block; }
+.subtle { color: var(--dim); font-size: 0.85rem; }
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--strips) + 1rem + var(--safe-b));
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  background: var(--s2);
+  font-size: 0.85rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms;
+  z-index: 10;
+}
+#toast.on { opacity: 1; }

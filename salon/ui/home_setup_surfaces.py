@@ -7,12 +7,15 @@ import os
 from salon.services.component import ServiceComponent
 from salon.ui.home_rows import _RowWidgets
 from salon.ui.home_shared import (
+    CEC,
     AppsGrid,
     ArtworkResolver,
     DetailBar,
     Gdk,
     Gtk,
     LaunchingOverlay,
+    Legend,
+    NowPlayingStatus,
     NowPlayingWatcher,
     PairingServer,
     RemoteHint,
@@ -51,6 +54,8 @@ class HomeSurfaceSetup(ServiceComponent):
             on_scroll=self._owner._on_phone_scroll,
             on_scroll_end=self._owner._on_phone_scroll_end,
             on_button=self._owner._on_phone_button,
+            on_apps=self._owner._all_apps_for_phone,
+            np_art_for=self._owner._now_playing_art_for_phone,
         )
         self._owner._status_info = StatusInfo(self._owner._scale)
         self._owner._overlay.add_overlay(self._owner._status_info)
@@ -59,13 +64,32 @@ class HomeSurfaceSetup(ServiceComponent):
             on_search=self._owner._open_search,
             on_apps=self._owner._open_apps,
             on_phone=self._owner._open_phone_pairing,
-            on_settings=lambda: self._owner._open_settings(),
-            on_power=self._owner._show_system_menu,
+            on_more=self._owner._show_system_menu,
         )
         self._owner._nav_focused = False
+        self._owner._menu_focus_owned = False
+        self._owner._menu_origin_nav_focused = False
         self._owner._overlay.add_overlay(self._owner._status_bar)
+        # One row, not two overlay children. Both want the bottom of the
+        # screen and one of them has to ellipsize when they meet; as
+        # independent overlay children each was given its natural size and
+        # the description simply ran under the legend.
         self._owner._detail_bar = DetailBar(self._owner._scale)
-        self._owner._overlay.add_overlay(self._owner._detail_bar)
+        self._owner._now_playing_status = NowPlayingStatus(self._owner._scale)
+        self._owner._legend = Legend(self._owner._scale)
+        self._owner._bottom_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._owner._bottom_bar.set_valign(Gtk.Align.END)
+        self._owner._bottom_bar.set_halign(Gtk.Align.FILL)
+        self._owner._bottom_bar.set_can_target(False)
+        self._owner._bottom_bar.append(self._owner._detail_bar)
+        self._owner._bottom_bar.append(self._owner._now_playing_status)
+        self._owner._bottom_bar.append(self._owner._legend)
+        self._owner._overlay.add_overlay(self._owner._bottom_bar)
+        # Which kind of device sent the last press, so the legend can name
+        # its buttons rather than Salon's intents. Starts as the remote's
+        # vocabulary: "OK" and "Menu" are what a television's own remote
+        # says, and it is the input this is built for.
+        self._owner._input_source = CEC
         self._owner._gamepad_count = 0
         self._owner._remote_hint = RemoteHint(
             self._owner._scale, self._owner._pairing, on_open=self._owner._open_phone_pairing

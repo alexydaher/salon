@@ -4,6 +4,7 @@
 
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
+    CEC,
     Action,
     Bindings,
     Callable,
@@ -24,6 +25,7 @@ class HomeBindingController(ServiceComponent):
             self._owner._cec.stop()
 
     def _on_cec_action(self, action: Action) -> None:
+        self._owner._note_input_source(CEC)
         if self._owner._binding_capture is not None:
             return
         # A TV remote produces discrete presses with no key-up, so it feeds

@@ -1,0 +1,227 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+
+   The Apps pane: search, the mirrored catalogue, the A-Z list of every
+   installed application, and the long-press sheet. */
+
+#pane-apps { gap: 0.4rem; padding-bottom: 1rem; }
+
+#search-row {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.4rem;
+  background: var(--bg);
+}
+#q {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  font-size: 1rem;
+  border-radius: 14px;
+  border: 2px solid var(--s2);
+  background: var(--s1);
+  color: var(--fg);
+}
+#q:focus { outline: none; border-color: var(--accent); }
+/* The user agent draws its own clear button inside a search field, and
+   beside ours that is two crosses meaning the same thing. Ours stays,
+   because it is the one big enough for a thumb. */
+#q::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+#search-row button {
+  display: none;
+  flex: none;
+  align-items: center;
+  padding: 0 0.85rem;
+  border-radius: 14px;
+  background: var(--s1);
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+#q-clear { color: var(--dim); }
+body.searching #q-clear { display: flex; }
+body:not(.searching) #all-apps { display: flex; }
+#all-apps.on { background: var(--accent); color: var(--on-accent); }
+
+.row-title {
+  position: sticky;
+  top: 3.2rem;
+  z-index: 1;
+  margin: 0.8rem 0 0.4rem;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  /* Opaque: it is sticky under a sticky search row, and a gradient let the
+     card scrolling beneath it show through the letters. */
+  background: var(--bg);
+  box-shadow: 0 0.4rem 0.4rem -0.4rem var(--bg);
+}
+/* Counted at breakpoints rather than fitted with `auto-fill`. Fitting was
+   tried and is wrong here: the minimum that keeps two 16:9 cards on a
+   390px phone is small enough to put six of them on a tablet, and a card
+   is a piece of artwork with a size worth reading rather than a cell. */
+.row-tiles { display: grid; gap: 0.6rem; }
+.row-tiles.wide   { grid-template-columns: repeat(2, 1fr); }
+.row-tiles.square { grid-template-columns: repeat(3, 1fr); }
+.row-tiles.poster { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 560px) {
+  .row-tiles.wide   { grid-template-columns: repeat(3, 1fr); }
+  .row-tiles.square { grid-template-columns: repeat(5, 1fr); }
+  .row-tiles.poster { grid-template-columns: repeat(5, 1fr); }
+}
+@media (min-width: 900px) {
+  .row-tiles.wide   { grid-template-columns: repeat(4, 1fr); }
+  .row-tiles.square { grid-template-columns: repeat(7, 1fr); }
+  .row-tiles.poster { grid-template-columns: repeat(7, 1fr); }
+}
+
+.tile {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--s1);
+  text-align: left;
+  position: relative;
+  transition: transform 90ms ease-out;
+}
+.tile:active { transform: scale(0.96); }
+/* The cursor on the television, mirrored here — the point of showing the
+   catalogue on the phone is to stop having to look up to know where you
+   are. */
+.tile.focused { box-shadow: 0 0 0 2px var(--accent); }
+.tile .art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background-size: cover;
+  background-position: center;
+}
+/* An application icon is not a still from a film. The television draws it
+   small and centred on a gradient built from its own colour rather than
+   cropping it to fill the card, and a 64px icon stretched across 16:9 is
+   the difference between a launcher and a list of blurry rectangles. */
+.tile .art.icon {
+  object-fit: contain;
+  padding: 12%;
+}
+.square .art { aspect-ratio: 1; }
+.poster .art { aspect-ratio: 2 / 3; }
+/* No artwork: the accent as a flat card, which is what the television
+   draws too. A broken-image glyph would be strictly worse than a colour. */
+.tile .art.blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+.tile .caption { padding: 0.45rem 0.55rem 0.6rem; }
+.tile .name {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile .sub {
+  font-size: 0.72rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#apps-empty, #results-empty { color: var(--dim); padding: 2rem 0; text-align: center; }
+
+/* The catalogue stays in the DOM while a search or the A-Z list is showing
+   rather than being rebuilt over: going back puts the rows straight back,
+   images and all, instead of re-downloading every poster. */
+#results, #allapps { display: none; }
+body.searching #apps, body.searching #apps-empty,
+body.browsing #apps, body.browsing #apps-empty { display: none; }
+body.searching #allapps, body.browsing #results { display: none; }
+body.searching #results, body.browsing #allapps { display: block; }
+#results .row-tiles { margin-bottom: 1rem; }
+
+/* --- the A-Z rail ------------------------------------------------------ */
+
+/* 200 installed applications is 40 rows of D-pad on the television. On the
+   phone it is a scrollbar and an index, which is the one browsing job a
+   touchscreen is plainly better at, so this is where the whole list lives. */
+#allapps { position: relative; padding-right: 1.6rem; }
+#rail {
+  position: fixed;
+  right: 0.15rem;
+  top: 30%;
+  bottom: calc(var(--strips) + var(--safe-b));
+  z-index: 3;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.2rem 0.35rem;
+  touch-action: none;
+}
+body.browsing #rail { display: flex; }
+#rail span {
+  font-size: 0.6rem;
+  line-height: 1.15;
+  color: var(--dim);
+  text-align: center;
+}
+#rail span.on { color: var(--accent); font-weight: 700; }
+
+/* --- the per-tile sheet ------------------------------------------------ */
+
+/* A long press on a tile. The television has had this behind
+   Action.OPTIONS since the reachability pass, and the phone — the one
+   surface that shows every tile at once — was the one that could not
+   change any of them. */
+#sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.55);
+}
+#sheet.on { display: flex; }
+#sheet-card {
+  background: var(--s1);
+  border-radius: 20px 20px 0 0;
+  padding: 0.8rem var(--pad) calc(0.8rem + var(--safe-b));
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+#sheet-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+#sheet-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.4rem 0.2rem 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sheet-card button {
+  padding: 0.95rem 0.9rem;
+  border-radius: 14px;
+  background: var(--s2);
+  text-align: left;
+  font-size: 0.95rem;
+}
+#sheet-card button.danger { color: var(--danger); }
+#sheet-card button.cancel { background: none; text-align: center; color: var(--dim); }
+/* The confirmation is the sheet again with two rows, Cancel first, exactly
+   as the television orders its danger confirmations. It used to be
+   `window.confirm`, which on iOS prefixes the host name and looks like a
+   different application interrupting. */
+#sheet-confirm { display: none; flex-direction: column; gap: 0.4rem; }
+#sheet.confirming #sheet-actions { display: none; }
+#sheet.confirming #sheet-confirm { display: flex; }

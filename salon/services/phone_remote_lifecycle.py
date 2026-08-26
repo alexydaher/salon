@@ -29,6 +29,7 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
         server.add_handler("/", self._owner._handle_page)
         server.add_handler("/manifest.webmanifest", self._owner._handle_manifest)
         server.add_handler("/icon.svg", self._owner._handle_icon)
+        server.add_handler("/ui", self._owner._handle_asset)
         for clip_path in _AWAKE_CLIPS:
             server.add_handler(clip_path, self._owner._handle_awake)
         server.add_handler("/connect", self._owner._handle_connect)
@@ -38,6 +39,8 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
         server.add_handler("/tile", self._owner._handle_tile_action)
         server.add_handler("/volume", self._owner._handle_volume)
         server.add_handler("/art", self._owner._handle_art)
+        server.add_handler("/np-art", self._owner._handle_now_playing_art)
+        server.add_handler("/apps", self._owner._handle_apps)
         server.add_handler("/type", self._owner._handle_type)
         server.add_handler("/action", self._owner._handle_action)
         server.add_handler("/launch", self._owner._handle_launch)

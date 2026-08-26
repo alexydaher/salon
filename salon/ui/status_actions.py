@@ -10,7 +10,6 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 _TICK_INTERVAL_MS = 1000
@@ -31,8 +30,7 @@ class StatusBar(Gtk.Box):
         on_search: Callable[[], None],
         on_apps: Callable[[], None],
         on_phone: Callable[[], None],
-        on_settings: Callable[[], None],
-        on_power: Callable[[], None],
+        on_more: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
         self.set_halign(Gtk.Align.END)
@@ -42,23 +40,29 @@ class StatusBar(Gtk.Box):
         self.update_property([Gtk.AccessibleProperty.LABEL], ["Shortcuts"])
 
         self._buttons: list[Gtk.Button] = []
+        # What the detail strip says while the cursor is on each button.
+        # A tooltip is a mouse affordance and the pill label is two words;
+        # this is the sentence, and it is the only place a remote-holder is
+        # told what "All apps" is as distinct from the tiles they can see.
+        self._hints: list[tuple[str, str]] = []
         self._button_labels: list[Gtk.Label] = []
         self._button_boxes: list[Gtk.Box] = []
         self._button_images: list[Gtk.Image] = []
         self._connection_badges: list[Gtk.Widget] = []
         self._actions: list[Callable[[], None]] = []
-        for icon_name, tooltip, handler in (
-            ("system-search-symbolic", "Search", on_search),
-            ("view-grid-symbolic", "All apps", on_apps),
-            # Before Settings, not inside it: connecting a phone is the
+        for icon_name, tooltip, handler, hint in (
+            ("system-search-symbolic", "Search", on_search, "Find a tile or an installed app"),
+            ("view-grid-symbolic", "All apps", on_apps, "Every installed application, A to Z"),
+            # Connecting a phone remains visible because it also carries
+            # controller/phone presence. Settings and Power moved behind
+            # More: duplicating them here made the toolbar a second menu.
+            # Before More, not inside it: connecting a phone is the
             # best input this television has, and burying the way to do it
-            # under a settings panel is how it stayed unused. Power keeps
-            # the end of the row — it is the one nobody should land on by
-            # overshooting.
-            ("phone-symbolic", "Connect a phone", on_phone),
-            ("emblem-system-symbolic", "Settings", on_settings),
-            ("system-shutdown-symbolic", "Power", on_power),
+            # is how it stayed unused.
+            ("phone-symbolic", "Connect a phone", on_phone, "Use a phone as the remote"),
+            ("view-more-symbolic", "More", on_more, "Open the Salon menu"),
         ):
+            self._hints.append((tooltip, hint))
             button = self._make_button(icon_name, tooltip, handler)
             self.append(button)
             if icon_name == "phone-symbolic":
@@ -129,9 +133,7 @@ class StatusBar(Gtk.Box):
         return button
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         self.set_spacing(scale.px(12.0))
         self.set_margin_top(margin)
         self.set_margin_end(margin)
@@ -177,6 +179,19 @@ class StatusBar(Gtk.Box):
     @property
     def nav_focused(self) -> bool:
         return self._nav_focused
+
+    @property
+    def selected_hint(self) -> tuple[str, str]:
+        """The current button's name and what it does, for the strip."""
+        if 0 <= self._selected < len(self._hints):
+            return self._hints[self._selected]
+        return ("", "")
+
+    @property
+    def selected_button(self) -> Gtk.Button | None:
+        if 0 <= self._selected < len(self._buttons):
+            return self._buttons[self._selected]
+        return None
 
     def set_hover_enabled(self, enabled: bool) -> None:
         self._hover_enabled = enabled

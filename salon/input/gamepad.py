@@ -115,6 +115,21 @@ class GamepadSource:
         Salon ever asks libmanette a second time."""
         return len(self._devices)
 
+    @property
+    def device_name(self) -> str:
+        """One connected pad's product string, for naming its buttons on
+        screen (`core/buttons.py`) — "" when nothing is plugged in.
+
+        One, not all: the set is unordered and a second pad is rare, and
+        the only consumer is a legend that has room for a single vocabulary
+        anyway. With two pads of different families connected the caption
+        follows whichever the set yields first, which is a cosmetic wrong
+        answer rather than a functional one — both pads keep working.
+        """
+        for device in self._devices:
+            return str(device.get_name() or "")
+        return ""
+
     def _resolve(self, button: int) -> Action | None:
         override = self._bindings.action_for(GAMEPAD, button)
         if override is not None:

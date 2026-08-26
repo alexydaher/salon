@@ -167,6 +167,7 @@ class HomeReloadAndPointerController(ServiceComponent):
         keycode: int,
         state: object,
     ) -> bool:
+        self._owner._note_input_source(KEYBOARD)
         if keyval == Gdk.KEY_Escape:
             overlays = (
                 self._owner._onboarding,

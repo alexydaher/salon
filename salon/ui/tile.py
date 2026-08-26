@@ -65,6 +65,7 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         scale: Scale,
         *,
         animations_enabled: bool = True,
+        show_subtitle: bool = True,
     ) -> None:
         super().__init__()
         self.tile = tile
@@ -72,6 +73,7 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         self._metrics = metrics
         self._scale = scale
         self._animations_enabled = animations_enabled
+        self._show_subtitle = show_subtitle
         self._focus_amount = 0.0
         self._focused = False
 

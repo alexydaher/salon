@@ -70,6 +70,30 @@ def main() -> int:
             home._handle_action(Action.MENU)  # noqa: SLF001 - integration boundary
             if not home._system_menu.get_visible():  # noqa: SLF001
                 raise AssertionError("MENU did not open the system menu")
+            if home._system_menu.get_accessible_role() != Gtk.AccessibleRole.MENU:  # noqa: SLF001
+                raise AssertionError("system menu did not expose a menu role")
+            for _ in range(4):
+                home._handle_action(Action.DOWN)  # noqa: SLF001
+            if home._system_menu.selected_item.label != "Power":  # noqa: SLF001
+                raise AssertionError("root menu did not select Power")
+            home._handle_action(Action.RIGHT)  # noqa: SLF001
+            if home._system_menu.current_frame_id != "power":  # noqa: SLF001
+                raise AssertionError("RIGHT did not enter Power")
+            home._handle_action(Action.LEFT)  # noqa: SLF001
+            if home._system_menu.selected_item.label != "Power":  # noqa: SLF001
+                raise AssertionError("LEFT did not restore the root selection")
+            home._handle_action(Action.MENU)  # noqa: SLF001
+            home._open_settings("appearance")  # noqa: SLF001
+            home._handle_action(Action.MENU)  # noqa: SLF001
+            if not home._system_menu.get_visible():  # noqa: SLF001
+                raise AssertionError("MENU was not authoritative inside Settings")
+            home._system_menu.activate_selected()  # noqa: SLF001 - Search
+            if not home._search.get_visible() or home._settings_screen.get_visible():  # noqa: SLF001
+                raise AssertionError("global Search did not replace Settings")
+            home._search.close()  # noqa: SLF001
+            home._handle_action(Action.POWER)  # noqa: SLF001
+            if home._system_menu.current_frame_id != "power":  # noqa: SLF001
+                raise AssertionError("POWER did not open the Power frame")
             home._handle_action(Action.MENU)  # noqa: SLF001
             home._open_search()  # noqa: SLF001 - integration boundary
             if not home._search.get_visible():  # noqa: SLF001

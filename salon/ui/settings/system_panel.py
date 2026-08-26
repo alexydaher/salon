@@ -12,7 +12,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
-from salon.core import sandbox  # noqa: E402
+from salon.core import sandbox, session  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext, confirm_panel  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
@@ -155,20 +155,21 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     danger=True,
                 )
             )
-        rows.append(
-            ActionRow(
-                "Exit to desktop",
-                lambda: context.push(
-                    confirm_panel(
-                        context,
-                        "Exit Salon and return to the desktop?",
-                        "Exit Salon",
-                        context.quit_app,
-                    )
-                ),
-                danger=True,
+        if not session.is_session():
+            rows.append(
+                ActionRow(
+                    "Exit Salon",
+                    lambda: context.push(
+                        confirm_panel(
+                            context,
+                            "Exit Salon and return to the desktop?",
+                            "Exit Salon",
+                            context.quit_app,
+                        )
+                    ),
+                    danger=True,
+                )
             )
-        )
         return rows
 
     return Panel(

@@ -61,10 +61,18 @@ class HomeCatalogSetup(ServiceComponent):
         )
         self._owner._overlay.add_overlay(self._owner._settings_screen)
         self._owner._system_menu = SystemMenu(
-            self._owner._build_system_menu_items(), self._owner._scale
+            self._owner._build_system_menu_items(),
+            self._owner._scale,
+            on_visibility_changed=self._owner._on_menu_changed,
+            on_selection_changed=self._owner._on_menu_selection_changed,
         )
         self._owner._overlay.add_overlay(self._owner._system_menu)
-        self._owner._tile_menu = SystemMenu([], self._owner._scale)
+        self._owner._tile_menu = SystemMenu(
+            [],
+            self._owner._scale,
+            on_visibility_changed=self._owner._on_menu_changed,
+            on_selection_changed=self._owner._on_menu_selection_changed,
+        )
         self._owner._overlay.add_overlay(self._owner._tile_menu)
         self._owner._phone_pairing = PhonePairing(
             self._owner._scale,

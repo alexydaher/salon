@@ -6,13 +6,12 @@ from salon.services.component import ServiceComponent
 from salon.ui.home_rows import _is_browser_launch
 from salon.ui.home_shared import (
     _RELAUNCH_DELAY_MS,
-    Callable,
     GLib,
     LaunchKind,
+    MenuFrame,
     SystemMenuItem,
     Tile,
     onscreen_keyboard_available,
-    power,
     recents,
 )
 
@@ -92,66 +91,56 @@ class HomeLaunchController(ServiceComponent):
             self._owner._toast(f"There's nothing behind the {target} tile yet.")
 
     def _build_system_menu_items(self) -> list[SystemMenuItem]:
-        # Name logind refusals instead of closing the menu with no result.
-        def fail(what: str) -> Callable[[str], None]:
-            return lambda message: self._owner._toast(f"{what} didn't happen: {message}")
-
+        """The authoritative global menu on every Salon-owned surface."""
         items: list[SystemMenuItem] = [
-            SystemMenuItem("Settings", lambda: self._owner._open_settings()),
+            SystemMenuItem(
+                "Search",
+                self._owner._open_search,
+                icon_name="system-search-symbolic",
+                detail="Find a tile or an installed application",
+            ),
+            SystemMenuItem(
+                "All Apps",
+                self._owner._open_apps,
+                icon_name="view-grid-symbolic",
+                detail="Browse every installed application, A to Z",
+            ),
             # Named for its state, because this is the only place that says
             # whether the remote is running at all.
             SystemMenuItem(
-                "Phone remote" if self._owner.phone_remote_running() else "Connect a phone",
+                "Phone" if self._owner.phone_remote_running() else "Connect a Phone",
                 self._owner._open_phone_pairing,
+                icon_name="phone-symbolic",
+                detail=(
+                    "Show the pairing code or manage the connected phone remote"
+                    if self._owner.phone_remote_running()
+                    else "Use a phone as the remote"
+                ),
+            ),
+            SystemMenuItem(
+                "Settings",
+                lambda: self._owner._open_settings(),
+                icon_name="emblem-system-symbolic",
+                detail="Tiles, appearance, input, and system settings",
             ),
         ]
-        if power.can_suspend():
-            items.append(SystemMenuItem("Suspend", lambda: power.suspend(fail("Suspend"))))
-        # the way to get from Salon to another session — the desktop, a
-        # different user — without powering the machine down. "Exit Salon"
-        # below leaves the process; this leaves the session, which under the
-        # Salon unit's Restart=always is the only one of the two that
-        # actually ends up somewhere else.
-        if power.can_log_out():
+        if self._power_menu_items():
             items.append(
                 SystemMenuItem(
-                    "Log Out",
-                    lambda: self._confirm_system_action(
-                        "Log Out", lambda: power.log_out(fail("Log out"))
-                    ),
+                    "Power",
+                    icon_name="system-shutdown-symbolic",
+                    detail="Suspend, log out, restart, or shut down",
+                    submenu=lambda: MenuFrame("power", "Power", self._power_menu_items()),
                 )
             )
-        if power.can_reboot():
-            items.append(
-                SystemMenuItem(
-                    "Restart",
-                    lambda: self._confirm_system_action(
-                        "Restart", lambda: power.reboot(fail("Restart"))
-                    ),
-                    danger=True,
-                )
-            )
-        if power.can_power_off():
-            items.append(
-                SystemMenuItem(
-                    "Shut Down",
-                    lambda: self._confirm_system_action(
-                        "Shut Down", lambda: power.power_off(fail("Shut down"))
-                    ),
-                    danger=True,
-                )
-            )
-        items.append(SystemMenuItem("About Salon", lambda: self._owner._open_settings("about")))
         items.append(
             SystemMenuItem(
-                "Exit to Desktop",
-                lambda: self._confirm_system_action(
-                    "Exit to Desktop", self._owner._application.quit
-                ),
-                danger=True,
+                "About Salon",
+                lambda: self._owner._open_settings("about"),
+                icon_name="help-about-symbolic",
+                detail="Version, configuration path, and project information",
             )
         )
-        items.append(SystemMenuItem("Cancel", lambda: None))
         return items
 
     def _on_launch_started(self, tile: Tile) -> None:
@@ -223,6 +212,10 @@ class HomeLaunchController(ServiceComponent):
         self._owner._pointer_mode = False
         self._owner._child_active = False
         self._owner._publish_remote_state()
+        if self._owner._open_power_on_return:
+            self._owner._open_power_on_return = False
+            GLib.timeout_add(_RELAUNCH_DELAY_MS, self._show_power_after_return)
+            return
         pending, self._owner._pending_launch = self._owner._pending_launch, None
         if pending is not None:
             # A tile tapped on the phone while another app was in front. The
@@ -231,6 +224,10 @@ class HomeLaunchController(ServiceComponent):
             # detection for *that* launch is the window going inactive and
             # it can only go inactive from active.
             GLib.timeout_add(_RELAUNCH_DELAY_MS, lambda: self._start_pending(pending))
+
+    def _show_power_after_return(self) -> bool:
+        self._owner._show_power_menu()
+        return bool(GLib.SOURCE_REMOVE)
 
     def _start_pending(self, tile: Tile) -> bool:
         self._launch_tile(tile)

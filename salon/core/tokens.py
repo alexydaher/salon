@@ -118,7 +118,12 @@ class TypeToken:
 # large on a desktop monitor during development, it is correct — the design
 # target is three metres away, not sixty centimetres.
 TYPE_SCALE: tuple[TypeToken, ...] = (
-    TypeToken("clock", 44.0, 700),
+    # The clock used to be 44/700, which made the time the heaviest and
+    # brightest object on the home screen — heavier than a row heading and
+    # competing with the tile the user is about to launch. Nothing on a
+    # launcher outranks the thing OK will open. It is still the largest
+    # item in its own corner, and now it is quieter than the rows.
+    TypeToken("clock", 32.0, 600),
     TypeToken("date", 26.0, 400),
     TypeToken("row-heading", 34.0, 600),
     TypeToken("tile-title", 30.0, 600),
@@ -209,8 +214,15 @@ BOTTOM_CHROME_MARGIN_DU: float = 22.0
 
 # Two lines of type plus the space around them: the bottom strip that says
 # what the cursor is on. Reserved in the home screen's bottom inset so the
-# rows never scroll underneath it.
+# rows never scroll underneath it. A fallback only — `HomeView._bottom_inset`
+# measures the real widget, because this figure cannot follow the safe-area
+# preference or a font substitution.
 DETAIL_BAR_HEIGHT_DU = 78.0
+
+# One line of small type in a pill: `ui/legend.py`, bottom right. Used by
+# `ui/remotehint.py` to stand clear of it, which is the only reason the
+# height has to be known anywhere but inside the widget.
+LEGEND_HEIGHT_DU = 46.0
 
 
 def design_units_to_px(du: float, viewport_height_px: int) -> float:

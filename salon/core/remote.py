@@ -110,6 +110,14 @@ class RemoteNowPlaying:
     playing: bool
     can_next: bool = False
     can_previous: bool = False
+    # Cover art, by two routes that are not interchangeable. A streaming
+    # player publishes an `http(s)` URL, which is handed to the phone as it
+    # stands and fetched by the phone: it already has the network, and
+    # proxying someone else's CDN through the television buys nothing.
+    # `has_art` means the opposite case — a file on this host — which the
+    # phone cannot reach and Salon serves at `/np-art`.
+    art_url: str = ""
+    has_art: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -118,6 +126,8 @@ class RemoteNowPlaying:
             "playing": self.playing,
             "next": self.can_next,
             "previous": self.can_previous,
+            "artUrl": self.art_url,
+            "art": self.has_art,
         }
 
 
@@ -142,6 +152,13 @@ class RemoteState:
     # A text field on the television is asking for input right now, so the
     # phone can open its keyboard without being told to.
     wants_text: bool = False
+    # And what is already in it. Two keyboards pointed at one box have to
+    # agree about what is in it: type half a title on the television, pick
+    # up the phone, and without this the phone shows an empty field whose
+    # Send appends a second copy of everything. Only ever the contents of a
+    # field Salon is itself displaying — an application's own text box is
+    # not something Salon can read.
+    text: str = ""
     # Salon holds the desktop's input grant, so the trackpad and the phone
     # keyboard reach *other* applications and not just Salon's own screens.
     # The phone says so rather than offering a pad that silently does
@@ -181,6 +198,7 @@ class RemoteState:
             "focus": list(self.focus) if self.focus else None,
             "screen": self.screen,
             "wantsText": self.wants_text,
+            "text": self.text,
             "remoteInput": self.remote_input,
             "accent": self.accent,
             "repeat": {

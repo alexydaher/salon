@@ -12,7 +12,6 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.core.focus import Bump, FocusModel  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -97,6 +96,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
             pairing,
             on_key_pressed=self._press_key,
             on_text_changed=self._refresh_results,
+            on_submit=self._hardware_submit,
             cell_du=_KEY_CELL_DU,
         )
         self._body.append(self._keyboard)
@@ -154,9 +154,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
         self._rebuild_result_widgets()
 
     def _apply_scale(self, scale: Scale) -> None:
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         self._content.set_margin_start(margin)
         self._content.set_margin_end(margin)
         self._content.set_margin_top(margin)

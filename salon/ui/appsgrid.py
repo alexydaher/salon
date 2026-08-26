@@ -12,7 +12,6 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.core.focus import Bump, FocusModel  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -148,9 +147,7 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
 
     def set_scale(self, scale: Scale) -> None:
         self._scale = scale
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         # The safe area is applied to the text, not to the whole column:
         # the viewport underneath has to reach the screen edges so an edge
         # tile's bloom has somewhere to go. The cards inside it are inset

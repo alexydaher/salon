@@ -25,11 +25,27 @@ is exactly the motion §7.3 says to spend sparingly. One line of text that
 changes is enough, and it stays legible while a held direction races
 through a row.
 
+Two things left this widget on 2026-08-25, for the same reason: a strip
+that costs a seventh of the screen's height has to spend all of it on
+things the card cannot say.
+
+* **The subtitle is no longer drawn on the tile face** (`show_subtitle` in
+  `ui/tile.py`, off for home rows). It was on the card *and* here, two
+  lines apart, so a third of this strip was an echo. The tile keeps the
+  artwork and the title; the second line of prose lives down here, once.
+* **The button legend moved out** to `ui/legend.py`. It was line three
+  here, which meant it was rebuilt on every cursor move to say something
+  that had not changed, and that it could only ever be a fact about the
+  selection when it is really a fact about the mode.
+
+There is no card behind it any more either — no border, no fill, no
+shadow. The rows are inset out of this band (`_apply_viewport_insets`), so
+nothing is drawn behind the strip for a scrim to separate it from, and a
+bordered box floating in the corner reads as a dialog that failed to close.
+
 The strip reserves its own height in `HomeView`'s bottom inset, so the rows
-never scroll underneath it. When something is playing, `set_override`
-hands the same strip to the now-playing readout — the two never want the
-screen at the same time, and a television has exactly one place the eye
-looks for "what is happening right now".
+never scroll underneath it. Now-playing status has a compact sibling in the
+same bottom band; music therefore never erases the tile under the cursor.
 """
 
 from __future__ import annotations
@@ -77,7 +93,12 @@ class DetailBar(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("salon-detail-bar")
         self.set_valign(Gtk.Align.END)
-        self.set_halign(Gtk.Align.START)
+        self.set_halign(Gtk.Align.FILL)
+        # Takes whatever the legend beside it does not, and ellipsizes
+        # there. It used to ask for a fixed 760du and grow past it, because
+        # a size request is a minimum: at 1280 wide the description ran
+        # straight through the legend's first chip.
+        self.set_hexpand(True)
         self.set_can_target(False)
         # Announced by the container that owns the cursor instead: this is a
         # readout of the selection, and a screen reader that read it as well
@@ -98,25 +119,15 @@ class DetailBar(Gtk.Box):
         self._detail.set_ellipsize(Pango.EllipsizeMode.END)
         self.append(self._detail)
 
-        self._activity = Gtk.Label()
-        self._activity.add_css_class("salon-detail-actions")
-        self._activity.set_halign(Gtk.Align.START)
-        self._activity.set_xalign(0.0)
-        self._activity.set_ellipsize(Pango.EllipsizeMode.END)
-        self.append(self._activity)
-
         self._tile: Tile | None = None
-        self._override: tuple[str, str] | None = None
+        self._nav: tuple[str, str] | None = None
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        safe_margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        safe_margin = scale.safe_margin_px
         self.set_margin_start(safe_margin)
         self.set_margin_end(safe_margin)
         self.set_margin_bottom(scale.px(tokens.BOTTOM_CHROME_MARGIN_DU))
-        self.set_size_request(scale.px(760.0), -1)
         # Clear air above the strip, and deliberately part of the widget's
         # own height: HomeView reserves whatever this measures, so keeping
         # the gap here means there is exactly one place that decides how
@@ -129,30 +140,39 @@ class DetailBar(Gtk.Box):
         self._tile = tile
         self._refresh()
 
-    def set_override(self, title: str, detail: str) -> None:
-        """Take the strip for something more urgent than the selection —
-        what is playing, most obviously. Cleared with `clear_override`."""
-        self._override = (title, detail)
+    def set_nav_target(self, title: str, detail: str) -> None:
+        """Describe the top bar's button instead of the tiles.
+
+        Outranks both of the others while it is set, because it is the only
+        one of the three that the ring is actually on: with the cursor up in
+        the corner the strip was still describing whichever tile had been
+        left behind, which is a readout of the selection pointing at
+        something that is no longer selected.
+        """
+        self._nav = (title, detail)
         self._refresh()
 
-    def clear_override(self) -> None:
-        self._override = None
+    def clear_nav_target(self) -> None:
+        self._nav = None
         self._refresh()
 
     def _refresh(self) -> None:
         tile = self._tile
+        if self._nav is not None:
+            title, detail = self._nav
+            self._title.set_label(title)
+            self._detail.set_label(detail)
+            return
         if tile is None:
             # Empty rather than hidden: a strip that comes and goes moves
             # every row on the screen by its own height as it does.
             self._title.set_label("")
             self._detail.set_label("")
-            self._activity.set_label("")
             return
+        # The title is here as well as on the card because the card
+        # ellipsizes at about twenty characters and this does not — that is
+        # the whole "Document Scanner"/"Document Viewer" case above. The
+        # subtitle is here *instead* of on the card.
         self._title.set_label(tile.title)
         parts = [part for part in (tile.subtitle, describe(tile)) if part]
         self._detail.set_label(" · ".join(parts))
-        actions = "OK Open · OPTIONS More · UP Shortcuts"
-        if self._override is not None:
-            title, detail = self._override
-            actions = f"OK Open · OPTIONS More · Now playing: {title} — {detail}"
-        self._activity.set_label(actions)

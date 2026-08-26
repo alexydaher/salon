@@ -19,6 +19,12 @@ _MAX_RESULTS = 60
 
 
 class SearchResultsController:
+    def current_text(self) -> str:
+        """What is in the query box, for the phone to mirror. The phone
+        draws its own field over this one, and two keyboards pointed at one
+        box have to agree about what is in it."""
+        return self._keyboard.text
+
     def _on_installed_scanned(self, tiles: list[Tile]) -> None:
         self._installed_tiles = tiles
         self._installed_loading = False

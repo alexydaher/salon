@@ -21,7 +21,12 @@ class TileTextRenderer:
 
         subtitle_layout = None
         subtitle_height = 0.0
-        if self.tile.subtitle:
+        # Off on the home screen, where the detail strip carries the same
+        # string one row down and the card was saying it twice; on in the
+        # all-apps grid and in search results, which have no strip and
+        # where the subtitle is often the only thing telling two
+        # near-identically named .desktop entries apart.
+        if self.tile.subtitle and self._show_subtitle:
             subtitle_layout = self._layout(self.tile.subtitle, self._subtitle_font, available)
             subtitle_height = subtitle_layout.get_pixel_size()[1]
 

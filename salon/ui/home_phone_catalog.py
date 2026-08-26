@@ -5,6 +5,7 @@
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     Artwork,
+    GLib,
     Path,
     RemoteTile,
     Tile,
@@ -47,6 +48,35 @@ class HomePhoneCatalogController(ServiceComponent):
             self._owner._phone_apps = tiles
 
         appinfo.list_installed_async(scanned)
+
+    def _all_apps_for_phone(self) -> list[RemoteTile]:
+        """Every installed application, A-Z, for the phone's browse list.
+
+        Sorted here rather than in the page so the headings follow the same
+        order the television's own grid uses, and answered off the list
+        `_scan_apps_for_phone` took when the remote started — this runs
+        inside the HTTP handler, on the thread that draws the interface.
+        """
+        apps = sorted(self._owner._phone_apps, key=lambda tile: tile.title.casefold())
+        return [self._owner._remote_tile(tile) for tile in apps]
+
+    def _now_playing_art_for_phone(self) -> Path | None:
+        """The cover of what is playing, when it is a file on this host.
+
+        A player that publishes an `https://` cover is not handled here at
+        all: that URL goes to the phone in the snapshot and the phone
+        fetches it itself. This is the other case — a local music player
+        naming a file — which the phone has no way to reach.
+        """
+        player = self._owner._current_player
+        if player is None or not player.art_url.startswith("file://"):
+            return None
+        try:
+            path, _host = GLib.filename_from_uri(player.art_url)
+        except GLib.Error:
+            return None
+        art = Path(path)
+        return art if art.is_file() else None
 
     def _phone_tile(self, tile_id: str) -> Tile | None:
         """The catalogue tile behind an id from the phone, or the installed
@@ -97,8 +127,12 @@ class HomePhoneCatalogController(ServiceComponent):
         if what == "edit":
             self._owner._settings_screen_open_tile(row_id, located_id)
             return f"Editing {tile.title} on the television."
+        fallback = self._owner._focus.position
         if editing.remove_tile(self._owner._config, row_id, located_id):
             self._owner._save_config()
+            self._owner._refresh_catalog(
+                preserve_focus=False, fallback_position=fallback
+            )
             return f"{tile.title} removed."
         return f"{tile.title} couldn't be removed."
 

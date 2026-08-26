@@ -60,25 +60,34 @@ class HomeActionRouter(ServiceComponent):
                 self._owner._return_from_child()
                 return
             if self._owner._text_entry.get_visible():
-                # Cancel the edit before closing Settings underneath it.
-                # START remains the global escape hatch even while the
-                # on-screen keyboard is open.
+                # Cancel the edit before putting the global menu above the
+                # Settings surface that owns it.
                 self._owner._text_entry.handle_action(Action.BACK)
-                if self._owner._settings_screen.get_visible():
-                    self._owner._settings_screen.handle_action(action)
-                return
-            if self._owner._settings_screen.get_visible():
-                self._owner._settings_screen.handle_action(action)
-                return
             if self._owner._phone_pairing.get_visible():
-                # It is drawn above the system menu, so opening one behind
-                # it would be a menu nobody can see taking every press.
                 self._owner._phone_pairing.close()
-                return
             if self._owner._system_menu.get_visible():
                 self._owner._system_menu.hide()
             else:
                 self._owner._show_system_menu()
+            return
+
+        if action is Action.POWER:
+            # POWER is as global as MENU on every surface Salon owns. If an
+            # external application is covering Salon, close it first and
+            # present Power as soon as the compositor returns us.
+            if (
+                self._owner._child_active
+                or self._owner._pointer_mode
+                or self._owner._launcher.has_child
+            ):
+                self._owner._open_power_on_return = True
+                self._owner._return_from_child()
+                return
+            if self._owner._text_entry.get_visible():
+                self._owner._text_entry.handle_action(Action.BACK)
+            if self._owner._phone_pairing.get_visible():
+                self._owner._phone_pairing.close()
+            self._owner._show_power_menu()
             return
 
         # Above the menus it is opened from, and below MENU, which closes
@@ -97,8 +106,18 @@ class HomeActionRouter(ServiceComponent):
                 menu.move(1)
             elif action is Action.OK:
                 menu.activate_selected()
+            elif action is Action.RIGHT:
+                item = menu.selected_item
+                if item is not None and item.submenu is not None:
+                    menu.activate_selected()
+            elif action is Action.LEFT:
+                if menu.has_back:
+                    menu.back()
             elif action in (Action.BACK, Action.OPTIONS):
-                menu.hide()
+                # `back`, not `hide`: the power list is a second level and
+                # BACK there means the menu it was opened from, the same as
+                # it does everywhere else in Salon.
+                menu.back()
             return
 
         # Innermost first: text entry is opened *by* Settings, on top of
@@ -195,13 +214,6 @@ class HomeActionRouter(ServiceComponent):
             if not self._owner._now_playing.play_pause():
                 self._owner._launch_focused()
             return
-        if action is Action.POWER:
-            # The system menu, not an immediate suspend. A television
-            # remote's power key is one press away from every other key on
-            # it, and Salon cannot know whether it was meant for the TV.
-            self._owner._show_system_menu()
-            return
-
         if action is Action.BACK:
             if self._owner._launcher.is_launching:
                 self._owner._launcher.cancel()

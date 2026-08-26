@@ -1,0 +1,186 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+
+   The three driving panes: buttons, pointer, keyboard. */
+
+/* Bottom-aligned, not centred: a phone held one-handed has its thumb at
+   the bottom of the screen, and the D-pad is what the hand looks for
+   without looking. */
+#pane-remote { justify-content: flex-end; gap: 0.5rem; padding-bottom: 0.6rem; }
+
+/* --- what the cursor is on --------------------------------------------- */
+
+/* The third of a screen above the D-pad used to be nothing at all. The
+   state already carries the cursor and /art already serves the picture, so
+   this is the difference between a remote and a second screen: you stop
+   looking up at the television to find out where you are. */
+#mirror {
+  display: none;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: auto;
+  padding: 0.6rem;
+  border-radius: 16px;
+  background: var(--s1);
+  border: 1px solid var(--s2);
+}
+#mirror.on { display: flex; }
+#mirror .shot {
+  flex: none;
+  width: 5.2rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+#mirror .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#mirror .shot img.icon { object-fit: contain; padding: 12%; }
+#mirror .what { flex: 1; min-width: 0; }
+#mirror .label {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+#mirror .name {
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#mirror .sub {
+  font-size: 0.78rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- keys --------------------------------------------------------------- */
+
+.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.keys button, .bar button {
+  padding: 1rem 0.3rem;
+  border-radius: 14px;
+  background: var(--s1);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 3.2rem;
+}
+.keys button.pressed, .bar button.pressed { background: var(--accent); color: var(--on-accent); }
+.keys .blank { visibility: hidden; }
+.bar { display: flex; gap: 0.6rem; }
+.bar button { flex: 1; }
+.bar button small { font-size: 0.78rem; color: var(--dim); }
+/* Back sits in the row directly under the D-pad, where the thumb already
+   is. It used to be top-left of the pane — the furthest point from a
+   resting thumb, for the control pressed most often after the directions,
+   while Play/Pause had the prime row. */
+.bar button.wide { flex: 1.4; }
+
+/* The D-pad: bigger than everything around it, and on a plate of its own
+   so the four keys read as one control rather than as four buttons with
+   holes between them. The plate is also a swipe surface — see ui/dpad.js —
+   which is why it declares `touch-action: none`. */
+.dpad {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 22px;
+  padding: 0.5rem;
+  margin: 0.2rem 0;
+  touch-action: none;
+}
+.dpad button { min-height: 4.6rem; font-size: 1.4rem; }
+.dpad .ok { background: var(--s2); font-size: 1.05rem; font-weight: 600; }
+.dpad.swiping { background: rgba(255, 255, 255, 0.07); }
+.dpad-hint {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.72rem;
+  text-align: center;
+}
+body.in-app .dpad-hint { visibility: hidden; }
+
+/* --- trackpad ----------------------------------------------------------- */
+
+#pane-pad { padding-bottom: 0.6rem; gap: 0.5rem; }
+#pad, #type-pad {
+  border-radius: 18px;
+  background: var(--s1);
+  border: 2px dashed var(--s2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  color: var(--dim);
+  font-size: 0.8rem;
+  /* The whole point of the surface: without this the browser claims the
+     gesture for scrolling the pane and the pointer never moves. */
+  touch-action: none;
+}
+#pad { flex: 1; margin: 0.4rem 0 0.2rem; }
+#pad.live, #type-pad.live { border-style: solid; border-color: var(--accent); }
+/* Two fingers down: the surface is scrolling rather than pointing, and
+   saying so is what stops it reading as a pointer that stopped working. */
+#pad.scrolling, #type-pad.scrolling { border-color: var(--dim); }
+
+/* A gesture nobody is told about is a gesture nobody has. Two fingers to
+   scroll is the one people try; the rest are here because the legend
+   costs one line and the alternative is a surface with five secrets. */
+.pad-hint {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.pad-hint b { color: var(--fg); font-weight: 600; }
+
+/* --- keyboard ----------------------------------------------------------- */
+
+/* The aim pad comes *first*. It used to be the last element in the pane,
+   under the field, the hint and two more buttons — so the phone's own
+   keyboard covered the one control the hint tells you to use before
+   typing. The documented order was unreachable in the rendered one. */
+#pane-type { gap: 0.6rem; padding-top: 0.6rem; padding-bottom: 1rem; }
+#type-pad {
+  height: 6.5rem;
+  flex: none;
+}
+#text {
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1.15rem;
+  border-radius: 14px;
+  border: 2px solid var(--s2);
+  background: var(--s1);
+  color: var(--fg);
+}
+#text:focus { outline: none; border-color: var(--accent); }
+/* What is in the television's own field right now. Two keyboards pointed
+   at one box need to agree about what is in it. */
+#mirror-text {
+  display: none;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 12px;
+  background: var(--s1);
+  border: 1px solid var(--s2);
+  font-size: 0.82rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#mirror-text.on { display: block; }
+#mirror-text b { color: var(--fg); font-weight: 600; }

@@ -29,9 +29,11 @@ class HomeFoundationSetup(ServiceComponent):
         self._owner._application = application
         self._owner._scale_manager = scale_manager
         self._owner._theme_manager = theme_manager
-        self._owner._scale = scale_manager.scale
         self._owner._config_path = tile_config.default_config_path()
         self._owner._settings = Gio.Settings.new(app_config.APP_ID)
+        self._owner._scale = scale_manager.scale.with_safe_area(
+            self._owner._settings.get_double("safe-area-percent")
+        )
         self._owner._bindings = Bindings(self._owner._settings.get_value("input-bindings").unpack())
         self._owner._settings.connect(
             "changed::input-bindings", lambda *_: self._owner._reload_bindings()

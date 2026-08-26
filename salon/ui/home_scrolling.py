@@ -28,13 +28,15 @@ class HomeScrollController(ServiceComponent):
     def _bottom_inset(self) -> float:
         """How much of the bottom of the screen the rows may not use.
 
-        Measured off the detail strip rather than taken from a constant:
-        the strip is two lines of type plus its own bottom margin, all of
-        which move with the du scale and with the safe-area preference, and
-        a guessed constant was 104px against a real 165 — sixty pixels of
-        rows scrolling underneath text.
+        Measured off the bottom row rather than taken from a constant: the
+        strip is two lines of type plus its own bottom margin, all of which
+        move with the du scale and with the safe-area preference, and a
+        guessed constant was 104px against a real 165 — sixty pixels of rows
+        scrolling underneath text. The *row*, not the strip alone, because
+        the button legend shares it and a legend taller than the strip would
+        otherwise have rows sliding behind it.
         """
-        natural = self._owner._detail_bar.get_preferred_size()[1].height
+        natural = self._owner._bottom_bar.get_preferred_size()[1].height
         if natural > 0:
             return float(natural)
         return self._owner._safe_margin + self._owner._detail_height
@@ -51,9 +53,16 @@ class HomeScrollController(ServiceComponent):
         where a human looks and not about where this widget happens to
         start — hence the `- top_inset` converting it back.
 
-        The top clamp keeps a catalogue shorter than the band sitting at the
-        top of it rather than floating in the middle of dead space. The
-        bottom clamp stops the stack scrolling past its own end.
+        A catalogue shorter than the band is **centred in it** rather than
+        pinned to its top, which is the reverse of what this used to do.
+        The old rule was written when the band was the whole window, and
+        there "centred" really did mean floating in dead space with the
+        clock a long way above it. The band is now exactly the gap between
+        the two bars (`_apply_viewport_insets`), so centring inside it is
+        centring between the two things that frame it — and pinning to the
+        top instead is what left a two-row catalogue crushed into the upper
+        third of a television with an empty middle. The bottom clamp still
+        stops the stack scrolling past its own end.
 
         That bottom clamp was removed once, because it left barely 90px of
         travel on a four-row 1080p screen and parked the last row under the
@@ -71,7 +80,13 @@ class HomeScrollController(ServiceComponent):
         content_height = self._owner._content_height()
 
         if content_height <= band_height:
-            return 0.0
+            # Measured without the last row's bleed. That padding is
+            # transparent room for the focus growth and the bloom, so
+            # counting it as content centres a box one bleed taller than
+            # anything anybody can see and leaves the rows sitting visibly
+            # high — 56 design units of it, which is plainly wrong on screen.
+            trailing = self._owner._rows[-1].metrics.bleed if self._owner._rows else 0.0
+            return (band_height - (content_height - trailing)) / 2.0
 
         focused_center = (
             self._owner._row_tile_top(self._owner._focus.row)

@@ -16,6 +16,9 @@ from salon.ui.home_shared import (
 
 class HomeFocusController(ServiceComponent):
     def _update_focus(self, *, animate: bool = True) -> None:
+        menu_focused = (
+            self._owner._system_menu.get_visible() or self._owner._tile_menu.get_visible()
+        )
         for r, row in enumerate(self._owner._rows):
             focused_row = r == self._owner._focus.row
             for c, widget in enumerate(row.tiles):
@@ -23,9 +26,12 @@ class HomeFocusController(ServiceComponent):
                 # holds the cursor: two full-strength highlights on screen
                 # leaves no answer to "what does OK do right now".
                 widget.set_focused(
-                    not self._owner._nav_focused and focused_row and c == self._owner._focus.col
+                    not self._owner._nav_focused
+                    and not menu_focused
+                    and focused_row
+                    and c == self._owner._focus.col
                 )
-            if focused_row:
+            if focused_row and not self._owner._nav_focused and not menu_focused:
                 row.heading.add_css_class("row-focused")
             else:
                 row.heading.remove_css_class("row-focused")
@@ -35,20 +41,22 @@ class HomeFocusController(ServiceComponent):
         if tile is not None:
             self._owner._settings.set_string("last-focused-tile", tile.id)
             focused_widget = self._focused_widget()
-            if focused_widget is not None:
+            if focused_widget is not None and not menu_focused:
                 self._owner._backdrop.set_focus(focused_widget.artwork_accent)
                 self._publish_active_descendant(focused_widget)
         self._update_backdrop_position()
-        # Every row, not only the focused one: rows scroll independently and
-        # each has its own remembered column (§6.2), so a row left at column
-        # 4 must still be showing column 4 when the user comes back to it.
-        # Only the focused row animates — the others are off-screen or about
-        # to be, and animating them is motion nobody asked for.
-        for index in range(len(self._owner._rows)):
+        # A live interaction moves exactly one horizontal strip. On a
+        # rebuild/resize every row is positioned once without animation;
+        # afterwards its own spring and remembered column are left alone
+        # until that row owns focus.
+        indices = (
+            [self._owner._focus.row]
+            if animate
+            else list(range(len(self._owner._rows)))
+        )
+        for index in indices:
             self._update_row_scroll(
-                index,
-                self._owner._focus.column_for(index),
-                animate=animate and index == self._owner._focus.row,
+                index, self._owner._focus.column_for(index), animate=animate
             )
         self._owner._update_row_anchor(animate=animate)
         self._publish_remote_state()
@@ -71,12 +79,23 @@ class HomeFocusController(ServiceComponent):
         playing: RemoteNowPlaying | None = None
         if player is not None:
             title, detail = nowplaying.describe(player)
+            # An `https://` cover goes to the phone as it stands, because
+            # the phone has the network and proxying someone else's CDN
+            # through the television buys nothing. A `file://` one becomes
+            # `has_art`, and Salon serves the bytes at /np-art.
+            remote_cover = player.art_url.startswith(("http://", "https://"))
             playing = RemoteNowPlaying(
                 title=title,
                 detail=detail,
                 playing=player.status == nowplaying.PLAYING,
                 can_next=player.can_go_next,
                 can_previous=player.can_go_previous,
+                art_url=player.art_url if remote_cover else "",
+                # Not a stat: this runs on every cursor movement, and
+                # /np-art answers 404 for a file that turns out to be
+                # unreadable — which the phone's card already falls back
+                # from rather than drawing a broken glyph.
+                has_art=player.art_url.startswith("file://"),
             )
         timing = self._owner._repeat_timing()
         self._owner._pairing.publish(
@@ -90,6 +109,10 @@ class HomeFocusController(ServiceComponent):
                 # the tab for it while an empty box blinks at them.
                 wants_text=self._owner._text_entry.get_visible()
                 or self._owner._search.get_visible(),
+                # And what is in it, so the phone's own field can show the
+                # same thing rather than an empty box whose Send appends a
+                # second copy of a half-typed title.
+                text=self._field_text(),
                 remote_input=self._owner._pointer.ready,
                 repeat_delay_ms=round(timing.initial_delay * 1000),
                 repeat_interval_ms=round(timing.interval * 1000),
@@ -102,6 +125,19 @@ class HomeFocusController(ServiceComponent):
                 muted=self._owner._phone_muted,
             )
         )
+
+    def _field_text(self) -> str:
+        """What the television's on-screen field currently holds, or "".
+
+        Only ever a field Salon is itself drawing. Text going to a launched
+        application through the input grant has no readable box at the other
+        end, and claiming otherwise would put a stale mirror on the phone.
+        """
+        if self._owner._text_entry.get_visible():
+            return self._owner._text_entry.current_text()
+        if self._owner._search.get_visible():
+            return self._owner._search.current_text()
+        return ""
 
     def _app_in_front(self) -> str:
         """The title of the application covering the television, or "".
@@ -150,7 +186,20 @@ class HomeFocusController(ServiceComponent):
         that keeps the keyboard focus and moves a cursor inside itself. The
         top bar takes it while the cursor is up there, so what is announced
         and what is drawn with the ring are never two different things."""
-        target = self._owner._status_bar if self._owner._nav_focused else widget
+        menu = next(
+            (
+                menu
+                for menu in (self._owner._system_menu, self._owner._tile_menu)
+                if menu.get_visible()
+            ),
+            None,
+        )
+        if menu is not None and menu.selected_row is not None:
+            target = menu.selected_row
+        elif self._owner._nav_focused and self._owner._status_bar.selected_button is not None:
+            target = self._owner._status_bar.selected_button
+        else:
+            target = widget
         self._owner.update_relation([Gtk.AccessibleRelation.ACTIVE_DESCENDANT], [target])
 
     def _focused_widget(self) -> TileWidget | None:

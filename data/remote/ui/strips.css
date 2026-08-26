@@ -1,0 +1,232 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+
+   Everything below `main`: the now-playing card and its full screen, the
+   volume slider, the tab strip — plus the landscape layout, which is the
+   one shape the page had never been drawn in at all. */
+
+/* --- now playing -------------------------------------------------------- */
+
+#playing {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 var(--pad);
+  padding: 0.5rem 0.6rem;
+  border-radius: 14px;
+  background: var(--s1);
+  border: 1px solid var(--s2);
+}
+#playing.on { display: flex; }
+#playing .what { flex: 1; min-width: 0; text-align: left; }
+.np-cover {
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--s2);
+}
+.np-title {
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.np-detail {
+  font-size: 0.75rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.np-key {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  background: var(--s2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.np-key:disabled { opacity: 0.3; }
+.np-key.pressed { background: var(--accent); color: var(--on-accent); }
+
+/* The card is a summary; this is the thing itself. Artwork is the reason
+   it exists — a film's poster at 2.6rem beside two lines of text is a
+   listing, and at full width it is what is on the television. */
+/* A pane inside `main`, not an overlay over the whole page: the volume
+   slider and the tab strip stay where they are, so opening this is not a
+   mode you have to escape before you can turn the sound down. */
+#np-full {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  /* Centred, not pushed apart with auto margins: a player with no cover
+     art hides the one element those margins were hanging off, and the
+     whole screen bunched against the top the moment it did. */
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 0.4rem var(--pad) 0.8rem;
+  background: var(--bg);
+}
+#np-full.on { display: flex; }
+#np-full .grab { position: absolute; top: 0.4rem; left: var(--pad); }
+#np-full .grab button {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  background: var(--s1);
+}
+#np-full .cover {
+  width: min(70vw, 40vh);
+  aspect-ratio: 1;
+  border-radius: 18px;
+  object-fit: cover;
+  background: var(--s1);
+}
+#np-full .np-title { font-size: 1.25rem; font-weight: 600; max-width: 100%; }
+#np-full .np-detail { font-size: 0.95rem; max-width: 100%; }
+#np-full .keys-row { display: flex; align-items: center; gap: 1.4rem; }
+#np-full .np-key { width: 3.4rem; height: 3.4rem; }
+#np-full .np-key.big { width: 4.4rem; height: 4.4rem; background: var(--accent); color: var(--on-accent); }
+
+/* --- volume ------------------------------------------------------------- */
+
+/* Above the tabs and on every pane, because volume is the one control
+   that is guaranteed to work whatever is on the television — it acts on
+   the system's audio, not on a window. It is also the control a
+   touchscreen is unambiguously better at than a physical remote, which
+   is why this is a slider and not two more repeat-buttons. */
+#volume {
+  display: none;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.5rem var(--pad) 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 14px;
+  background: var(--s1);
+  border: 1px solid var(--s2);
+}
+#volume.on { display: flex; }
+#mute {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+#mute.muted { color: var(--danger); }
+#vol {
+  flex: 1;
+  min-width: 0;
+  height: 2.2rem;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+#vol::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--s2);
+}
+#vol::-moz-range-track { height: 6px; border-radius: 3px; background: var(--s2); }
+#vol::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: calc((6px - 1.5rem) / 2);
+  border-radius: 50%;
+  background: var(--accent);
+}
+#vol::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+#volume.off { opacity: 0.45; }
+
+/* --- tabs --------------------------------------------------------------- */
+
+nav {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.5rem var(--pad) calc(0.5rem + var(--safe-b));
+  border-top: 1px solid var(--s2);
+  background: var(--bg);
+}
+nav button {
+  flex: 1;
+  padding: 0.5rem 0.2rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: var(--dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+nav button.on { color: var(--accent); background: var(--s1); }
+
+/* --- landscape ---------------------------------------------------------- */
+
+/* There was no media query in the page at all, so a phone on its side got a
+   4.6rem D-pad and four bars stacked down a 390px-tall viewport: the remote
+   became a scrolling document. Laid out in a row instead — the pad on the
+   left where a thumb reaches it, the bars beside it as columns — with the
+   swipe hint dropped, because in landscape a line of prose costs a button. */
+@media (orientation: landscape) and (max-height: 560px) {
+  :root { --pad: 2vw; }
+  header { padding-top: calc(0.3rem + var(--safe-t)); padding-bottom: 0.3rem; }
+
+  #pane-remote {
+    flex-flow: row wrap;
+    justify-content: flex-start;
+    /* `safe` matters: plain `center` on an overflowing flex container puts
+       the first line above the scroll origin, where nothing can reach it. */
+    align-content: center;
+    align-content: safe center;
+    gap: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+  #pane-remote .keys button, #pane-remote .bar button { padding: 0.3rem; }
+  #mirror { order: 0; flex: 1 0 100%; margin-bottom: 0; padding: 0.3rem; }
+  #mirror .shot { width: 3rem; }
+  #mirror .label, #mirror .sub { display: none; }
+  #mirror .name { font-size: 0.9rem; }
+  #pane-remote .why { order: 1; flex: 1 0 100%; padding: 0; }
+  #pane-remote .dpad { order: 2; flex: 0 0 44%; margin: 0; padding: 0.3rem; }
+  #pane-remote .dpad button { min-height: 2.2rem; font-size: 1rem; }
+  #pane-remote .bar { order: 3; flex: 1 1 0; flex-direction: column; }
+  #pane-remote .bar button { min-height: 2.2rem; }
+  #pane-remote .bar button.wide { flex: 1; }
+  .dpad-hint { display: none; }
+
+  #pane-pad { flex-flow: row wrap; align-content: stretch; gap: 0.45rem; }
+  #pad { flex: 1 1 62%; margin: 0.3rem 0; }
+  #pane-pad .pad-hint { order: 3; flex: 1 0 100%; }
+  #pane-pad .bar { flex: 1 1 30%; flex-direction: column; margin: 0.3rem 0; }
+
+  #pane-type { padding-top: 0.4rem; gap: 0.4rem; }
+  #type-pad { height: 4rem; }
+
+  nav button { flex-direction: row; gap: 0.4rem; padding: 0.35rem; }
+  #np-full { gap: 0.4rem; }
+  #np-full .cover { width: 24vh; }
+  #np-full .np-title { font-size: 1.05rem; }
+  #np-full .np-key { width: 2.8rem; height: 2.8rem; }
+  #np-full .np-key.big { width: 3.6rem; height: 3.6rem; }
+}

@@ -8,6 +8,36 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+## 0.2.11 — 2026-08-26
+
+### Clearer controls throughout Salon
+
+* Home now shows button names for the keyboard, remote, phone, or controller
+  actually in use, keeps each row's own remembered position, centres short
+  catalogues, fades overflowing row edges, and gives selected-tile context and
+  now-playing state distinct, quieter treatments.
+* The system menu is shorter and moves session-ending actions into a nested
+  Power page, while MENU and POWER remain reachable consistently from other
+  screens and launched applications.
+
+### A more capable phone remote
+
+* The phone can browse the full installed-app catalogue, see local or streamed
+  cover art, mirror and edit Salon text fields, and reach Menu, Power, and the
+  way back from an application from every pane.
+* D-pad swipes, accelerated trackpad movement, adaptive accent contrast, and
+  responsive landscape and tablet layouts make the remote easier to use
+  without looking away from the television.
+* The remote page is split into small, directly served modules with no build
+  step, backed by strict resource routing and tests that reject missing,
+  unbundled, orphaned, or oversized assets.
+
+### Reliability and accessibility
+
+* Menu roles, input vocabulary, phone endpoints, installed-module coverage,
+  scale handling, text controls, and real-window navigation have broader
+  automated coverage.
+
 ## 0.2.10 — 2026-08-25
 
 ### Centred top-bar shortcuts

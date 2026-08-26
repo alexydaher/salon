@@ -49,11 +49,13 @@ class KeyboardPane(Gtk.Box):
         *,
         on_key_pressed: Callable[[], None],
         on_text_changed: Callable[[], None],
+        on_submit: Callable[[], None],
         cell_du: float = 64.0,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.set_valign(Gtk.Align.START)
         self._on_text_changed = on_text_changed
+        self._on_submit = on_submit
 
         self.model = KeyboardModel()
         self._keyboard = OnScreenKeyboard(
@@ -132,8 +134,17 @@ class KeyboardPane(Gtk.Box):
         return "Phone remote is on. Open it and use the Type tab to type here."
 
     def _on_phone_text(self, text: str) -> None:
-        self.model.set_text(self.model.text + text)
+        """Text from the phone, including its two control characters.
+
+        The rule lives in `KeyboardModel.apply_remote_text`, which is pure
+        and tested; this is the widget half — redraw, and tell the screen
+        above when the phone pressed Enter.
+        """
+        submit = self.model.apply_remote_text(text)
+        self._keyboard.refresh()
         self._on_text_changed()
+        if submit:
+            self._on_submit()
 
     def do_map(self) -> None:
         Gtk.Box.do_map(self)

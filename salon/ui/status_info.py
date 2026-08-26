@@ -11,7 +11,6 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.services.battery import BatteryStatus, BatteryWatcher  # noqa: E402
 from salon.services.netinfo import NetworkStatus, NetworkWatcher  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
@@ -104,9 +103,7 @@ class StatusInfo(Gtk.Box):
         image.set_visible(True)
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         self.set_spacing(scale.px(24.0))
         self.set_margin_top(margin)
         self.set_margin_start(margin)

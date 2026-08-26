@@ -5,22 +5,23 @@
   Salon's phone remote (§6.12). Served by salon/services/pairing.py, which
   is on the LAN only while something on the television is asking for it.
 
-  This is a real file rather than a string inside the service because it
-  stopped being a form with one field: it is four panes, a poller and a
-  gesture surface, and none of that is reviewable as an escaped Python
-  literal — the connect regex needed \\d, one backslash away from a bug no
-  editor would have highlighted.
+  The page is markup only. Its stylesheets and its modules live beside it
+  in `ui/`, served from the same GResource bundle, one file per job and
+  none longer than the Python next to them. It was a single 1900-line file
+  until the second screen grew a mirrored cursor, an A-Z list and a gesture
+  D-pad; at that size nobody edits a page, they append to it.
 
-  It stays one file with no build step. A launcher that needs npm to change
-  a button is a launcher nobody will change a button in, and the whole page
-  is smaller than the artwork of a single tile.
+  There is still **no build step**: plain ES modules and plain stylesheets,
+  loaded as they are. A launcher that needs npm to change a button is a
+  launcher nobody will change a button in.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1,
-               user-scalable=no, viewport-fit=cover">
+<!-- No `user-scalable=no`: it is the standard accessibility anti-pattern,
+     iOS has ignored it for years anyway, and `touch-action: manipulation`
+     already does the double-tap-zoom suppression it was added for. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0E1116">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,607 +30,36 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/catalog.css">
+<link rel="stylesheet" href="/ui/controls.css">
+<link rel="stylesheet" href="/ui/strips.css">
 <title>Salon</title>
-<style>
-  :root {
-    color-scheme: dark;
-    --bg: #0E1116;
-    --s1: #161B22;
-    --s2: #1F2630;
-    --fg: #F2EDE4;
-    --dim: #9AA3AE;
-    --danger: #D9584B;
-    /* Overwritten from /state with whatever the television is themed to. */
-    --accent: #E8A33D;
-    --pad: 4vw;
-    --safe-b: env(safe-area-inset-bottom, 0px);
-    --safe-t: env(safe-area-inset-top, 0px);
-  }
-
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-  /* The header and the tab strip are `display: flex` below, and a display
-     rule beats the user agent's `[hidden] { display: none }`. Without this
-     the chrome of a connected remote shows through the code screen. */
-  [hidden] { display: none !important; }
-
-  /* Deliberately not `display: none`, `visibility: hidden` or `opacity: 0`
-     — all three are ways of telling the browser the video does not need to
-     be played, which is the one thing being asked of it. */
-  #awake {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 1px;
-    height: 1px;
-    opacity: 0.01;
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  html, body {
-    margin: 0;
-    height: 100%;
-    background: var(--bg);
-    color: var(--fg);
-    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-    overscroll-behavior: none;
-    touch-action: manipulation;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  /* dvh, not vh: on a phone the address bar collapses as you scroll and a
-     tab strip pinned with vh spends the first gesture sliding off-screen. */
-  body { height: 100dvh; display: flex; flex-direction: column; }
-
-  button { font: inherit; color: inherit; border: 0; background: none; }
-
-  /* --- connect ---------------------------------------------------------- */
-
-  #connect {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1rem;
-    padding: var(--pad);
-    padding-top: calc(var(--pad) + var(--safe-t));
-  }
-  #connect h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
-  #connect p { margin: 0; color: var(--dim); }
-  #code {
-    width: 100%;
-    padding: 1rem;
-    font-size: 2rem;
-    text-align: center;
-    letter-spacing: 0.5em;
-    text-indent: 0.5em;
-    border-radius: 14px;
-    border: 2px solid var(--s2);
-    background: var(--s1);
-    color: var(--fg);
-  }
-  #code:focus { outline: none; border-color: var(--accent); }
-  #connect-status { min-height: 1.4rem; color: var(--danger); }
-  .primary {
-    padding: 1rem;
-    border-radius: 14px;
-    background: var(--accent);
-    color: #12151A;
-    font-weight: 600;
-  }
-  .primary:disabled { opacity: 0.4; }
-
-  /* --- chrome ----------------------------------------------------------- */
-
-  header {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: calc(0.6rem + var(--safe-t)) var(--pad) 0.6rem;
-    font-size: 0.85rem;
-    color: var(--dim);
-  }
-  #dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--accent);
-    transition: background 200ms;
-    flex: none;
-  }
-  #dot.stale { background: var(--danger); }
-  #screen { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  /* "Could not reach Salon" used to be a red dot and a toast, which is the
-     same signal for "your phone was asleep" and "the television is off".
-     This says which, and says that it is still trying. */
-  #offline {
-    display: none;
-    gap: 0.5rem;
-    align-items: center;
-    margin: 0 var(--pad) 0.4rem;
-    padding: 0.55rem 0.7rem;
-    border-radius: 12px;
-    background: rgba(217, 88, 75, 0.14);
-    border: 1px solid rgba(217, 88, 75, 0.4);
-    font-size: 0.82rem;
-  }
-  #offline.on { display: flex; }
-  #offline span { flex: 1; }
-  #offline button {
-    padding: 0.35rem 0.7rem;
-    border-radius: 9px;
-    background: var(--s2);
-    font-size: 0.8rem;
-  }
-
-  main { flex: 1; overflow: hidden; position: relative; }
-  .pane {
-    position: absolute;
-    inset: 0;
-    display: none;
-    flex-direction: column;
-    padding: 0 var(--pad);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .pane.on { display: flex; }
-
-  /* --- apps ------------------------------------------------------------- */
-
-  #pane-apps { gap: 0.4rem; padding-bottom: 1rem; }
-  .row-title {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    margin: 0.8rem 0 0.4rem;
-    padding: 0.2rem 0;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--dim);
-    background: linear-gradient(var(--bg) 70%, transparent);
-  }
-  .row-tiles { display: grid; gap: 0.6rem; }
-  .row-tiles.wide   { grid-template-columns: repeat(2, 1fr); }
-  .row-tiles.square { grid-template-columns: repeat(3, 1fr); }
-  .row-tiles.poster { grid-template-columns: repeat(3, 1fr); }
-
-  .tile {
-    display: block;
-    width: 100%;
-    padding: 0;
-    border-radius: 12px;
-    overflow: hidden;
-    background: var(--s1);
-    text-align: left;
-    position: relative;
-    transition: transform 90ms ease-out;
-  }
-  .tile:active { transform: scale(0.96); }
-  /* The cursor on the television, mirrored here — the point of showing the
-     catalogue on the phone is to stop having to look up to know where you
-     are. */
-  .tile.focused { box-shadow: 0 0 0 2px var(--accent); }
-  .tile .art {
-    display: block;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    background-size: cover;
-    background-position: center;
-  }
-  /* An application icon is not a still from a film. The television draws it
-     small and centred on a gradient built from its own colour rather than
-     cropping it to fill the card, and a 64px icon stretched across 16:9 is
-     the difference between a launcher and a list of blurry rectangles. */
-  .tile .art.icon {
-    object-fit: contain;
-    padding: 12%;
-  }
-  .square .art { aspect-ratio: 1; }
-  .poster .art { aspect-ratio: 2 / 3; }
-  /* No artwork: the accent as a flat card, which is what the television
-     draws too. A broken-image glyph would be strictly worse than a colour. */
-  .tile .art.blank {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.85);
-  }
-  .tile .caption { padding: 0.45rem 0.55rem 0.6rem; }
-  .tile .name {
-    font-size: 0.85rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .tile .sub {
-    font-size: 0.72rem;
-    color: var(--dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #apps-empty { color: var(--dim); padding: 2rem 0; text-align: center; }
-
-  /* --- remote ----------------------------------------------------------- */
-
-  /* Bottom-aligned, not centred: a phone held one-handed has its thumb at
-     the bottom of the screen, and the D-pad is what the hand looks for
-     without looking. */
-  #pane-remote { justify-content: flex-end; gap: 0.6rem; padding-bottom: 0.6rem; }
-  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
-  .keys button, .bar button {
-    padding: 1rem 0.3rem;
-    border-radius: 14px;
-    background: var(--s1);
-    font-size: 0.95rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 3.2rem;
-  }
-  .keys button.pressed, .bar button.pressed { background: var(--accent); color: #12151A; }
-  .keys .blank { visibility: hidden; }
-  .bar { display: flex; gap: 0.6rem; }
-  .bar button { flex: 1; }
-  /* The D-pad: bigger than everything around it, and on a plate of its own
-     so the four keys read as one control rather than as four buttons with
-     holes between them. */
-  .dpad {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 22px;
-    padding: 0.5rem;
-    margin: 0.2rem 0;
-  }
-  .dpad button { min-height: 4.6rem; font-size: 1.4rem; }
-  .dpad .ok { background: var(--s2); font-size: 1.05rem; font-weight: 600; }
-  .bar button small { font-size: 0.78rem; color: var(--dim); }
-  .subtle { color: var(--dim); font-size: 0.85rem; }
-
-  /* --- trackpad --------------------------------------------------------- */
-
-  #pane-pad { padding-bottom: 1rem; }
-  #pad, #type-pad {
-    border-radius: 18px;
-    background: var(--s1);
-    border: 2px dashed var(--s2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 1rem;
-    color: var(--dim);
-    font-size: 0.8rem;
-    /* The whole point of the surface: without this the browser claims the
-       gesture for scrolling the pane and the pointer never moves. */
-    touch-action: none;
-  }
-  #pad { flex: 1; margin: 0.4rem 0 0.6rem; }
-  #pad.live, #type-pad.live { border-style: solid; border-color: var(--accent); }
-  /* Two fingers down: the surface is scrolling rather than pointing, and
-     saying so is what stops it reading as a pointer that stopped working. */
-  #pad.scrolling, #type-pad.scrolling { border-color: var(--dim); }
-
-  /* --- keyboard --------------------------------------------------------- */
-
-  #pane-type { gap: 0.6rem; padding-top: 0.6rem; padding-bottom: 1rem; }
-  #text {
-    width: 100%;
-    padding: 0.9rem;
-    font-size: 1.15rem;
-    border-radius: 14px;
-    border: 2px solid var(--s2);
-    background: var(--s1);
-    color: var(--fg);
-  }
-  #text:focus { outline: none; border-color: var(--accent); }
-
-  /* --- now playing ------------------------------------------------------ */
-
-  #playing {
-    display: none;
-    align-items: center;
-    gap: 0.6rem;
-    margin: 0 var(--pad);
-    padding: 0.55rem 0.7rem;
-    border-radius: 14px;
-    background: var(--s1);
-    border: 1px solid var(--s2);
-  }
-  #playing.on { display: flex; }
-  #playing .what { flex: 1; min-width: 0; }
-  #playing .np-title {
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #playing .np-detail {
-    font-size: 0.75rem;
-    color: var(--dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #playing button {
-    width: 2.6rem;
-    height: 2.6rem;
-    border-radius: 50%;
-    background: var(--s2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-  }
-  #playing button:disabled { opacity: 0.3; }
-  #playing button.pressed { background: var(--accent); color: #12151A; }
-
-  /* --- tabs ------------------------------------------------------------- */
-
-  nav {
-    display: flex;
-    gap: 0.3rem;
-    padding: 0.5rem var(--pad) calc(0.5rem + var(--safe-b));
-    border-top: 1px solid var(--s2);
-    background: var(--bg);
-  }
-  nav button {
-    flex: 1;
-    padding: 0.55rem 0.2rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    color: var(--dim);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.2rem;
-  }
-  nav button .glyph { font-size: 1.15rem; line-height: 1; }
-  nav button.on { color: var(--accent); background: var(--s1); }
-
-  /* --- an application is in front --------------------------------------- */
-
-  /* The single most important thing the page can say. Salon's own screens
-     and a launched application are completely different situations — with
-     Netflix up, the D-pad, Search and Options do nothing at all, because
-     Salon deliberately goes quiet rather than fight a fullscreen app for
-     button presses. A remote that looks identical in both is a remote you
-     learn by pressing things and watching nothing happen. */
-  .app-bar {
-    display: none;
-    align-items: center;
-    gap: 0.6rem;
-    margin: 0 0 0.6rem;
-    padding: 0.7rem 0.8rem;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--s2);
-  }
-  body.in-app .app-bar { display: flex; }
-  .app-bar .what { flex: 1; min-width: 0; }
-  .app-bar .label {
-    font-size: 0.7rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--dim);
-  }
-  .app-bar .name {
-    font-size: 1rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .app-bar button {
-    flex: none;
-    padding: 0.7rem 0.9rem;
-    border-radius: 12px;
-    background: var(--accent);
-    color: #12151A;
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-  .app-bar button.pressed { opacity: 0.6; }
-
-  /* Not hidden — greyed and still there. A control that vanishes while an
-     app is up makes the remote a different shape every time you glance
-     down; one that is visibly unavailable teaches what the rule is. */
-  .keys button:disabled, .bar button:disabled { opacity: 0.3; }
-  .why {
-    display: none;
-    color: var(--dim);
-    font-size: 0.8rem;
-    text-align: center;
-    padding: 0.1rem 0 0.2rem;
-  }
-  body.in-app .why { display: block; }
-
-  /* --- search ----------------------------------------------------------- */
-
-  #search-row {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem 0 0.4rem;
-    background: var(--bg);
-  }
-  #q {
-    flex: 1;
-    min-width: 0;
-    padding: 0.75rem 0.9rem;
-    font-size: 1rem;
-    border-radius: 14px;
-    border: 2px solid var(--s2);
-    background: var(--s1);
-    color: var(--fg);
-  }
-  #q:focus { outline: none; border-color: var(--accent); }
-  #q-clear {
-    display: none;
-    flex: none;
-    padding: 0 0.9rem;
-    border-radius: 14px;
-    background: var(--s1);
-    color: var(--dim);
-  }
-  body.searching #q-clear { display: block; }
-  /* The catalogue stays in the DOM while a search is running rather than
-     being rebuilt over: a query cleared with the X puts the rows straight
-     back, images and all, instead of re-downloading every poster. */
-  body.searching #apps, body.searching #apps-empty { display: none; }
-  #results { display: none; }
-  body.searching #results { display: block; }
-  #results .row-tiles { margin-bottom: 1rem; }
-  #results-empty { color: var(--dim); padding: 2rem 0; text-align: center; }
-
-  /* --- volume ----------------------------------------------------------- */
-
-  /* Above the tabs and on every pane, because volume is the one control
-     that is guaranteed to work whatever is on the television — it acts on
-     the system's audio, not on a window. It is also the control a
-     touchscreen is unambiguously better at than a physical remote, which
-     is why this is a slider and not two more repeat-buttons. */
-  #volume {
-    display: none;
-    align-items: center;
-    gap: 0.7rem;
-    margin: 0.5rem var(--pad) 0;
-    padding: 0.4rem 0.75rem;
-    border-radius: 14px;
-    background: var(--s1);
-    border: 1px solid var(--s2);
-  }
-  #volume.on { display: flex; }
-  #mute {
-    flex: none;
-    width: 2.2rem;
-    height: 2.2rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05rem;
-  }
-  #mute.muted { color: var(--danger); }
-  #vol {
-    flex: 1;
-    min-width: 0;
-    height: 2.2rem;
-    background: none;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  #vol::-webkit-slider-runnable-track {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--s2);
-  }
-  #vol::-moz-range-track { height: 6px; border-radius: 3px; background: var(--s2); }
-  #vol::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 1.5rem;
-    height: 1.5rem;
-    margin-top: calc((6px - 1.5rem) / 2);
-    border-radius: 50%;
-    background: var(--accent);
-  }
-  #vol::-moz-range-thumb {
-    width: 1.5rem;
-    height: 1.5rem;
-    border: 0;
-    border-radius: 50%;
-    background: var(--accent);
-  }
-  #volume.off { opacity: 0.45; }
-
-  /* --- the trackpad's own controls -------------------------------------- */
-
-  .pad-hint {
-    color: var(--dim);
-    font-size: 0.74rem;
-    line-height: 1.5;
-    text-align: center;
-    padding-bottom: 0.5rem;
-  }
-  /* A gesture nobody is told about is a gesture nobody has. Two fingers to
-     scroll is the one people try; the rest are here because the legend
-     costs one line and the alternative is a surface with five secrets. */
-  .pad-hint b { color: var(--fg); font-weight: 600; }
-  #type-pad {
-    height: 6.5rem;
-    flex: none;
-    margin-bottom: 0.2rem;
-  }
-
-  /* --- the per-tile sheet ------------------------------------------------ */
-
-  /* A long press on a tile. The television has had this behind
-     Action.OPTIONS since the reachability pass, and the phone — the one
-     surface that shows every tile at once — was the one that could not
-     change any of them. */
-  #sheet {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: none;
-    flex-direction: column;
-    justify-content: flex-end;
-    background: rgba(0, 0, 0, 0.55);
-  }
-  #sheet.on { display: flex; }
-  #sheet-card {
-    background: var(--s1);
-    border-radius: 20px 20px 0 0;
-    padding: 0.8rem var(--pad) calc(0.8rem + var(--safe-b));
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  #sheet-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    padding: 0.4rem 0.2rem 0.6rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #sheet-card button {
-    padding: 0.95rem 0.9rem;
-    border-radius: 14px;
-    background: var(--s2);
-    text-align: left;
-    font-size: 0.95rem;
-  }
-  #sheet-card button.danger { color: var(--danger); }
-  #sheet-card button.cancel { background: none; text-align: center; color: var(--dim); }
-
-  #toast {
-    position: fixed;
-    left: 50%;
-    bottom: calc(5.5rem + var(--safe-b));
-    transform: translateX(-50%);
-    max-width: 90vw;
-    padding: 0.6rem 0.9rem;
-    border-radius: 12px;
-    background: var(--s2);
-    font-size: 0.85rem;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 180ms;
-    z-index: 10;
-  }
-  #toast.on { opacity: 1; }
-</style>
 </head>
 <body>
+
+<!-- One sprite for every glyph on the page. Referenced with <use>, so the
+     icons inherit `currentColor` and there is one place to change them. -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-apps" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></g></symbol>
+  <symbol id="i-buttons" viewBox="0 0 24 24"><path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M5 3.2l13.4 7.6-6 1.5-2.9 5.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-type" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="11" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 13.8h8"/></g></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9M6.9 6.5a7.5 7.5 0 1 0 10.2 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></g></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M10 5l-7 7 7 7M3 12h11a6 6 0 0 1 6 6v1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5v14M20 5l-11 7 11 7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5v14M4 5l11 7-11 7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12.5 7.5L7 19.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8.5 4.5v15M15.5 4.5v15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.6 9.4a3.7 3.7 0 0 1 0 5.2M18.2 6.8a7.4 7.4 0 0 1 0 10.4"/></g></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></g></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-erase" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9L2.5 12z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></g></symbol>
+  <symbol id="i-enter" viewBox="0 0 24 24"><path d="M20 5v7a3 3 0 0 1-3 3H5m0 0l5-5m-5 5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
 
 <section id="connect">
   <h1>Salon</h1>
@@ -641,9 +71,24 @@
   <div id="connect-status" role="status"></div>
 </section>
 
+<!-- MENU and Power are up here because their meaning never changes: both
+     are checked ahead of every mode on the television. Closing a launched
+     application is here for the opposite reason — it used to be duplicated
+     into two panes and missing from the other two, so browsing Apps with
+     Netflix up left no way out at all. -->
 <header hidden id="chrome">
   <span id="dot"></span>
   <span id="screen">Home</span>
+  <button id="close-app" hidden>
+    <svg class="i" aria-hidden="true"><use href="#i-close"/></svg>
+    <span class="app-name"></span>
+  </button>
+  <button id="hdr-menu" class="icon" data-action="menu" aria-label="Menu">
+    <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
+  </button>
+  <button id="hdr-power" class="icon" data-action="power" aria-label="Power">
+    <svg class="i" aria-hidden="true"><use href="#i-power"/></svg>
+  </button>
 </header>
 
 <div id="offline" role="status">
@@ -654,68 +99,70 @@
 <main hidden id="body">
   <section id="pane-apps" class="pane on">
     <!-- Search lives here rather than behind a fifth tab: what you are
-         looking for is an app, and this is the pane with the apps in it.
-         It also searches every *installed* application, not just the
-         catalogue, which is the gap that made the phone show 11 things on
-         a machine with 53 on it. -->
+         looking for is an app. "All apps" beside it is the whole installed
+         list, A-Z, which the phone could previously only search — which
+         needs you to already know the name. -->
     <div id="search-row">
       <input id="q" type="search" autocomplete="off" autocapitalize="none"
              autocorrect="off" spellcheck="false" enterkeyhint="search"
              placeholder="Search apps" aria-label="Search apps">
-      <button id="q-clear" aria-label="Clear search">&#10005;</button>
+      <button id="q-clear" aria-label="Clear search">
+        <svg class="i" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+      <button id="all-apps" aria-pressed="false">All apps</button>
     </div>
     <div id="apps"></div>
     <div id="apps-empty">Nothing on the television yet.</div>
     <div id="results"></div>
+    <div id="allapps"></div>
   </section>
 
   <section id="pane-remote" class="pane">
-    <div class="app-bar">
+    <!-- What the cursor is resting on, mirrored from the television. -->
+    <div id="mirror">
+      <div class="shot" id="mirror-art"></div>
       <div class="what">
-        <div class="label">On the television</div>
-        <div class="name app-name"></div>
+        <div class="label" id="mirror-label">On the television</div>
+        <div class="name" id="mirror-title"></div>
+        <div class="sub" id="mirror-sub"></div>
       </div>
-      <button class="close-app">Close</button>
     </div>
     <p class="why">The D-pad drives Salon, and Salon is behind this app.
-       Use the Pad, or close it.</p>
+       Use the Pointer tab, or close it from the top.</p>
     <div class="bar">
-      <button data-action="back" data-tv-only>Back</button>
-      <button data-action="menu">Menu</button>
       <button data-action="options" data-tv-only>Options</button>
+      <button data-action="prev_group" data-tv-only aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
+      <button data-action="next_group" data-tv-only aria-label="Next group"><small>Group</small>&#8202;&#8677;</button>
     </div>
-    <div class="keys dpad">
+    <div class="keys dpad" id="dpad">
       <button class="blank"></button>
       <button data-action="up" data-repeat data-tv-only aria-label="Up">&#9650;</button>
       <button class="blank"></button>
       <button data-action="left" data-repeat data-tv-only aria-label="Left">&#9664;</button>
-      <button data-action="ok" class="ok" data-tv-only>OK</button>
+      <button data-action="ok" data-on-release class="ok" data-tv-only>OK</button>
       <button data-action="right" data-repeat data-tv-only aria-label="Right">&#9654;</button>
       <button class="blank"></button>
       <button data-action="down" data-repeat data-tv-only aria-label="Down">&#9660;</button>
       <button class="blank"></button>
     </div>
+    <p class="dpad-hint">Swipe anywhere on the pad to move&#8202;&middot;&#8202;tap the middle to select</p>
+    <!-- Back is directly under the pad, where the thumb already is. Play /
+         Pause is *not* data-tv-only: it reaches the player over MPRIS, so
+         it still works with Netflix in front. -->
     <div class="bar">
-      <button data-action="search" data-tv-only>Search</button>
-      <button data-action="prev_group" data-tv-only aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
-      <button data-action="next_group" data-tv-only aria-label="Next group"><small>Group</small>&#8202;&#8677;</button>
-    </div>
-    <!-- Play/pause is *not* data-tv-only. It reaches the player over MPRIS
-         rather than through Salon's own screen, so it is one of the two
-         things on this pane that still work with Netflix in front. -->
-    <div class="bar">
-      <button data-action="play_pause">Play / Pause</button>
+      <button class="wide" data-action="back" data-tv-only>
+        <svg class="i" aria-hidden="true"><use href="#i-back"/></svg>Back
+      </button>
+      <button data-action="play_pause" aria-label="Play or pause">
+        <svg class="i" aria-hidden="true"><use href="#i-play"/></svg>
+      </button>
+      <button data-action="search" data-tv-only aria-label="Search">
+        <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+      </button>
     </div>
   </section>
 
   <section id="pane-pad" class="pane">
-    <div class="app-bar">
-      <div class="what">
-        <div class="label">On the television</div>
-        <div class="name app-name"></div>
-      </div>
-      <button class="close-app">Close</button>
-    </div>
     <div id="pad">Drag to move the pointer&#8202;&middot;&#8202;tap to click</div>
     <p class="pad-hint">
       <b>Two fingers</b> scroll&#8202;&middot;&#8202;<b>two-finger tap</b> right-clicks<br>
@@ -726,1186 +173,128 @@
       <button id="click-right">Right click</button>
     </div>
     <div class="bar">
-      <button data-action="back" data-tv-only>Back</button>
-      <button data-action="menu">Menu</button>
+      <button data-action="back" data-tv-only>
+        <svg class="i" aria-hidden="true"><use href="#i-back"/></svg>Back
+      </button>
     </div>
   </section>
 
   <section id="pane-type" class="pane">
+    <!-- The aim pad is first so the phone's own keyboard cannot cover it:
+         the keys land wherever the launched app is focused, and one that
+         has just opened has focused nothing — so you tap its box here. -->
+    <div id="type-pad" hidden></div>
+    <p class="subtle" id="type-hint">Nothing on the television is asking for
+       text right now.</p>
+    <p id="mirror-text">On screen: <b></b></p>
     <input id="text" autocomplete="off" autocapitalize="none"
            autocorrect="off" spellcheck="false" enterkeyhint="send"
            placeholder="Type for the television" aria-label="Text">
     <button id="send" class="primary">Send</button>
-    <!-- Backspace and Enter matter once this can type into a launched
-         browser: a search box you can fill but not submit, and a typo you
-         cannot take back, are both worse than no keyboard. They are sent
-         as characters so the whole path is the one /type already takes. -->
+    <!-- A search box you can fill but not submit, and a typo you cannot
+         take back, are both worse than no keyboard. -->
     <div class="bar">
-      <button id="key-back" aria-label="Backspace">&#9003;</button>
-      <button id="key-enter" aria-label="Enter">&#9166; Enter</button>
+      <button id="key-back" aria-label="Backspace">
+        <svg class="i" aria-hidden="true"><use href="#i-erase"/></svg>
+      </button>
+      <button id="key-enter" aria-label="Enter">
+        <svg class="i" aria-hidden="true"><use href="#i-enter"/></svg>Enter
+      </button>
     </div>
-    <p class="subtle" id="type-hint">Nothing on the television is asking for
-       text right now.</p>
-    <!-- The Type tab's real limitation, answered in place: the keys land
-         wherever the launched app's cursor happens to be, and an app that
-         has just opened has focused nothing — so you have to tap its search
-         box first. Making that a trip to another tab and back turns one
-         gesture into a lesson. Same pad, same gestures, less of it. -->
-    <div id="type-pad" hidden></div>
+  </section>
+
+  <!-- The card below is a summary; this is the thing itself. -->
+  <section id="np-full">
+    <div class="grab">
+      <button id="np-close" aria-label="Close now playing">
+        <svg class="i" aria-hidden="true"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <img id="np-big" class="cover" alt="">
+    <div class="np-title" id="np-big-title"></div>
+    <div class="np-detail" id="np-big-detail"></div>
+    <div class="keys-row">
+      <button class="np-key" id="np-big-prev" data-transport="previous" aria-label="Previous">
+        <svg class="i" aria-hidden="true"><use href="#i-prev"/></svg>
+      </button>
+      <button class="np-key big" id="np-big-play" data-transport="play_pause" aria-label="Play or pause">
+        <svg class="i" aria-hidden="true"><use href="#i-play"/></svg>
+      </button>
+      <button class="np-key" id="np-big-next" data-transport="next" aria-label="Next">
+        <svg class="i" aria-hidden="true"><use href="#i-next"/></svg>
+      </button>
+    </div>
   </section>
 </main>
 
 <div id="playing">
-  <div class="what">
+  <img id="np-cover" class="np-cover" alt="" hidden>
+  <button class="what" id="np-open">
     <div class="np-title" id="np-title"></div>
     <div class="np-detail" id="np-detail"></div>
-  </div>
+  </button>
   <!-- data-transport, not data-action: skipping a track is the one thing
        the phone can do that a controller cannot, because it is only
-       meaningful when you can see what is playing. The Action vocabulary
-       stays what it is — how you drive Salon — rather than growing two
-       buttons no physical remote here has. -->
-  <button id="np-prev" data-transport="previous" aria-label="Previous">&#9198;</button>
-  <button id="np-play" data-transport="play_pause" aria-label="Play or pause">&#9199;</button>
-  <button id="np-next" data-transport="next" aria-label="Next">&#9197;</button>
+       meaningful when you can see what is playing. -->
+  <button class="np-key" id="np-prev" data-transport="previous" aria-label="Previous">
+    <svg class="i" aria-hidden="true"><use href="#i-prev"/></svg>
+  </button>
+  <button class="np-key" id="np-play" data-transport="play_pause" aria-label="Play or pause">
+    <svg class="i" aria-hidden="true"><use href="#i-play"/></svg>
+  </button>
+  <button class="np-key" id="np-next" data-transport="next" aria-label="Next">
+    <svg class="i" aria-hidden="true"><use href="#i-next"/></svg>
+  </button>
 </div>
 
 <div id="volume">
-  <button id="mute" aria-label="Mute">&#128266;</button>
+  <button id="mute" aria-label="Mute">
+    <svg class="i" aria-hidden="true"><use href="#i-volume"/></svg>
+  </button>
   <input id="vol" type="range" min="0" max="100" step="1" value="0"
          aria-label="Volume">
 </div>
 
+<div id="rail" aria-hidden="true"></div>
+
 <div id="sheet">
   <div id="sheet-card">
     <div id="sheet-title"></div>
-    <button id="sheet-open">Open</button>
-    <button id="sheet-pin">Pin to Favourites</button>
-    <button id="sheet-add">Add to Home</button>
-    <button id="sheet-edit">Edit on the television…</button>
-    <button id="sheet-remove" class="danger">Remove from the home screen</button>
-    <button id="sheet-cancel" class="cancel">Cancel</button>
+    <div id="sheet-actions">
+      <button id="sheet-open">Open</button>
+      <button id="sheet-pin">Pin to Favourites</button>
+      <button id="sheet-add">Add to Home</button>
+      <button id="sheet-edit">Edit on the television&hellip;</button>
+      <button id="sheet-remove" class="danger">Remove from the home screen</button>
+      <button id="sheet-cancel" class="cancel">Cancel</button>
+    </div>
+    <!-- Cancel first, as the television orders its danger confirmations. -->
+    <div id="sheet-confirm">
+      <div id="sheet-confirm-text" class="subtle"></div>
+      <button id="sheet-no">Keep it</button>
+      <button id="sheet-yes" class="danger">Remove</button>
+    </div>
   </div>
 </div>
 
 <nav hidden id="tabs">
-  <button data-tab="apps" class="on"><span class="glyph">&#9638;</span>Apps</button>
-  <button data-tab="remote"><span class="glyph">&#9678;</span>Buttons</button>
-  <button data-tab="pad"><span class="glyph">&#9633;</span>Pointer</button>
-  <button data-tab="type"><span class="glyph">&#9000;</span>Type</button>
+  <button data-tab="apps" class="on"><svg class="i" aria-hidden="true"><use href="#i-apps"/></svg>Apps</button>
+  <button data-tab="remote"><svg class="i" aria-hidden="true"><use href="#i-buttons"/></svg>Buttons</button>
+  <button data-tab="pad"><svg class="i" aria-hidden="true"><use href="#i-pointer"/></svg>Pointer</button>
+  <button data-tab="type"><svg class="i" aria-hidden="true"><use href="#i-type"/></svg>Type</button>
 </nav>
 
 <div id="toast" role="status"></div>
 
-<!-- What holds the phone's screen on. Not the Screen Wake Lock API: that
-     is gated on a secure context, and this page is HTTP on a LAN address,
-     so on a real phone `navigator.wakeLock` is not refused — it is absent.
-     A muted looping video is the fallback every phone honours. One second
-     of black, one pixel square, kept on-screen because a video a browser
-     considers invisible is a video it feels free to stop crediting. -->
+<!-- What holds the phone's screen on. `navigator.wakeLock` needs a secure
+     context and this page is HTTP on a LAN address, so on a real phone it
+     is absent. A muted loop is the fallback every phone honours. -->
 <video id="awake" muted playsinline loop preload="auto"
        disableremoteplayback aria-hidden="true" tabindex="-1">
   <source src="/awake.webm" type="video/webm">
   <source src="/awake.mp4" type="video/mp4">
 </video>
 
-<script>
-"use strict";
-
-const $ = (id) => document.getElementById(id);
-
-// The session credential. Either it arrived in the URL fragment (the QR
-// path) or /connect hands one back in exchange for the four-digit code.
-// A fragment never reaches the server, so scanning the code off the
-// television does not put the secret in an access log or a Referer header.
-const params = new URLSearchParams(location.hash.slice(1));
-
-// Where the credential lives between page loads. It has to survive one:
-// Android discards backgrounded tabs, "Add to Home Screen" relaunches from
-// scratch, and pull-to-refresh is one thumb away — and the token is
-// stripped from the address bar a few lines below, so without this every
-// one of those dropped you back to the code screen. Storing it is not a
-// weakening: it is the phone's own remote, and anyone who can read this
-// phone's storage can already read the screen it is displayed on.
-const KEY_STORE = "salon.key";
-
-function rememberKey(value) {
-  try {
-    if (value) localStorage.setItem(KEY_STORE, value);
-    else localStorage.removeItem(KEY_STORE);
-  } catch (error) { /* private mode; the session just won't survive a reload */ }
-}
-
-function rememberedKey() {
-  try { return localStorage.getItem(KEY_STORE) || ""; } catch (error) { return ""; }
-}
-
-// The fragment wins: scanning a fresh QR is how you replace a stale token.
-let key = params.get("k") || rememberedKey();
-
-// Which pane to open on. The remembered one, because whoever uses this as a
-// trackpad uses it as a trackpad every time and should not have to say so
-// again; overridable from the fragment so a home-screen shortcut can point
-// straight at one.
-let tab = params.get("tab")
-  || (() => { try { return localStorage.getItem("salon.tab"); } catch (e) { return null; } })()
-  || "apps";
-if (!["apps", "remote", "pad", "type"].includes(tab)) tab = "apps";
-
-// Off the address bar immediately: the credential should not survive in
-// history, in a screenshot of the phone, or in whatever the browser syncs.
-if (location.hash) {
-  history.replaceState(null, "", location.pathname);
-}
-
-let version = 0;
-let state = null;
-let live = false;
-let pollTimer = null;
-let wakeLock = null;
-
-/* --- talking to the television ------------------------------------------ */
-
-// How long to wait before the next poll while the television is not
-// answering. Backs off so a phone left on the remote with Salon shut down
-// is not making a request a second all night, and resets the moment it
-// answers again.
-const BACKOFF_MS = [1000, 2000, 4000, 8000, 15000, 30000];
-let misses = 0;
-
-function setLive(value) {
-  if (value) misses = 0;
-  if (live === value) return;
-  live = value;
-  $("dot").classList.toggle("stale", !value);
-  $("offline").classList.toggle("on", !value);
-  if (!value) {
-    $("offline-text").textContent =
-      "Salon isn't answering. Still on the same Wi-Fi? Still switched on?";
-  }
-}
-
-function backoff() {
-  misses = Math.min(misses + 1, BACKOFF_MS.length - 1);
-  return BACKOFF_MS[misses];
-}
-
-async function post(path, extra) {
-  try {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.assign({ key: key }, extra)),
-    });
-    if (response.ok) {
-      setLive(true);
-      return await response.json().catch(() => ({}));
-    }
-    const text = await response.text();
-    if (response.status === 401 || response.status === 403 || response.status === 429) {
-      // The session is gone rather than unreachable: a new code has been
-      // minted on the television, or this one was burned.
-      dropSession(text);
-    } else {
-      toast(text);
-    }
-    setLive(true);
-    return null;
-  } catch (error) {
-    setLive(false);
-    return null;
-  }
-}
-
-function dropSession(message) {
-  key = "";
-  rememberKey("");
-  stopPolling();
-  stopStream();
-  $("chrome").hidden = true;
-  $("body").hidden = true;
-  $("tabs").hidden = true;
-  $("playing").classList.remove("on");
-  $("volume").classList.remove("on");
-  closeSheet();
-  document.body.classList.remove("in-app", "searching");
-  $("connect").style.display = "";
-  $("connect-status").textContent = message || "";
-  $("code").value = "";
-}
-
-let toastTimer = null;
-function toast(message) {
-  if (!message) return;
-  const node = $("toast");
-  node.textContent = message;
-  node.classList.add("on");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => node.classList.remove("on"), 2600);
-}
-
-function buzz(ms) {
-  if (navigator.vibrate) navigator.vibrate(ms);
-}
-
-/* --- connecting --------------------------------------------------------- */
-
-async function connect(credential) {
-  const body = credential.length === 4 && /^[0-9]{4}$/.test(credential)
-    ? { code: credential }
-    : { key: credential };
-  let response;
-  try {
-    response = await fetch("/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    $("connect-status").textContent = "Could not reach Salon. Same Wi-Fi?";
-    return false;
-  }
-  if (!response.ok) {
-    $("connect-status").textContent = await response.text();
-    return false;
-  }
-  const data = await response.json();
-  // The four-digit code is a bootstrap credential and nothing else: it is
-  // accepted at this one endpoint, and what comes back is what every later
-  // request carries.
-  key = data.key;
-  rememberKey(key);
-  $("connect").style.display = "none";
-  $("chrome").hidden = false;
-  $("body").hidden = false;
-  $("tabs").hidden = false;
-  $("connect-status").textContent = "";
-  showTab(tab);
-  setLive(true);
-  startPolling();
-  startStream();
-  keepAwake();
-  return true;
-}
-
-$("connect-go").addEventListener("click", () => {
-  const code = $("code").value.trim();
-  if (!/^[0-9]{4}$/.test(code)) {
-    $("connect-status").textContent = "Four digits, as shown on the television.";
-    return;
-  }
-  connect(code);
-});
-
-// Four digits is the whole form; making someone reach for a button after
-// the last one is a step that exists for no reason.
-$("code").addEventListener("input", () => {
-  if (/^[0-9]{4}$/.test($("code").value.trim())) $("connect-go").click();
-});
-$("code").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") $("connect-go").click();
-});
-
-/* --- the state poll ----------------------------------------------------- */
-
-// One second. The things that change — the cursor, what is playing, which
-// screen is in front — are all things a person glances at, not things they
-// track frame by frame, and an unchanged poll costs a 204 with no body.
-const POLL_MS = 1000;
-
-async function poll() {
-  try {
-    const response = await fetch(`/state?k=${encodeURIComponent(key)}&v=${version}`);
-    if (response.status === 204) {
-      setLive(true);
-      return;
-    }
-    if (response.status === 401 || response.status === 403 || response.status === 429) {
-      dropSession(await response.text());
-      return;
-    }
-    if (!response.ok) return;
-    const data = await response.json();
-    version = data.v;
-    state = data;
-    render(data);
-    setLive(true);
-  } catch (error) {
-    setLive(false);
-  }
-}
-
-// A self-scheduling loop rather than setInterval: the gap has to change
-// when the television stops answering, and an interval cannot do that
-// without being torn down and rebuilt anyway.
-function startPolling() {
-  stopPolling();
-  const tick = async () => {
-    await poll();
-    if (!key) return;
-    pollTimer = setTimeout(tick, live ? POLL_MS : backoff());
-  };
-  tick();
-}
-
-function stopPolling() {
-  if (pollTimer !== null) clearTimeout(pollTimer);
-  pollTimer = null;
-}
-
-/* --- the event stream --------------------------------------------------- */
-
-// The poll is correct and is not going away — it is the fallback. What it
-// cannot be is *prompt*: a press changes the television immediately and the
-// phone finds out up to a second later, which is why `pollSoon()` exists at
-// all. An EventSource is told instead of asking, so the cursor mirror and
-// the header keep up with the thumb.
-//
-// It is a fallback rather than a replacement because a held connection is
-// exactly the thing a phone breaks: a screen lock, a Wi-Fi roam, a tab
-// eviction and a captive-portal proxy all end it, some of them silently.
-// Both paths read the same feed on the server, so they cannot disagree
-// about what is on the television.
-let stream = null;
-let streamOk = false;
-
-function startStream() {
-  if (!key || !window.EventSource) return;
-  stopStream();
-  try {
-    stream = new EventSource(`/events?k=${encodeURIComponent(key)}`);
-  } catch (error) {
-    stream = null;
-    return;
-  }
-  stream.addEventListener("open", () => {
-    streamOk = true;
-    setLive(true);
-    // Only now is the poll redundant. Stopping it before the stream is
-    // actually open would leave a phone with neither if /events is refused.
-    stopPolling();
-  });
-  stream.addEventListener("message", (event) => {
-    let data = null;
-    try { data = JSON.parse(event.data); } catch (error) { return; }
-    version = data.v;
-    state = data;
-    render(data);
-    setLive(true);
-  });
-  stream.addEventListener("error", () => {
-    // EventSource retries by itself, and would go on doing so forever
-    // against a television that has been switched off. One failure is
-    // enough to go back to the poll, which knows how to back off and how
-    // to say "Salon isn't answering".
-    stopStream();
-    if (key) startPolling();
-  });
-}
-
-function stopStream() {
-  if (stream) stream.close();
-  stream = null;
-  streamOk = false;
-}
-
-// A press changes what is on the television; waiting up to a second to
-// find out makes the cursor mirror feel broken even though it is correct.
-function pollSoon() {
-  // The stream will say so by itself, and sooner. This is the poll's own
-  // way of not feeling a second behind every press.
-  if (streamOk) return;
-  setTimeout(poll, 90);
-}
-
-$("retry").addEventListener("click", () => {
-  misses = 0;
-  $("offline-text").textContent = "Trying…";
-  startPolling();
-  startStream();
-});
-
-// Polling while the phone is in a pocket is a request a second for nothing.
-document.addEventListener("visibilitychange", () => {
-  if (!key) return;
-  if (document.hidden) {
-    stopPolling();
-    stopStream();
-    releaseAwake();
-  } else {
-    // The poll first, always: it is what proves the television is there.
-    // The stream takes over from it once it is actually open.
-    startPolling();
-    startStream();
-    keepAwake();
-  }
-});
-
-/* --- rendering ---------------------------------------------------------- */
-
-const SCREEN_NAMES = {
-  home: "Home",
-  search: "Search",
-  apps: "All apps",
-  settings: "Settings",
-  menu: "Menu",
-  keyboard: "Text entry",
-};
-
-let renderedSignature = "";
-
-function render(data) {
-  document.documentElement.style.setProperty("--accent", data.accent || "#E8A33D");
-  $("screen").textContent = SCREEN_NAMES[data.screen] || data.screen;
-  renderMode(data);
-  renderVolume(data);
-
-  // The grid is rebuilt only when the catalogue itself changed. Redrawing
-  // two hundred tiles once a second because the cursor moved would drop
-  // every image back to its placeholder and make scrolling impossible.
-  const signature = JSON.stringify(data.rows);
-  if (signature !== renderedSignature) {
-    renderedSignature = signature;
-    renderRows(data.rows);
-  }
-  renderFocus(data.focus);
-  renderPlaying(data.playing);
-
-  const hint = $("type-hint");
-  if (data.wantsText) {
-    hint.textContent = "The television is waiting for text.";
-  } else if (data.remoteInput) {
-    // Said exactly, because the failure it prevents is silent: the keys go
-    // to whatever the app has focused, and an app that has just opened has
-    // focused nothing. Typing then works perfectly and shows nothing.
-    hint.textContent =
-      "Typing goes to the app on the television. Tap its search box with "
-      + "the Pad first \u2014 the keys land wherever that app is focused.";
-  } else {
-    hint.textContent =
-      "Nothing on the television is asking for text, and Salon isn't "
-      + "allowed to type into other apps yet.";
-  }
-  hint.style.color = data.wantsText ? "var(--accent)" : "";
-
-  $("pad").textContent = data.remoteInput
-    ? "Drag to move the pointer\u200a\u00b7\u200atap to click"
-    : "Salon isn't allowed to move the pointer. Settings \u2192 Input \u2192 "
-      + "Gamepad cursor.";
-  // The aim-then-type pad only exists when there is something to aim at.
-  $("type-pad").hidden = !data.remoteInput;
-  $("type-pad").textContent = "Aim here, tap the field, then type above";
-  for (const node of document.querySelectorAll("#click-left, #click-right")) {
-    node.disabled = !data.remoteInput;
-  }
-}
-
-let wasInApp = false;
-
-// Everything that changes when an application is covering the television.
-// Salon deliberately goes quiet while one is in front — a native app reads
-// the same gamepad device directly, so fighting it for button presses is
-// not a thing Salon can win — which means the D-pad, OK, Back, Search and
-// Options genuinely do nothing. This is the page saying so instead of
-// offering nine buttons of which two work.
-function renderMode(data) {
-  const app = data.app || "";
-  const inApp = Boolean(app);
-  document.body.classList.toggle("in-app", inApp);
-  for (const node of document.querySelectorAll(".app-name")) node.textContent = app;
-  for (const node of document.querySelectorAll(".close-app")) {
-    node.textContent = `Close ${app}`;
-  }
-  for (const node of document.querySelectorAll("[data-tv-only]")) node.disabled = inApp;
-
-  // Move to the Pad *once*, on the transition, and only from a pane that
-  // has just gone useless. Doing it on every render would fight anyone who
-  // deliberately went to Apps to launch something else; not doing it at all
-  // leaves a thumb resting on a dead D-pad.
-  if (inApp && !wasInApp && (tab === "remote" || tab === "apps")) showTab("pad");
-  wasInApp = inApp;
-}
-
-function renderVolume(data) {
-  const strip = $("volume");
-  const known = typeof data.volume === "number" && data.volume >= 0;
-  strip.classList.toggle("on", known);
-  if (!known) return;
-  // Not while a thumb is on it: writing the television's value back into
-  // the slider mid-drag is what makes a remote slider fight the finger
-  // holding it.
-  if (!draggingVolume) $("vol").value = Math.round(data.volume * 100);
-  $("mute").classList.toggle("muted", Boolean(data.muted));
-  $("mute").textContent = data.muted ? "\u{1F507}" : "\u{1F50A}";
-  strip.classList.toggle("off", Boolean(data.muted));
-}
-
-function renderRows(rows) {
-  const host = $("apps");
-  host.textContent = "";
-  let count = 0;
-
-  for (const row of rows) {
-    if (!row.tiles.length) continue;
-    if (row.title) {
-      const heading = document.createElement("h2");
-      heading.className = "row-title";
-      heading.textContent = row.title;
-      host.append(heading);
-    }
-    const grid = document.createElement("div");
-    grid.className = `row-tiles ${row.aspect}`;
-    for (const tile of row.tiles) {
-      grid.append(tileNode(tile, row.aspect));
-      count += 1;
-    }
-    host.append(grid);
-  }
-  $("apps-empty").style.display = count ? "none" : "";
-}
-
-function tileNode(tile, aspect) {
-  const node = document.createElement("button");
-  node.className = "tile";
-  node.dataset.id = tile.id;
-
-  if (tile.art) {
-    const art = document.createElement("img");
-    art.className = tile.fit === "contain" ? "art icon" : "art";
-    if (tile.fit === "contain") {
-      art.style.background =
-        `linear-gradient(150deg, ${tile.accent}, ${tile.accent}55)`;
-    }
-    art.loading = "lazy";
-    art.alt = "";
-    art.src = `/art/${encodeURIComponent(tile.id)}?k=${encodeURIComponent(key)}`;
-    // A tile whose art fails to load falls back to the same coloured card
-    // an artless tile gets, rather than to the browser's broken glyph.
-    art.addEventListener("error", () => art.replaceWith(blankArt(tile)));
-    node.append(art);
-  } else {
-    node.append(blankArt(tile));
-  }
-
-  const caption = document.createElement("div");
-  caption.className = "caption";
-  const name = document.createElement("div");
-  name.className = "name";
-  name.textContent = tile.title;
-  caption.append(name);
-  if (tile.subtitle) {
-    const sub = document.createElement("div");
-    sub.className = "sub";
-    sub.textContent = tile.subtitle;
-    caption.append(sub);
-  }
-  node.append(caption);
-
-  node.addEventListener("click", () => {
-    // A long press has already opened the sheet and cancelled itself; the
-    // click the browser sends afterwards must not also launch the thing.
-    if (node.dataset.held === "1") {
-      delete node.dataset.held;
-      return;
-    }
-    launchTile(tile, node);
-  });
-  bindLongPress(node, () => openSheet(tile));
-  return node;
-}
-
-function launchTile(tile, node) {
-  buzz(12);
-  node.classList.add("pressed");
-  post("/launch", { id: tile.id }).then((result) => {
-    node.classList.remove("pressed");
-    if (result) toast(`Opening ${tile.title}`);
-    pollSoon();
-  });
-}
-
-// 450ms with the finger still. Deliberately not a right-click equivalent
-// or a second tap target: a long press is the gesture every phone already
-// teaches, and the television reaches the same menu with OPTIONS.
-function bindLongPress(node, run) {
-  let timer = null;
-  const cancel = () => { clearTimeout(timer); timer = null; };
-  node.addEventListener("pointerdown", () => {
-    cancel();
-    timer = setTimeout(() => {
-      timer = null;
-      node.dataset.held = "1";
-      buzz(18);
-      run();
-    }, 450);
-  });
-  for (const name of ["pointerup", "pointercancel", "pointerleave", "pointermove"]) {
-    node.addEventListener(name, cancel);
-  }
-}
-
-function blankArt(tile) {
-  const blank = document.createElement("div");
-  blank.className = "art blank";
-  blank.style.background =
-    `linear-gradient(150deg, ${tile.accent}, ${tile.accent}55)`;
-  blank.textContent = (tile.title || "?").trim().charAt(0).toUpperCase();
-  return blank;
-}
-
-let focusedNode = null;
-
-function renderFocus(focus) {
-  if (focusedNode) focusedNode.classList.remove("focused");
-  focusedNode = null;
-  if (!focus || !state) return;
-  const row = state.rows[focus[0]];
-  const tile = row && row.tiles[focus[1]];
-  if (!tile) return;
-  const node = $("apps").querySelector(`[data-id="${CSS.escape(tile.id)}"]`);
-  if (!node) return;
-  node.classList.add("focused");
-  focusedNode = node;
-}
-
-function renderPlaying(playing) {
-  const card = $("playing");
-  card.classList.toggle("on", Boolean(playing));
-  if (!playing) return;
-  $("np-title").textContent = playing.title;
-  $("np-detail").textContent = playing.detail;
-  $("np-play").textContent = playing.playing ? "⏸" : "▶";
-  $("np-prev").disabled = !playing.previous;
-  $("np-next").disabled = !playing.next;
-}
-
-/* --- buttons ------------------------------------------------------------ */
-
-// Press-and-hold, at the cadence the user chose in Settings → Input, so a
-// held direction on the phone accelerates exactly like a held direction on
-// a controller. §6.2: six repeats at the chosen interval, then half it.
-function bindRepeat(button) {
-  const action = button.dataset.action;
-  const repeats = "repeat" in button.dataset;
-  let delayTimer = null;
-  let tickTimer = null;
-  let fired = 0;
-
-  const send = () => {
-    post("/action", { action: action });
-    pollSoon();
-  };
-
-  const stop = () => {
-    clearTimeout(delayTimer);
-    clearTimeout(tickTimer);
-    delayTimer = tickTimer = null;
-    fired = 0;
-    button.classList.remove("pressed");
-  };
-
-  const tick = () => {
-    send();
-    fired += 1;
-    const timing = (state && state.repeat) || { delay: 400, interval: 120 };
-    const interval = fired >= 6 ? timing.interval / 2 : timing.interval;
-    tickTimer = setTimeout(tick, interval);
-  };
-
-  // pointerdown, not click: a remote button has to answer on the way down.
-  // Waiting for the browser to decide a tap was not a double-tap puts a
-  // visible pause between the thumb and the television.
-  button.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    if (button.disabled) return;
-    button.classList.add("pressed");
-    buzz(8);
-    send();
-    if (!repeats) return;
-    const timing = (state && state.repeat) || { delay: 400, interval: 120 };
-    delayTimer = setTimeout(tick, timing.delay);
-  });
-
-  for (const name of ["pointerup", "pointercancel", "pointerleave"]) {
-    button.addEventListener(name, stop);
-  }
-  // A press that survives the page losing focus would repeat forever.
-  window.addEventListener("blur", stop);
-}
-
-for (const button of document.querySelectorAll("[data-action]")) {
-  bindRepeat(button);
-}
-
-for (const button of document.querySelectorAll("[data-transport]")) {
-  button.addEventListener("click", () => {
-    if (button.disabled) return;
-    buzz(8);
-    post("/transport", { what: button.dataset.transport });
-    pollSoon();
-  });
-}
-
-/* --- the per-tile sheet -------------------------------------------------- */
-
-let sheetTile = null;
-
-function openSheet(tile) {
-  sheetTile = tile;
-  $("sheet-title").textContent = tile.title;
-  // The verb, not a state: a button labelled "Pinned" leaves you working
-  // out whether that is what it is or what it will do.
-  $("sheet-pin").textContent = tile.pinned
-    ? "Remove from Favourites"
-    : "Pin to Favourites";
-  // Recents, Favourites and the apps grid all produce tiles that no row in
-  // tiles.json contains. There is nothing to edit or delete for those, and
-  // offering it would open an editor for a row that does not exist.
-  $("sheet-edit").hidden = !tile.removable;
-  $("sheet-remove").hidden = !tile.removable;
-  $("sheet-add").hidden = tile.removable;
-  $("sheet").classList.add("on");
-}
-
-function closeSheet() {
-  $("sheet").classList.remove("on");
-  sheetTile = null;
-}
-
-$("sheet").addEventListener("click", (event) => {
-  // The scrim only. A tap inside the card is a tap on one of its buttons.
-  if (event.target === $("sheet")) closeSheet();
-});
-$("sheet-cancel").addEventListener("click", closeSheet);
-
-$("sheet-open").addEventListener("click", () => {
-  const tile = sheetTile;
-  closeSheet();
-  if (!tile) return;
-  buzz(12);
-  post("/launch", { id: tile.id }).then((result) => {
-    if (result) toast(`Opening ${tile.title}`);
-    pollSoon();
-  });
-});
-
-for (const [id, what] of [
-  ["sheet-pin", "pin"],
-  ["sheet-add", "add"],
-  ["sheet-edit", "edit"],
-  ["sheet-remove", "remove"],
-]) {
-  $(id).addEventListener("click", async () => {
-    const tile = sheetTile;
-    closeSheet();
-    if (!tile) return;
-    if (what === "remove" && !window.confirm(`Remove ${tile.title} from the home screen?`)) {
-      return;
-    }
-    buzz(10);
-    // "pin" on something already pinned is the unpin: the label said so.
-    const action = what === "pin" && tile.pinned ? "unpin" : what;
-    const result = await post("/tile", { id: tile.id, what: action });
-    // The server answers with a sentence, because these are the actions
-    // whose consequence is not visible on the phone — "edit" opens a screen
-    // on the television, and a button that changes something in another
-    // room with no acknowledgement is indistinguishable from a dead one.
-    if (result && result.said) toast(result.said);
-    pollSoon();
-  });
-}
-
-/* --- search --------------------------------------------------------------- */
-
-// Debounced, because every keystroke is a request and the television
-// answers them on the thread that draws its own interface. 140ms is under
-// the gap between two letters typed quickly and over the gap inside one.
-const SEARCH_DEBOUNCE_MS = 140;
-let searchTimer = null;
-let searchSeq = 0;
-
-async function runSearch() {
-  const query = $("q").value.trim();
-  document.body.classList.toggle("searching", Boolean(query));
-  if (!query) {
-    $("results").textContent = "";
-    return;
-  }
-  // Answers can overtake each other on a slow link, and a result list for
-  // "net" arriving after the one for "netflix" would show the wrong thing
-  // with no way to tell.
-  const seq = ++searchSeq;
-  const result = await post("/search", { q: query });
-  if (!result || seq !== searchSeq) return;
-  renderResults(result.results || []);
-}
-
-function renderResults(results) {
-  const host = $("results");
-  host.textContent = "";
-  if (!results.length) {
-    const empty = document.createElement("div");
-    empty.id = "results-empty";
-    empty.textContent = "Nothing matched. Try fewer letters.";
-    host.append(empty);
-    return;
-  }
-  const grid = document.createElement("div");
-  grid.className = "row-tiles wide";
-  for (const tile of results) grid.append(tileNode(tile, "wide"));
-  host.append(grid);
-}
-
-$("q").addEventListener("input", () => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(runSearch, SEARCH_DEBOUNCE_MS);
-});
-$("q").addEventListener("search", runSearch);
-$("q-clear").addEventListener("click", () => {
-  $("q").value = "";
-  $("q").blur();
-  runSearch();
-});
-
-/* --- volume --------------------------------------------------------------- */
-
-let draggingVolume = false;
-let volumeTimer = null;
-
-// Throttled to one request per 60ms while the thumb is down. A range input
-// fires on every pixel, and a slider dragged across the screen would
-// otherwise be two hundred requests, each of which spawns a `wpctl` on the
-// television.
-function sendVolume() {
-  clearTimeout(volumeTimer);
-  volumeTimer = setTimeout(() => {
-    post("/volume", { level: Number($("vol").value) / 100 });
-  }, 60);
-}
-
-$("vol").addEventListener("input", () => {
-  draggingVolume = true;
-  sendVolume();
-});
-for (const name of ["change", "pointerup", "pointercancel"]) {
-  $("vol").addEventListener(name, () => {
-    draggingVolume = false;
-    sendVolume();
-  });
-}
-$("mute").addEventListener("click", () => {
-  buzz(8);
-  post("/volume", { mute: true });
-  pollSoon();
-});
-
-/* --- closing what is in front --------------------------------------------- */
-
-// The same MENU that a controller's START sends and that the television's
-// own handler turns into "close the child and come back". Not a new verb:
-// the press arrives over HTTP into Salon's own process, so unlike a
-// keyboard it does not need the compositor's focus to be heard.
-for (const node of document.querySelectorAll(".close-app")) {
-  node.addEventListener("click", () => {
-    buzz(14);
-    node.classList.add("pressed");
-    setTimeout(() => node.classList.remove("pressed"), 180);
-    post("/action", { action: "menu" });
-    pollSoon();
-  });
-}
-
-/* --- tabs --------------------------------------------------------------- */
-
-function showTab(name) {
-  tab = name;
-  try { localStorage.setItem("salon.tab", name); } catch (error) { /* private mode */ }
-  for (const button of document.querySelectorAll("[data-tab]")) {
-    button.classList.toggle("on", button.dataset.tab === name);
-  }
-  for (const pane of document.querySelectorAll(".pane")) {
-    pane.classList.toggle("on", pane.id === `pane-${name}`);
-  }
-  if (name === "type") $("text").focus();
-}
-
-for (const button of document.querySelectorAll("[data-tab]")) {
-  button.addEventListener("click", () => {
-    buzz(6);
-    showTab(button.dataset.tab);
-  });
-}
-
-/* --- typing ------------------------------------------------------------- */
-
-async function send() {
-  const field = $("text");
-  if (!field.value) return;
-  const result = await post("/type", { text: field.value });
-  if (result) {
-    field.value = "";
-    buzz(10);
-  }
-}
-
-$("send").addEventListener("click", send);
-$("text").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    send();
-  }
-});
-
-// Sent as the control characters the injector maps to BackSpace and Return.
-for (const [id, character] of [["key-back", "\b"], ["key-enter", "\n"]]) {
-  $(id).addEventListener("click", async () => {
-    buzz(8);
-    // Anything typed but not yet sent goes first, so Enter submits what you
-    // can see rather than whatever was sent before it.
-    const field = $("text");
-    if (id === "key-enter" && field.value) await send();
-    post("/type", { text: character });
-  });
-}
-
-/* --- trackpad ----------------------------------------------------------- */
-
-// The gesture vocabulary, and why each one is here:
-//
-//   one finger, drag        move the pointer
-//   one finger, tap         left click
-//   two fingers, drag       scroll  — the gesture everyone tries first
-//   two fingers, tap        right click
-//   three fingers, tap      middle click (paste on X11, close a browser tab)
-//   long press, then drag   hold the left button down and move: this is
-//                           what selects text and drags a window, and a tap
-//                           that releases itself 50ms later never could
-//   double-tap, then drag   the same, for the hand that learned it on a
-//                           laptop
-//
-// All of it goes through the same RemoteDesktop grant the right stick uses,
-// so a phone is a mouse over a browser tile that was never built for a
-// remote — which is the whole reason the trackpad exists.
-
-const TAP_SLOP_PX = 12;        // a finger on glass always moves a little
-const TAP_MS = 350;            // longer than this and it was not a tap
-const HOLD_MS = 500;           // press-and-hold before a drag begins
-const DOUBLE_TAP_MS = 300;
-// A finger travels far more pixels than a wheel does clicks. This turns
-// the drag into scroll units the compositor recognises without a flick
-// throwing the page to the bottom.
-const SCROLL_DIVISOR = 2.2;
-
-function bindPad(surface) {
-  let touches = 0;        // the most fingers seen during this gesture
-  let last = null;
-  let startedAt = 0;
-  let travelled = 0;
-  let dx = 0;
-  let dy = 0;
-  let sx = 0;
-  let sy = 0;
-  let queued = false;
-  let holding = false;    // the left button is down and we are dragging
-  let holdTimer = null;
-  let lastTapAt = 0;
-  let scrolled = false;
-
-  // One post per animation frame. A touchmove stream is far faster than
-  // the network, and posting every event turns a flick into a queue of
-  // requests that arrive after the finger has stopped.
-  const flush = () => {
-    queued = false;
-    const body = {};
-    if (dx || dy) { body.dx = dx; body.dy = dy; dx = dy = 0; }
-    if (sx || sy) { body.sx = sx; body.sy = sy; sx = sy = 0; }
-    if (body.dx || body.dy || body.sx || body.sy) post("/pointer", body);
-  };
-
-  const queue = () => {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(flush);
-  };
-
-  const releaseHold = () => {
-    clearTimeout(holdTimer);
-    holdTimer = null;
-    if (!holding) return;
-    holding = false;
-    post("/pointer", { hold: "up", button: "left" });
-  };
-
-  const centre = (event) => {
-    // The midpoint of however many fingers are down, so a two-finger drag
-    // does not lurch when one of them lands a frame after the other.
-    let x = 0;
-    let y = 0;
-    for (const touch of event.touches) { x += touch.clientX; y += touch.clientY; }
-    const count = event.touches.length || 1;
-    return { clientX: x / count, clientY: y / count };
-  };
-
-  surface.addEventListener("touchstart", (event) => {
-    event.preventDefault();
-    touches = Math.max(touches, event.touches.length);
-    last = centre(event);
-    if (event.touches.length === 1) {
-      startedAt = Date.now();
-      travelled = 0;
-      scrolled = false;
-      surface.classList.add("live");
-      // A second tap in quick succession, held: drag. The browser will not
-      // tell us this happened, so the first tap's timestamp is kept.
-      if (Date.now() - lastTapAt < DOUBLE_TAP_MS) {
-        holding = true;
-        buzz(12);
-        post("/pointer", { hold: "down", button: "left" });
-      } else {
-        holdTimer = setTimeout(() => {
-          holdTimer = null;
-          if (travelled >= TAP_SLOP_PX || touches > 1) return;
-          holding = true;
-          buzz(18);
-          post("/pointer", { hold: "down", button: "left" });
-        }, HOLD_MS);
-      }
-    }
-    if (event.touches.length > 1) {
-      // Two fingers means scroll, not drag — including if a hold had
-      // already started, because that was a misread of the first finger.
-      clearTimeout(holdTimer);
-      holdTimer = null;
-      releaseHold();
-      surface.classList.add("scrolling");
-    }
-  }, { passive: false });
-
-  surface.addEventListener("touchmove", (event) => {
-    event.preventDefault();
-    const point = centre(event);
-    if (last) {
-      const mx = point.clientX - last.clientX;
-      const my = point.clientY - last.clientY;
-      travelled += Math.abs(mx) + Math.abs(my);
-      if (event.touches.length >= 2) {
-        // Inverted, and on purpose: dragging two fingers *up* pushes the
-        // content up, which is what the same gesture does on every laptop
-        // trackpad and on the phone's own screen.
-        sx -= mx / SCROLL_DIVISOR;
-        sy -= my / SCROLL_DIVISOR;
-        scrolled = true;
-      } else {
-        dx += mx;
-        dy += my;
-      }
-      queue();
-    }
-    last = point;
-  }, { passive: false });
-
-  const end = (event) => {
-    event.preventDefault();
-    last = event.touches.length ? centre(event) : null;
-    if (event.touches.length) return;  // some fingers are still down
-
-    surface.classList.remove("live", "scrolling");
-    clearTimeout(holdTimer);
-    holdTimer = null;
-    const quick = Date.now() - startedAt < TAP_MS;
-    const still = travelled < TAP_SLOP_PX;
-    const wasHolding = holding;
-    releaseHold();
-
-    if (!wasHolding && quick && still && !scrolled) {
-      // Which button depends on how many fingers took part, which is why
-      // `touches` is the high-water mark rather than the current count:
-      // by the time the last finger lifts, the others are already gone.
-      const button = touches >= 3 ? "middle" : touches === 2 ? "right" : "left";
-      buzz(button === "left" ? 8 : 14);
-      post("/pointer", { click: true, button: button });
-      if (button === "left") lastTapAt = Date.now();
-    }
-    if (scrolled) post("/pointer", { scrollEnd: true });
-    touches = 0;
-  };
-
-  surface.addEventListener("touchend", end, { passive: false });
-  surface.addEventListener("touchcancel", end, { passive: false });
-}
-
-bindPad($("pad"));
-bindPad($("type-pad"));
-
-// The same two clicks as buttons, for a thumb that does not know the
-// gestures yet and for anyone who cannot make a two-finger tap land.
-$("click-left").addEventListener("click", () => {
-  buzz(8);
-  post("/pointer", { click: true, button: "left" });
-});
-$("click-right").addEventListener("click", () => {
-  buzz(14);
-  post("/pointer", { click: true, button: "right" });
-});
-
-/* --- keeping the screen on ---------------------------------------------- */
-
-// A remote whose screen sleeps between the pause button and the play button
-// is a remote you unlock twice per film.
-async function keepAwake() {
-  if (document.hidden) return;
-  // The real API first. It is present on localhost and would be present if
-  // this were ever served over HTTPS, and it is the only one of the two
-  // that the operating system actually knows about.
-  if ("wakeLock" in navigator) {
-    try {
-      wakeLock = await navigator.wakeLock.request("screen");
-      return;
-    } catch (error) {
-      wakeLock = null;
-    }
-  }
-  playAwake();
-}
-
-// Autoplay of a muted video is normally allowed, but "normally" is doing
-// work there: a page opened from a scanned QR has had no gesture at all,
-// and some browsers still refuse. The next tap tries again, and on a
-// remote control there is always a next tap.
-function playAwake() {
-  const video = $("awake");
-  if (!video) return;
-  const attempt = video.play();
-  if (attempt) {
-    attempt.catch(() => {
-      document.addEventListener("pointerdown", playAwake, { once: true });
-    });
-  }
-}
-
-function releaseAwake() {
-  if (wakeLock) {
-    wakeLock.release().catch(() => {});
-    wakeLock = null;
-  }
-  const video = $("awake");
-  if (video) video.pause();
-}
-
-/* --- start -------------------------------------------------------------- */
-
-if (key) {
-  // Scanned, not typed. Validate before showing the remote, so a stale QR
-  // from a previous session lands on the code screen rather than on a page
-  // whose every button fails.
-  connect(key).then((ok) => {
-    if (!ok) {
-      key = "";
-      $("connect").style.display = "";
-    }
-  });
-  $("connect").style.display = "none";
-}
-</script>
+<script type="module" src="/ui/main.js"></script>
 </body>
 </html>

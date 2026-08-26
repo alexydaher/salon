@@ -97,13 +97,16 @@ class RemoteHint(Gtk.Box):
 
     def set_scale(self, scale: Scale) -> None:
         self.set_spacing(scale.px(10.0))
-        safe_margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        safe_margin = scale.safe_margin_px
         self.set_margin_end(safe_margin)
         # The detail strip has a bounded, ellipsized width on the left, so
         # the two can share the bottom band without text reaching this card.
-        self.set_margin_bottom(scale.px(tokens.BOTTOM_CHROME_MARGIN_DU))
+        # The button legend is the one thing directly underneath: it holds
+        # the same corner, so this stands one legend-height clear of it
+        # rather than measuring a sibling it has no reference to.
+        self.set_margin_bottom(
+            scale.px(tokens.BOTTOM_CHROME_MARGIN_DU + tokens.LEGEND_HEIGHT_DU)
+        )
         # A third of the pairing screen's 320du. Big enough for a phone held
         # at arm's length in front of the television — which is where anyone
         # scanning this is standing — and small enough that it is a corner

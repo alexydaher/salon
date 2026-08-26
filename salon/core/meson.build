@@ -6,6 +6,7 @@ python_sources = [
   'nowplaying.py',
   'catalog.py',
   'bindings.py',
+  'buttons.py',
   'provider.py',
   'sandbox.py',
   'session.py',

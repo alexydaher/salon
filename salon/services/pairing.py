@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
-from typing import Any
-
 from salon.services.phone_remote_auth import PhoneRemoteAuthorization
+from salon.services.phone_remote_browse import PhoneRemoteBrowse
 from salon.services.phone_remote_catalog import PhoneRemoteCatalog
 from salon.services.phone_remote_connection import PhoneRemoteConnection
 from salon.services.phone_remote_input import PhoneRemoteInput
 from salon.services.phone_remote_lifecycle import PhoneRemoteLifecycle
 from salon.services.phone_remote_resources import PhoneRemoteResources
+from salon.services.phone_remote_routes import PhoneRemoteRoutes
 from salon.services.phone_remote_shared import (
     DEFAULT_PORT,
     MAX_ATTEMPTS,
@@ -26,7 +26,7 @@ from salon.services.phone_remote_state import PhoneRemoteState
 __all__ = ["MAX_ATTEMPTS", "SESSION_TIMEOUT_SECONDS", "PairingServer"]
 
 
-class PhoneRemoteServer:
+class PhoneRemoteServer(PhoneRemoteRoutes):
     """Serves the remote page, and everything it can ask for."""
 
     def __init__(
@@ -49,6 +49,8 @@ class PhoneRemoteServer:
         on_scroll: Callable[[float, float], None] | None = None,
         on_scroll_end: Callable[[], None] | None = None,
         on_button: Callable[[str, str], None] | None = None,
+        on_apps: Callable[[], list[RemoteTile]] | None = None,
+        np_art_for: Callable[[], Path | None] | None = None,
     ) -> None:
         self._on_action = on_action
         self._on_pointer = on_pointer
@@ -66,6 +68,11 @@ class PhoneRemoteServer:
         self._on_scroll = on_scroll
         self._on_scroll_end = on_scroll_end
         self._on_button = on_button
+        # The whole installed-app list, A-Z, and the artwork of whatever
+        # is playing. Both are the phone's alone: the television reaches
+        # the first through its own grid and never draws the second.
+        self._on_apps = on_apps
+        self._np_art_for = np_art_for
         self._port = port
         self._server: Soup.Server | None = None
         self._code = ""
@@ -105,6 +112,7 @@ class PhoneRemoteServer:
         self._connection = PhoneRemoteConnection(self)
         self._input = PhoneRemoteInput(self)
         self._catalog = PhoneRemoteCatalog(self)
+        self._browse = PhoneRemoteBrowse(self)
         self._state = PhoneRemoteState(self)
 
     def start(self) -> bool:
@@ -159,91 +167,5 @@ class PhoneRemoteServer:
     def pair_url(self) -> str | None:
         return self._state.pair_url
 
-    def _touch(self) -> None:
-        self._lifecycle._touch()  # noqa: SLF001
-
-    def _check_idle(self) -> bool:
-        return self._lifecycle._check_idle()  # noqa: SLF001
-
-    def _close_streams(self) -> None:
-        self._connection._close_streams()  # noqa: SLF001
-
-    def _broadcast(self, payload: bytes) -> None:
-        self._connection._broadcast(payload)  # noqa: SLF001
-
-    def _from_local_network(self, message: Any) -> bool:
-        return self._authorization._from_local_network(message)  # noqa: SLF001
-
-    def _fields(self, message: Any) -> Any:
-        return self._authorization._fields(message)  # noqa: SLF001
-
-    def _has_token(self, candidate: object) -> bool:
-        return self._authorization._has_token(candidate)  # noqa: SLF001
-
-    def _authorize(self, message: Any) -> Any:
-        return self._authorization._authorize(message)  # noqa: SLF001
-
-    def _authorize_get(self, message: Any, query: Any) -> bool:
-        return self._authorization._authorize_get(message, query)  # noqa: SLF001
-
-    def _refuse(self, *args: Any) -> None:
-        self._authorization._refuse(*args)  # noqa: SLF001
-
-    def _ok(self, *args: Any) -> None:
-        self._authorization._ok(*args)  # noqa: SLF001
-
-    def _json(self, *args: Any) -> None:
-        self._authorization._json(*args)  # noqa: SLF001
-
-    def _may_touch(self, tile_id: str) -> bool:
-        return self._catalog._may_touch(tile_id)  # noqa: SLF001
-
-    def _handle_page(self, *args: Any) -> None:
-        self._resources._handle_page(*args)  # noqa: SLF001
-
-    def _handle_manifest(self, *args: Any) -> None:
-        self._resources._handle_manifest(*args)  # noqa: SLF001
-
-    def _handle_icon(self, *args: Any) -> None:
-        self._resources._handle_icon(*args)  # noqa: SLF001
-
-    def _handle_awake(self, *args: Any) -> None:
-        self._resources._handle_awake(*args)  # noqa: SLF001
-
-    def _handle_connect(self, *args: Any) -> None:
-        self._connection._handle_connect(*args)  # noqa: SLF001
-
-    def _handle_state(self, *args: Any) -> None:
-        self._connection._handle_state(*args)  # noqa: SLF001
-
-    def _handle_events(self, *args: Any) -> None:
-        self._connection._handle_events(*args)  # noqa: SLF001
-
-    def _handle_search(self, *args: Any) -> None:
-        self._catalog._handle_search(*args)  # noqa: SLF001
-
-    def _handle_tile_action(self, *args: Any) -> None:
-        self._catalog._handle_tile_action(*args)  # noqa: SLF001
-
-    def _handle_volume(self, *args: Any) -> None:
-        self._catalog._handle_volume(*args)  # noqa: SLF001
-
-    def _handle_art(self, *args: Any) -> None:
-        self._catalog._handle_art(*args)  # noqa: SLF001
-
-    def _handle_type(self, *args: Any) -> None:
-        self._input._handle_type(*args)  # noqa: SLF001
-
-    def _handle_action(self, *args: Any) -> None:
-        self._input._handle_action(*args)  # noqa: SLF001
-
-    def _handle_launch(self, *args: Any) -> None:
-        self._input._handle_launch(*args)  # noqa: SLF001
-
-    def _handle_transport(self, *args: Any) -> None:
-        self._input._handle_transport(*args)  # noqa: SLF001
-
-    def _handle_pointer(self, *args: Any) -> None:
-        self._input._handle_pointer(*args)  # noqa: SLF001
 
 PairingServer = PhoneRemoteServer

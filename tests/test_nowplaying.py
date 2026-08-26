@@ -79,3 +79,12 @@ def test_a_player_with_no_track_still_says_something_true() -> None:
     title, detail = describe(_player("mpv", PAUSED, at=1.0))
     assert title == "Mpv"
     assert detail == "Paused · Mpv"
+
+
+def test_status_can_be_left_to_the_home_screen_icon() -> None:
+    title, detail = describe(
+        _player("firefox", PLAYING, at=1.0, title="Blue Monday", artist="New Order"),
+        include_status=False,
+    )
+    assert title == "Blue Monday"
+    assert detail == "New Order · Firefox"

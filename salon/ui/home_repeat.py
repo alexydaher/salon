@@ -6,6 +6,7 @@ from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     _DIRECTIONS,
     _REPEAT_POLL_MS,
+    GAMEPAD,
     Action,
     GLib,
 )
@@ -13,6 +14,7 @@ from salon.ui.home_shared import (
 
 class HomeRepeatController(ServiceComponent):
     def _on_gamepad_action(self, action: Action) -> None:
+        self._owner._note_input_source(GAMEPAD)
         if self._owner._binding_capture is not None:
             # The press is being captured as a binding; acting on it as
             # well would navigate away from the screen doing the capturing.
@@ -48,3 +50,6 @@ class HomeRepeatController(ServiceComponent):
         with no clue why."""
         self._owner._dispatch_action(action)
         self._owner._publish_remote_state()
+        # After the dispatch, not before: the legend describes the mode the
+        # press just put the screen into.
+        self._owner._update_legend()

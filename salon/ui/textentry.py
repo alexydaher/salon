@@ -23,7 +23,6 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui.hardware_text import HardwareTextInput  # noqa: E402
@@ -87,15 +86,14 @@ class TextEntryOverlay(Gtk.Box, HardwareTextInput):
             pairing,
             on_key_pressed=self._press_key,
             on_text_changed=self._refresh,
+            on_submit=self._hardware_submit,
         )
         self._content.append(self._keyboard)
 
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.px(
-            tokens.REFERENCE_VIEWPORT_HEIGHT_PX * tokens.SAFE_AREA_DEFAULT_PERCENT / 100.0
-        )
+        margin = scale.safe_margin_px
         self._content.set_spacing(scale.px(12.0))
         self._content.set_margin_start(margin)
         self._content.set_margin_end(margin)
@@ -111,6 +109,11 @@ class TextEntryOverlay(Gtk.Box, HardwareTextInput):
         self._keyboard.reset(initial)
         self.set_visible(True)
         self._refresh()
+
+    def current_text(self) -> str:
+        """What the field holds, for the phone to mirror. See
+        `core.remote.RemoteState.text`."""
+        return self._keyboard.text
 
     def _refresh(self) -> None:
         text = self._keyboard.text

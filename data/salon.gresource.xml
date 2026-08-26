@@ -11,6 +11,38 @@
          a Flatpak one both find it by the same path, and so it cannot go
          missing the way a loose data file can. -->
     <file compressed="true">remote/index.html</file>
+    <!-- The page's stylesheets and ES modules, served from /ui/<name> by
+         phone_remote_resources.py. One file per job: the page was a single
+         1900-line document until the second screen grew a mirrored cursor,
+         an A-Z list and a gesture D-pad, and at that size nobody edits a
+         page, they append to it. Listed rather than globbed because
+         GResource has no globs — a module added here and forgotten here is
+         a 404 the tests catch. -->
+    <file compressed="true">remote/ui/base.css</file>
+    <file compressed="true">remote/ui/catalog.css</file>
+    <file compressed="true">remote/ui/controls.css</file>
+    <file compressed="true">remote/ui/strips.css</file>
+    <file compressed="true">remote/ui/allapps.js</file>
+    <file compressed="true">remote/ui/awake.js</file>
+    <file compressed="true">remote/ui/bus.js</file>
+    <file compressed="true">remote/ui/catalog.js</file>
+    <file compressed="true">remote/ui/connect.js</file>
+    <file compressed="true">remote/ui/dom.js</file>
+    <file compressed="true">remote/ui/dpad.js</file>
+    <file compressed="true">remote/ui/feed.js</file>
+    <file compressed="true">remote/ui/keys.js</file>
+    <file compressed="true">remote/ui/main.js</file>
+    <file compressed="true">remote/ui/nowplaying.js</file>
+    <file compressed="true">remote/ui/pad.js</file>
+    <file compressed="true">remote/ui/render.js</file>
+    <file compressed="true">remote/ui/search.js</file>
+    <file compressed="true">remote/ui/session.js</file>
+    <file compressed="true">remote/ui/sheet.js</file>
+    <file compressed="true">remote/ui/tabs.js</file>
+    <file compressed="true">remote/ui/tiles.js</file>
+    <file compressed="true">remote/ui/transport.js</file>
+    <file compressed="true">remote/ui/typing.js</file>
+    <file compressed="true">remote/ui/volume.js</file>
     <file compressed="true">remote/manifest.webmanifest</file>
     <file alias="remote/icon.svg" compressed="true">icons/hicolor/scalable/apps/io.github.alexydaher.Salon.svg</file>
     <!-- A one-second black loop, played muted to hold the phone's screen

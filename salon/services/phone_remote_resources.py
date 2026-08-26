@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from salon.services.phone_remote_shared import (
     _AWAKE_CLIPS,
+    _UI_ASSET_NAME,
+    _UI_TYPES,
     PhoneRemoteComponent,
     Soup,
     _resource_bytes,
@@ -13,7 +15,14 @@ from salon.services.phone_remote_shared import (
 
 
 class PhoneRemoteResources(PhoneRemoteComponent):
-    def _serve_resource(self, message: Soup.ServerMessage, name: str, content_type: str) -> None:
+    def _serve_resource(
+        self,
+        message: Soup.ServerMessage,
+        name: str,
+        content_type: str,
+        *,
+        missing_is_broken: bool = True,
+    ) -> None:
         """The page and its two attachments.
 
         Not behind the credential, and deliberately so: the phone has to be
@@ -30,6 +39,13 @@ class PhoneRemoteResources(PhoneRemoteComponent):
             return
         data = _resource_bytes(name)
         if data is None:
+            # A missing page really is a broken install and says so. A
+            # missing `/ui/<name>` is more often a URL somebody made up,
+            # and the whole set is checked against the bundle by
+            # tests/test_phone_page.py rather than at request time.
+            if not missing_is_broken:
+                message.set_status(Soup.Status.NOT_FOUND, None)
+                return
             self._owner._refuse(
                 message,
                 Soup.Status.INTERNAL_SERVER_ERROR,
@@ -65,6 +81,33 @@ class PhoneRemoteResources(PhoneRemoteComponent):
         query: dict[str, str] | None,
     ) -> None:
         self._serve_resource(message, "icon.svg", "image/svg+xml")
+
+    def _handle_asset(
+        self,
+        server: Soup.Server,
+        message: Soup.ServerMessage,
+        path: str,
+        query: dict[str, str] | None,
+    ) -> None:
+        """One of the page's stylesheets or ES modules.
+
+        The page is markup only; its four stylesheets and its twenty modules
+        live under `remote/ui/` in the same bundle and are asked for by
+        name. The name is matched against a pattern with no dot-dot and no
+        slash in it before it is joined to anything, so there is no
+        traversal to get wrong — and a name that is not in the bundle is a
+        404 rather than a read off the disk beside the module.
+        """
+        name = path.removeprefix("/ui/") if path.startswith("/ui/") else ""
+        if not _UI_ASSET_NAME.fullmatch(name):
+            message.set_status(Soup.Status.NOT_FOUND, None)
+            return
+        self._serve_resource(
+            message,
+            f"ui/{name}",
+            _UI_TYPES[name.rsplit(".", 1)[1]],
+            missing_is_broken=False,
+        )
 
     def _handle_awake(
         self,

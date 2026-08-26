@@ -10,6 +10,7 @@ from salon.ui.home_shared import (
     RemoteTile,
     Tile,
     appinfo,
+    buttons,
     ranking,
 )
 
@@ -24,6 +25,7 @@ class HomePhoneInputController(ServiceComponent):
             action = Action(name)
         except ValueError:
             return
+        self._owner._note_input_source(buttons.PHONE)
         # A D-pad press is the phone saying "I am driving now", exactly like
         # a key or a controller button, so the cursor goes away — a mouse
         # left parked over a tile otherwise keeps hover-to-focus armed and
@@ -72,7 +74,7 @@ class HomePhoneInputController(ServiceComponent):
         return self._owner._pointer.type_text(text)
 
     def _open_phone_pairing(self) -> None:
-        self._owner._system_menu.hide()
+        self._owner._clear_global_surfaces("phone")
         if not self._owner._phone_pairing.open():
             self._owner._toast("Couldn't start the phone remote — port 8437 is already in use.")
             return
@@ -94,7 +96,9 @@ class HomePhoneInputController(ServiceComponent):
     def _rebuild_system_menu(self) -> None:
         """The first item's label depends on whether the remote is running,
         so the menu is rebuilt rather than built once at startup."""
-        self._owner._system_menu.set_items(self._owner._build_system_menu_items())
+        self._owner._system_menu.set_items(
+            self._owner._build_system_menu_items(), title="Salon"
+        )
 
     def _on_phone_launch(self, tile_id: str) -> None:
         """A tile tapped on the phone. Goes through `_launch_tile`, so it is
