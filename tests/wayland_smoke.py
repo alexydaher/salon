@@ -9,6 +9,17 @@ from pathlib import Path
 if os.environ.get("GDK_BACKEND") != "wayland":
     raise SystemExit("GDK_BACKEND must be wayland")
 
+# GSettings, in memory and nowhere else. Every harness here points the XDG
+# directories at a temporary tree and it is not enough: a dconf write goes
+# over D-Bus to the writer daemon, which resolves the user database from
+# *its own* environment, so the value lands in the real session while the
+# read comes back out of the empty temp copy. That is how a screenshot run
+# turned the corner pairing card off on a live machine and left no trace of
+# having done it. Assigned rather than `setdefault`, so an inherited
+# GSETTINGS_BACKEND cannot put dconf back underneath us, and set before
+# `gi.repository` is imported, which is when the backend is chosen.
+os.environ["GSETTINGS_BACKEND"] = "memory"
+
 import gi  # noqa: E402
 
 gi.require_version("GdkWayland", "4.0")
