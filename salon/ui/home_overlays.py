@@ -28,6 +28,15 @@ class HomeOverlayController(ServiceComponent):
         if keep != "phone" and self._owner._phone_pairing.get_visible():
             self._owner._phone_pairing.close()
 
+    def _set_preview_chrome(self, previewing: bool) -> None:
+        """Settings collapsed to its strip, so the home screen is the thing
+        being looked at: take our own bottom row out of its way. Faded, not
+        hidden — `_bottom_inset` measures this row to decide where the
+        scrolling band ends and a hidden widget measures zero, so the tiles
+        would shift the moment the preview wrote a preference, which is
+        precisely the thing being judged."""
+        self._owner._bottom_bar.set_opacity(0.0 if previewing else 1.0)
+
     def _confirmation_frame(self, label: str, action: Callable[[], None]) -> MenuFrame:
         return MenuFrame(
             f"confirm-{label.casefold().replace(' ', '-')}",

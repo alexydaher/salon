@@ -4,17 +4,22 @@
 Opened with OK on any row that has `choices` (see `widgets.py`), anchored on
 that row's value so it appears where the setting is written rather than in
 the middle of the screen. UP/DOWN walks it, OK picks, and BACK leaves it
-unchanged — the shape a games console uses for exactly this, and the reason
-is that it is the only one where the alternatives are *visible* before the
-choice is made. Stepping a value with a direction key shows one candidate at
-a time and hides the set.
+unchanged — the shape a games console uses for exactly this, and the only
+one where the alternatives are *visible* before the choice is made. Stepping
+a value with a direction key shows one candidate at a time and hides the set.
+
+On a row marked previewable the list opens over the *home screen* and each
+value is applied as the cursor passes over it. That is `preview_policy` and
+`screen_preview.py`; all this owns is `anchor` (the strip, not the row, has
+the screen to itself down there), `on_candidate` and `on_dismissed` — the
+last one being what makes BACK's promise of "unchanged" true again.
 
 Two deliberate choices in here:
 
 * **`set_autohide(False)`.** An autohiding popover takes a GTK input grab,
   and Salon does not route input through GTK focus — every button arrives as
   an `Action` on the window's controllers, or over HTTP from a phone, or off
-  a gamepad. A grab would silently take all of that away from the screen
+  a gamepad, and a grab would silently take all of that away from the screen
   underneath. Dismissal is therefore ours to do: `SettingsScreen` closes
   this before anything else can happen to the list behind it.
 * **It is unparented every time it closes.** Popovers hold a reference to
@@ -22,10 +27,10 @@ Two deliberate choices in here:
   wholesale on every save — leaving one attached to a row that is about to
   be thrown away is how you get a popover pointing at nothing.
 
-A real `Gtk.ScrolledWindow` here, unlike everywhere else in Salon: this is
-one small list inside a popover with a bounded height, not a viewport whose
-scroll position the selection has to drive across a full screen, so none of
-the `Gtk.Fixed` machinery in `ui/motion.py` buys anything.
+A real `Gtk.ScrolledWindow` here, unlike everywhere else in Salon: one small
+list inside a popover with a bounded height, not a viewport whose scroll
+position the selection has to drive across a full screen, so none of the
+`Gtk.Fixed` machinery in `ui/motion.py` buys anything.
 """
 
 from __future__ import annotations
@@ -35,13 +40,13 @@ from collections.abc import Callable
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Pango", "1.0")
 
-from gi.repository import Gtk, Pango  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from salon.input.actions import Action  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.settings.navigation_policy import is_settings_back  # noqa: E402
+from salon.ui.settings.popup_option import ValueOption  # noqa: E402
 from salon.ui.settings.widgets import SettingsRow  # noqa: E402
 
 # How tall the list may get before it scrolls. Eight rows is enough for every
@@ -50,13 +55,18 @@ from salon.ui.settings.widgets import SettingsRow  # noqa: E402
 # popup still reads as attached to its row rather than as a second screen.
 _MAX_VISIBLE_ROWS = 8
 
-_CHECK_GLYPH = "✓"
-
 
 class ValuePopup(Gtk.Popover):
     """One row's values, as a list. Driven entirely by `handle_action`."""
 
-    def __init__(self, scale: Scale, on_chosen: Callable[[], None]) -> None:
+    def __init__(
+        self,
+        scale: Scale,
+        on_chosen: Callable[[], None],
+        *,
+        on_candidate: Callable[[str], None] | None = None,
+        on_dismissed: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__()
         self.add_css_class("salon-value-popup")
         self.set_autohide(False)
@@ -66,6 +76,11 @@ class ValuePopup(Gtk.Popover):
 
         self._scale = scale
         self._on_chosen = on_chosen
+        # Told which value the cursor rests on, and told when the list went
+        # away without one being picked. Both are for live preview.
+        self._on_candidate = on_candidate
+        self._on_dismissed = on_dismissed
+        self._committing = False  # a close that follows a choice is not a dismissal
         self._row: SettingsRow | None = None
         self._keys: list[str] = []
         self._buttons: list[Gtk.Button] = []
@@ -105,8 +120,16 @@ class ValuePopup(Gtk.Popover):
     def row(self) -> SettingsRow | None:
         return self._row
 
-    def open_for(self, row: SettingsRow) -> bool:
-        """Raise the list for `row`. False if it hasn't got one."""
+    def open_for(
+        self,
+        row: SettingsRow,
+        *,
+        anchor: Gtk.Widget | None = None,
+        position: Gtk.PositionType = Gtk.PositionType.BOTTOM,
+    ) -> bool:
+        """Raise the list for `row`; False if it hasn't got one. `anchor`
+        overrides the row's value label — a list opened over the home screen
+        has no row left on screen to hang off."""
         choices = row.choices
         if not choices:
             return False
@@ -125,11 +148,20 @@ class ValuePopup(Gtk.Popover):
             child = following
 
         for index, (_, label) in enumerate(choices):
-            button = self._make_button(label, index == self._selected, index)
+            button = ValueOption(
+                self._scale,
+                label,
+                current=index == self._selected,
+                index=index,
+                height=self._row_height,
+                on_click=self._activate,
+                on_hover=self._hover,
+            )
             self._list.append(button)
             self._buttons.append(button)
 
-        self.set_parent(row.value_anchor)
+        self.set_position(position)
+        self.set_parent(anchor if anchor is not None else row.value_anchor)
         row.set_list_open(True)
         self._update_selection()
         self.popup()
@@ -147,33 +179,8 @@ class ValuePopup(Gtk.Popover):
         self._row = None
         self.popdown()
         self.unparent()
-
-    def _make_button(self, label: str, current: bool, index: int) -> Gtk.Button:
-        button = Gtk.Button()
-        button.add_css_class("salon-value-option")
-        button.set_size_request(-1, self._row_height)
-
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        box.set_spacing(self._scale.px(12.0))
-        text = Gtk.Label(label=label)
-        text.set_halign(Gtk.Align.START)
-        text.set_hexpand(True)
-        text.set_ellipsize(Pango.EllipsizeMode.END)
-        box.append(text)
-        # A tick on the value that is already set, always present so the
-        # labels do not shift sideways as the cursor moves, and invisible
-        # rather than absent on the rest.
-        tick = Gtk.Label(label=_CHECK_GLYPH)
-        tick.add_css_class("salon-value-option-tick")
-        tick.set_opacity(1.0 if current else 0.0)
-        box.append(tick)
-        button.set_child(box)
-
-        button.connect("clicked", lambda _b, i=index: self._activate(i))
-        motion = Gtk.EventControllerMotion()
-        motion.connect("motion", lambda *_, i=index: self._hover(i))
-        button.add_controller(motion)
-        return button
+        if not self._committing and self._on_dismissed is not None:
+            self._on_dismissed()
 
     # --- navigation ------------------------------------------------------
 
@@ -185,6 +192,7 @@ class ValuePopup(Gtk.Popover):
                 self._selected = target
                 self._update_selection()
                 self._scroll_to_selection()
+                self._announce_candidate()
             return
         if action is Action.OK:
             self._activate(self._selected)
@@ -198,15 +206,25 @@ class ValuePopup(Gtk.Popover):
         if self._hover_enabled and index != self._selected:
             self._selected = index
             self._update_selection()
+            self._announce_candidate()
 
     def _activate(self, index: int) -> None:
         row = self._row
         if row is None or not (0 <= index < len(self._keys)):
             return
         key = self._keys[index]
+        # A value was picked, so what is being previewed behind the list is
+        # kept rather than undone.
+        self._committing = True
         self.close()
+        self._committing = False
         row.choose(key)
         self._on_chosen()
+
+    def _announce_candidate(self) -> None:
+        """The cursor moved onto a value. Live preview applies it now."""
+        if self._on_candidate is not None and 0 <= self._selected < len(self._keys):
+            self._on_candidate(self._keys[self._selected])
 
     def _update_selection(self) -> None:
         for index, button in enumerate(self._buttons):

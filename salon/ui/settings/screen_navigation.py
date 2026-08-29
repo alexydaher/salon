@@ -3,6 +3,7 @@
 """Focused settings-screen workflow."""
 
 from salon.services.component import ServiceComponent
+from salon.ui.settings import preview_policy
 from salon.ui.settings.screen_shared import Pane, Panel
 
 
@@ -77,13 +78,18 @@ class SettingsNavigationController(ServiceComponent):
         if self._owner._popup.is_open and row is not None:
             self._owner._legend.set_label("UP/DOWN picks · OK sets · BACK cancels · MENU goes home")
             return
-        parts = [row.hint if row is not None else "OK selects"]
+        parts = [
+            preview_policy.choosing_hint(row.hint, row.previewable)
+            if row is not None
+            else "OK selects"
+        ]
         if row is not None and row.previewable:
-            # OK is spoken for on these: it collapses to the preview strip,
-            # which is the only way to judge an accent or a tile size. The
-            # list is still there on RIGHT for anyone who knows the value
-            # they want.
-            parts.append("OPTIONS previews")
+            # OK on these opens the list over the live home screen, so the
+            # hint above already differs. OPTIONS is the same strip without
+            # the list: LEFT/RIGHT walks the value with nothing covering
+            # the screen at all, which is the better way to judge a safe
+            # area or a tile size once you know what you are looking for.
+            parts.append("OPTIONS adjusts it there")
         parts.append(
             "BACK goes back" if len(self._owner._stack) > 1 else "BACK returns to sections"
         )

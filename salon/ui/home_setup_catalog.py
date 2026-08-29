@@ -47,6 +47,7 @@ class HomeCatalogSetup(ServiceComponent):
             reload_catalog=lambda: self._owner._refresh_catalog(preserve_focus=True),
             quit_app=self._owner._application.quit,
             on_close=self._owner.grab_focus,
+            preview_chrome=self._owner._set_preview_chrome,
             phone_remote_running=self._owner.phone_remote_running,
             set_phone_remote=self._owner.set_phone_remote,
             phone_remote_hint=self._owner.phone_remote_hint,

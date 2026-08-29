@@ -53,6 +53,7 @@ class SettingsScreen(
         reload_catalog: Callable[[], None],
         quit_app: Callable[[], None],
         on_close: Callable[[], None],
+        preview_chrome: Callable[[bool], None],
         phone_remote_running: Callable[[], bool],
         set_phone_remote: Callable[[bool], bool],
         phone_remote_hint: Callable[[], str],
@@ -76,6 +77,9 @@ class SettingsScreen(
         self._scale = scale
         self._settings = settings
         self._on_close = on_close
+        # Told when the home screen is the thing being looked at, so it can
+        # take its own bottom bar out of the way of the strip.
+        self._preview_chrome = preview_chrome
         self._host_save = save_config
         self._provider_registry = provider_registry
         self._provider_outcomes = provider_outcomes
@@ -153,8 +157,16 @@ class SettingsScreen(
 
         # The list of values for whichever row is open. One instance for the
         # whole screen, re-parented onto each row it is opened for — see
-        # popup.py on why it never stays attached.
-        self._popup = ValuePopup(scale, on_chosen=self._on_value_chosen)
+        # popup.py on why it never stays attached. The two extra callbacks
+        # are live preview: on a previewable row the value under the cursor
+        # is applied to the home screen behind, and dropping the list
+        # without picking one puts the original back.
+        self._popup = ValuePopup(
+            scale,
+            on_chosen=self._on_value_chosen,
+            on_candidate=self._peek_candidate,
+            on_dismissed=self._on_value_dismissed,
+        )
         # A click on a panel row takes the same path OK does. Without this a
         # row whose value lives in a list would answer a click with nothing:
         # there is no longer anything for `activate_row` to do on one.
@@ -170,6 +182,12 @@ class SettingsScreen(
         # bottom edge of the *screen* while everything above it is hidden
         # and the home screen shows through.
         self._preview_row: SettingsRow | None = None
+        # The same strip, entered from OK rather than OPTIONS, with the
+        # row's value list open above it. `_peek_restore` is the choice the
+        # row held when the list opened, because BACK has to undo whatever
+        # walking the list wrote.
+        self._peek_row: SettingsRow | None = None
+        self._peek_restore = ""
         self._preview_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self._preview_bar.add_css_class("salon-settings-preview-bar")
         self._preview_bar.set_visible(False)
