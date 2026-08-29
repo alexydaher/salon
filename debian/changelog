@@ -1,3 +1,10 @@
+salon (0.3.5-1) unstable; urgency=medium
+
+  * Open the installed phone remote in true fullscreen mode.
+  * Allow the phone remote to rotate into its compact landscape layout.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 20:45:46 +0200
+
 salon (0.3.4-1) unstable; urgency=medium
 
   * Reorganize Settings around visible values and live section summaries.

@@ -4,8 +4,8 @@
   "description": "The remote for a Salon television, on the phone already in your hand.",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
-  "orientation": "portrait",
+  "display": "fullscreen",
+  "orientation": "any",
   "background_color": "#0E1116",
   "theme_color": "#0E1116",
   "icons": [

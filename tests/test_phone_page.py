@@ -13,6 +13,7 @@ because that is exactly the class of mistake they have to catch.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from xml.etree import ElementTree
@@ -96,6 +97,18 @@ def test_pairing_and_player_have_complete_visual_states() -> None:
     assert page.count("<span></span>") == 4
     assert 'id="connect-go" class="primary" disabled' in page
     assert 'id="np-fallback"' in page
+
+
+def test_installed_remote_uses_the_whole_phone_screen() -> None:
+    """The remote is the appliance's control surface, not a browser window.
+
+    ``standalone`` keeps system window chrome around an installed web app,
+    while a portrait lock also defeats the landscape layout maintained by the
+    stylesheets.  Ask for the physical screen and let the phone rotate.
+    """
+    manifest = json.loads((REMOTE / "manifest.webmanifest").read_text())
+    assert manifest["display"] == "fullscreen"
+    assert manifest["orientation"] == "any"
 
 
 def test_the_asset_name_pattern_refuses_anything_but_a_bare_filename() -> None:
