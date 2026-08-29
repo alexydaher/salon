@@ -33,8 +33,8 @@ class TileArtworkRenderer:
         HTPC GPUs §7.3 warns about — unlike a full-screen backdrop blur,
         this is a single small region and only ever one tile at a time."""
         metrics = self._metrics
-        blur = self._scale.du(tokens.BLOOM_BLUR_DU)
-        offset = self._scale.du(tokens.BLOOM_OFFSET_DU) * focus
+        blur = metrics.bloom_blur
+        offset = metrics.bloom_offset * focus
         # Slightly *larger* than the tile, not inset: the card is opaque and
         # covers whatever is drawn under it, so a bloom confined to the
         # tile's own bounds is visible only as the few pixels of feather the
@@ -128,7 +128,7 @@ class TileArtworkRenderer:
         """Centred in the space above the title band, not in the tile — an
         icon centred on the tile itself reads as sitting too low once the
         title is drawn under it."""
-        title_band = self._scale.du(tokens.type_token("tile-title").size_du * 1.9)
+        title_band = self._metrics.title_size * 1.9
         available_height = rect.get_height() - title_band
         size = min(available_height * 0.68, rect.get_width() * 0.34)
         return _rect(

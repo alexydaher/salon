@@ -165,6 +165,18 @@ def tile_size(aspect: str) -> TileSizeToken:
     return TILE_SIZES[0]
 
 
+# Type scales with the card, floored at the readable size. The tile-size
+# preference used to shrink the card and leave a 30du title inside it, so
+# "smaller tiles" cost every title past eleven characters — "Living Room
+# Radio" became "Living Room R…". A row is a proportional object: below
+# 1.0 the type comes with it, the row heading included (60du of fixed
+# overhead per row, so a whole size step once five rows have to fit).
+def scaled_type_size_du(name: str, size_scale: float) -> float:
+    """The du size of `name` at a given tile scale, floored at readable."""
+    return max(MIN_READABLE_SIZE_DU, type_token(name).size_du * size_scale)
+
+
+TILE_PADDING_DU: float = 20.0
 TILE_GAP_DU: float = 28.0
 ROW_GAP_DU: float = 56.0
 CORNER_RADIUS_DU: float = 12.0

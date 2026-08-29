@@ -81,14 +81,14 @@
       <description>How long Salon inhibits screen blanking after launching something, before handing off to the child app's own inhibit (if any). 0 disables the inhibit entirely.</description>
     </key>
     <key name="tile-scale" type="d">
-      <range min="0.75" max="1.5"/>
-      <default>1.0</default>
+      <range min="0.5" max="1.5"/>
+      <default>0.65</default>
       <summary>Tile size multiplier</summary>
-      <description>Scales every tile relative to the design size (320x180du for a wide tile).</description>
+      <description>Scales every tile relative to the design size (320x180du for a wide tile), along with its type, its padding, its bloom and its row heading. The default is well below 1.0 because the design size fits only two rows in the band: 0.55 fits five. The floor used to be 0.75, which was where the bloom stopped fitting inside the tile's bleed; the bloom scales now, so the limit is legibility instead — at 0.5 the title is held at the readable minimum and stops shrinking with the card.</description>
     </key>
     <key name="row-spacing-scale" type="d">
-      <range min="0.6" max="1.6"/>
-      <default>1.0</default>
+      <range min="0.45" max="1.6"/>
+      <default>0.45</default>
       <summary>Row density</summary>
       <description>Scales the vertical gap between rows. Lower packs more rows on screen.</description>
     </key>

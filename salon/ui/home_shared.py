@@ -50,7 +50,17 @@ gi.require_version("Gsk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Pango", "1.0")
 
-from gi.repository import Adw, Gdk, GdkWayland, Gio, GLib, Graphene, Gsk, Gtk  # noqa: E402
+from gi.repository import (  # noqa: E402
+    Adw,
+    Gdk,
+    GdkWayland,
+    Gio,
+    GLib,
+    Graphene,
+    Gsk,
+    Gtk,
+    Pango,
+)
 
 from salon import config as app_config  # noqa: E402
 from salon.core import buttons, editing, nowplaying, ranking, tokens  # noqa: E402

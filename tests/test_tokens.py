@@ -45,8 +45,33 @@ def test_every_type_token_is_readable_at_distance() -> None:
 def test_tile_bleed_covers_the_focus_growth_and_the_bloom() -> None:
     """The transparent padding around a tile has to be big enough for both
     the focus scale-up and the bloom, or the row viewport clips them — the
-    bug that made the focused tile's halo look sliced off."""
+    bug that made the focused tile's halo look sliced off.
+
+    Checked at every tile scale the schema allows, because the bleed, the
+    growth and the bloom are now all proportional to the card: this used
+    to hold at 1.0 and come within a design unit of failing at the old
+    0.75 floor, which is the coincidence that kept the range there.
+    """
     tallest = max(t.height_du for t in tokens.TILE_SIZES)
-    growth = tallest * (tokens.FOCUS_SCALE_FOCUSED - tokens.FOCUS_SCALE_REST) / 2
-    bloom = tokens.BLOOM_BLUR_DU + tokens.BLOOM_OFFSET_DU
-    assert tokens.TILE_BLEED_DU >= growth + bloom
+    for size_scale in (0.5, 0.55, 0.75, 1.0, 1.5):
+        growth = tallest * size_scale * (tokens.FOCUS_SCALE_FOCUSED - tokens.FOCUS_SCALE_REST) / 2
+        bloom = (tokens.BLOOM_BLUR_DU + tokens.BLOOM_OFFSET_DU) * size_scale
+        assert tokens.TILE_BLEED_DU * size_scale >= growth + bloom, size_scale
+
+
+def test_tile_type_scales_with_the_card() -> None:
+    """The tile-size preference has to take the type with it. It did not,
+    so a card at 0.8 kept a 30du title and ellipsized every name past
+    eleven characters — "Living Room Radio" came out "Living Room R…"."""
+    full = tokens.scaled_type_size_du("tile-title", 1.0)
+    assert full == tokens.type_token("tile-title").size_du
+    assert tokens.scaled_type_size_du("tile-title", 0.8) < full
+
+
+def test_tile_type_never_falls_below_the_readable_size() -> None:
+    """The floor is the whole reason this is a function and not a
+    multiplication: the smallest tile the schema allows must still be
+    legible from the sofa."""
+    for name in ("tile-title", "tile-subtitle", "row-heading"):
+        assert tokens.scaled_type_size_du(name, 0.5) >= tokens.MIN_READABLE_SIZE_DU
+        assert tokens.scaled_type_size_du(name, 0.1) == tokens.MIN_READABLE_SIZE_DU

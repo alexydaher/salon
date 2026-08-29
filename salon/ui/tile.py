@@ -102,12 +102,13 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
             target,
         )
 
+        # Sizes come from the metrics rather than straight off the type
+        # scale: they carry the tile-size preference, so a smaller card
+        # holds the same number of characters instead of ellipsizing them.
         title = tokens.type_token("tile-title")
         subtitle = tokens.type_token("tile-subtitle")
-        self._title_font = font_description(DISPLAY_FAMILY, scale.du(title.size_du), title.weight)
-        self._subtitle_font = font_description(
-            BODY_FAMILY, scale.du(subtitle.size_du), subtitle.weight
-        )
+        self._title_font = font_description(DISPLAY_FAMILY, metrics.title_size, title.weight)
+        self._subtitle_font = font_description(BODY_FAMILY, metrics.subtitle_size, subtitle.weight)
 
     @property
     def artwork_accent(self) -> Gdk.RGBA:

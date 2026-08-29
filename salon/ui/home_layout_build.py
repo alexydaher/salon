@@ -8,6 +8,7 @@ from salon.ui.home_shared import (
     _EDGE_FADE_DU,
     _FALLBACK_VIEWPORT_HEIGHT_PX,
     Gtk,
+    Pango,
     RemoteRow,
     RemoteTile,
     TileWidget,
@@ -17,6 +18,21 @@ from salon.ui.home_viewport import _RowViewport
 
 
 class HomeLayoutBuilder(ServiceComponent):
+    def _heading_attributes(self) -> Pango.AttrList:
+        """The row heading's size as a Pango attribute rather than CSS.
+
+        `--font-row-heading` is a global custom property and the detail
+        strip at the bottom of the screen uses it too; that strip is not a
+        row and must not follow the tile-size preference. GTK applies a
+        label's attributes on top of the ones it derived from CSS, so this
+        sizes the headings alone and leaves the weight, the colour and the
+        letter-spacing in the stylesheet where they belong.
+        """
+        attributes = Pango.AttrList()
+        size = int(self._owner._heading_size * Pango.SCALE)
+        attributes.insert(Pango.attr_size_new_absolute(size))
+        return attributes
+
     def _rebuild_row_widgets(self) -> None:
         child = self._owner._rows_content.get_first_child()
         while child is not None:
@@ -37,6 +53,7 @@ class HomeLayoutBuilder(ServiceComponent):
             heading.set_xalign(0.0)
             heading.set_yalign(0.5)
             heading.add_css_class("salon-row-heading")
+            heading.set_attributes(self._heading_attributes())
             self._owner._rows_content.put(heading, 0, 0)
 
             row_viewport = _RowViewport()

@@ -89,22 +89,23 @@ class HomePreferences(ServiceComponent):
         return bool(settings.get_property("gtk-enable-animations"))
 
     def _apply_metrics(self) -> None:
-        scale = self._owner._scale
-        # The three user-facing geometry preferences (§6.8 Appearance) are
-        # read here rather than cached at startup, so a change lands as soon
-        # as the row widgets are rebuilt.
-        self._owner._tile_scale = self._owner._settings.get_double("tile-scale")
-        self._owner._metrics = metrics_for(scale, size_scale=self._owner._tile_scale)
-        self._owner._safe_margin = scale.safe_margin
-        heading = tokens.type_token("row-heading")
-        self._owner._heading_height = scale.du(heading.size_du * 1.35)
-        self._owner._heading_gap = scale.du(tokens.ROW_HEADING_GAP_DU)
-        self._owner._row_gap = scale.du(
-            tokens.ROW_GAP_DU * self._owner._settings.get_double("row-spacing-scale")
-        )
-        self._owner._status_height = scale.du(tokens.STATUS_BAR_HEIGHT_DU)
-        self._owner._detail_height = scale.du(tokens.DETAIL_BAR_HEIGHT_DU)
-        self._owner._bump_distance = scale.du(_BUMP_DISTANCE_DU)
+        owner, scale = self._owner, self._owner._scale
+        # Read here rather than cached at startup (§6.8 Appearance), so a
+        # change lands as soon as the rows are rebuilt. The heading follows
+        # the tile size: 60du of fixed overhead per row, over a third of a
+        # five-row pitch, so at full size it costs a whole step of scale.
+        tile_scale = owner._tile_scale = owner._settings.get_double("tile-scale")
+        heading_du = tokens.scaled_type_size_du("row-heading", tile_scale)
+        owner._metrics = metrics_for(scale, size_scale=tile_scale)
+        owner._safe_margin = scale.safe_margin
+        owner._heading_size = scale.du(heading_du)
+        owner._heading_height = scale.du(heading_du * 1.35)
+        owner._heading_gap = scale.du(tokens.ROW_HEADING_GAP_DU * tile_scale)
+        density = owner._settings.get_double("row-spacing-scale")
+        owner._row_gap = scale.du(tokens.ROW_GAP_DU * density)
+        owner._status_height = scale.du(tokens.STATUS_BAR_HEIGHT_DU)
+        owner._detail_height = scale.du(tokens.DETAIL_BAR_HEIGHT_DU)
+        owner._bump_distance = scale.du(_BUMP_DISTANCE_DU)
 
     def _recompute_row_tops(self) -> None:
         """Stack the rows, giving each one its *own* height.
@@ -187,9 +188,8 @@ class HomePreferences(ServiceComponent):
         self._owner._update_focus(animate=False)
 
     def _apply_layout_settings(self) -> None:
-        self._owner._scale = self._owner._scale.with_safe_area(
-            self._owner._settings.get_double("safe-area-percent")
-        )
+        safe_area = self._owner._settings.get_double("safe-area-percent")
+        self._owner._scale = self._owner._scale.with_safe_area(safe_area)
         self._apply_metrics()
         self._apply_scale_to_surfaces(self._owner._scale)
         self._owner._rebuild_row_widgets()

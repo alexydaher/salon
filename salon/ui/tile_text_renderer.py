@@ -16,7 +16,7 @@ from salon.ui.tile_geometry import _TRANSPARENT, _point, _stops, _with_alpha  # 
 
 class TileTextRenderer:
     def snapshot_labels(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
-        padding = self._scale.du(20.0)
+        padding = self._metrics.padding
         available = rect.get_width() - 2 * padding
 
         subtitle_layout = None
