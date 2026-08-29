@@ -51,7 +51,7 @@ from salon.services.audio import wpctl_argv
 from salon.services.launcher_shared import detect_browser
 from gi.repository import Gio, Gtk
 from salon import config
-from salon.ui.settings.input_panel import _advanced_input_panel
+from salon.ui.settings.advanced_input_panel import advanced_input_panel
 from salon.ui.settings.network_panel import network_panel
 from salon.ui.settings.system_panel import system_panel
 caps = sandbox.capabilities()
@@ -77,7 +77,7 @@ context = Context()
 settings = Gio.Settings.new(config.APP_ID)
 network_rows = network_panel(context, settings).build()
 assert next(row for row in network_rows if row.label_text == "Choose a network").selectable
-advanced_input_rows = _advanced_input_panel(context, settings).build()
+advanced_input_rows = advanced_input_panel(context, settings).build()
 assert next(
     row for row in advanced_input_rows if row.label_text == "HDMI-CEC input"
 ).selectable

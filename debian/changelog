@@ -1,3 +1,11 @@
+salon (0.3.4-1) unstable; urgency=medium
+
+  * Reorganize Settings around visible values and live section summaries.
+  * Add guided setup, defaults, tile backup, audio testing and tile previews.
+  * Tune previewable picture settings from the phone remote.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 19:20:00 +0200
+
 salon (0.3.3-1) unstable; urgency=medium
 
   * Preview Appearance choices over the live home screen.
