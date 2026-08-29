@@ -24,16 +24,16 @@ Then launch **Salon** from your applications screen, or
 `flatpak run io.github.alexydaher.Salon`.
 
 **Debian package — adds the login-screen sessions.** Download
-`salon_0.3.2-1_all.deb` from the [latest release][latest-release] and let APT
+`salon_0.3.3-1_all.deb` from the [latest release][latest-release] and let APT
 resolve the dependencies:
 
 ```sh
-sudo apt install ~/Downloads/salon_0.3.2-1_all.deb
+sudo apt install ~/Downloads/salon_0.3.3-1_all.deb
 ```
 
 It is `Architecture: all` and works on both AMD64 and ARM64.
 
-**Offline Flatpak bundle.** `Salon-v0.3.2-x86_64.flatpak` or
+**Offline Flatpak bundle.** `Salon-v0.3.3-x86_64.flatpak` or
 `-aarch64.flatpak` from the [latest release][latest-release] — run `uname -m`
 if you are unsure which:
 

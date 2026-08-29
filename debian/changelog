@@ -1,3 +1,10 @@
+salon (0.3.3-1) unstable; urgency=medium
+
+  * Preview Appearance choices over the live home screen.
+  * Restore the original value when a live preview is dismissed.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 14:53:20 +0200
+
 salon (0.3.2-1) unstable; urgency=medium
 
   * Run quality gates as the first job of the release workflow.
