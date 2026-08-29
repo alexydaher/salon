@@ -24,12 +24,6 @@ from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.tile import TileWidget  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
-
-# A square tile at full size: seven columns and four and a bit rows on a
-# 1080p panel, so around thirty apps are visible at once. Denser than this
-# was tried and rejected — at 0.78 the card is 172px wide and "Calculator"
-# ellipsised to "Calcul…", which defeats the point of a browsable grid.
-_TILE_SCALE = 1.0
 _ASPECT = "square"
 
 
@@ -43,6 +37,7 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         scale: Scale,
         artwork: ArtworkResolver,
         *,
+        tile_scale: float,
         on_launch: Callable[[Tile], None],
         on_close: Callable[[], None],
     ) -> None:
@@ -54,6 +49,7 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self.set_vexpand(True)
 
         self._scale = scale
+        self._tile_scale = tile_scale
         self._artwork = artwork
         self._on_launch = on_launch
         self._on_close = on_close
@@ -145,8 +141,10 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self.set_visible(False)
         self._on_close()
 
-    def set_scale(self, scale: Scale) -> None:
+    def set_scale(self, scale: Scale, *, tile_scale: float | None = None) -> None:
         self._scale = scale
+        if tile_scale is not None:
+            self._tile_scale = tile_scale
         margin = scale.safe_margin_px
         # The safe area is applied to the text, not to the whole column:
         # the viewport underneath has to reach the screen edges so an edge
@@ -165,7 +163,7 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._content.set_margin_top(margin)
         self._content.set_margin_bottom(margin)
         self._content.set_spacing(scale.px(8.0))
-        self._rebuild()
+        self._relayout()
 
     def set_pointer_active(self, active: bool) -> None:
         self._pointer_active = active

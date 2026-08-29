@@ -59,6 +59,7 @@ python_sources = [
   'status_info.py',
   'detailbar.py',
   'appsgrid.py',
+  'appsgrid_geometry.py',
   'appsgrid_layout.py',
   'overlays.py',
   'launching_overlay.py',

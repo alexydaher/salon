@@ -11,16 +11,28 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
 from salon.core.model import Tile  # noqa: E402
-from salon.ui.tile import TileMetrics, TileWidget, metrics_for  # noqa: E402
+from salon.ui.appsgrid_geometry import column_count, grid_metrics, horizontal_origin  # noqa: E402
+from salon.ui.tile import TileMetrics, TileWidget  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
-_TILE_SCALE = 1.0
-_ASPECT = "square"
-
-
 class AppsGridLayout:
     def _metrics(self) -> TileMetrics:
-        return metrics_for(self._scale, _ASPECT, size_scale=_TILE_SCALE)
+        return grid_metrics(self._scale, self._tile_scale)
+
+    def _column_count(self, metrics: TileMetrics) -> int:
+        return column_count(self._viewport_width, self._safe_margin, metrics)
+
+    def _relayout(self) -> None:
+        """Recompute density and geometry after either scale changes.
+
+        A tile-size preference does not resize the viewport, so its
+        ``SizeReporter`` has no reason to fire.  Recomputing the column
+        count here is what makes a smaller tile setting actually fit more
+        applications rather than merely shrinking the old number of
+        columns in place.
+        """
+        self._columns = self._column_count(self._metrics())
+        self._rebuild()
 
     def _origin(self, metrics: TileMetrics) -> tuple[float, float]:
         """Where the first tile *widget* goes inside the viewport.
@@ -32,7 +44,7 @@ class AppsGridLayout:
         than the safe area (they're 56du and 54du at the reference size) the
         card starts at the bleed instead, two pixels right of the title.
         """
-        return (max(0.0, self._safe_margin - metrics.bleed), 0.0)
+        return (horizontal_origin(self._safe_margin, metrics), 0.0)
 
     def _usable_width(self, metrics: TileMetrics) -> float:
         """The width the cards themselves may occupy: the viewport now runs
@@ -44,9 +56,7 @@ class AppsGridLayout:
         self._viewport_width = width
         self._viewport_height = height
         metrics = self._metrics()
-        # +gap because the last column needs no trailing gap; without it the
-        # grid loses a column whenever the remainder is smaller than one.
-        columns = max(1, int((self._usable_width(metrics) + metrics.gap) // metrics.step))
+        columns = self._column_count(metrics)
         if columns != self._columns:
             self._columns = columns
             self._rebuild()

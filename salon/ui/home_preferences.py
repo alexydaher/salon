@@ -175,7 +175,7 @@ class HomePreferences(ServiceComponent):
         self._owner._system_menu.set_scale(scale)
         self._owner._tile_menu.set_scale(scale)
         self._owner._search.set_scale(scale)
-        self._owner._apps_grid.set_scale(scale)
+        self._owner._apps_grid.set_scale(scale, tile_scale=self._owner._tile_scale)
         self._owner._settings_screen.set_scale(scale)
         self._owner._text_entry.set_scale(scale)
         self._owner._phone_pairing.set_scale(scale)

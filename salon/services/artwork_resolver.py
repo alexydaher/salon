@@ -15,6 +15,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Soup  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
 from salon.core.model import LaunchKind, Tile  # noqa: E402
+from salon.services import desktop_entry  # noqa: E402
 from salon.services.artwork_colors import dominant_color, hashed_accent, parse_hex  # noqa: E402
 from salon.services.artwork_io import is_symbolic  # noqa: E402
 from salon.services.artwork_models import Artwork  # noqa: E402
@@ -216,7 +217,7 @@ class ArtworkResolver:
 
     def _lookup_entry_gicon(self, target: str) -> Gio.Icon | None:
         desktop_id = target if target.endswith(".desktop") else f"{target}.desktop"
-        app_info = Gio.DesktopAppInfo.new(desktop_id)
+        app_info = desktop_entry.load(desktop_id)
         if app_info is None:
             return None
         gicon = app_info.get_icon()

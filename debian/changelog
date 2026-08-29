@@ -1,3 +1,10 @@
+salon (0.3.1-1) unstable; urgency=medium
+
+  * Keep Flatpak host-app icon failures from interrupting the Home layout.
+  * Apply the tile-size preference to the All Applications grid.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 10:58:11 +0200
+
 salon (0.3.0-1) unstable; urgency=medium
 
   * Scale tile type, padding and row headings with the tile-size preference.

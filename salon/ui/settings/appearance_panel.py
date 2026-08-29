@@ -85,7 +85,7 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=1.5,
                 step=0.05,
                 fmt=_percent,
-                detail="How large each tile is drawn",
+                detail="How large tiles are on the home screen and in All apps",
                 preview=True,
             ),
             RangeRow(

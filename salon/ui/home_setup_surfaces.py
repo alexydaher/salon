@@ -135,6 +135,7 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._apps_grid = AppsGrid(
             self._owner._scale,
             self._owner._artwork,
+            tile_scale=self._owner._settings.get_double("tile-scale"),
             on_launch=self._owner._launch_tile,
             on_close=self._owner.grab_focus,
         )

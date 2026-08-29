@@ -192,7 +192,7 @@ modules:
       # one stays tag-only, for building the app from a clean checkout.
       - type: git
         url: https://github.com/alexydaher/salon.git
-        tag: v0.3.0
+        tag: v0.3.1
         # Once the manifest lives in Flathub's repository, the external-data
         # checker watches for release tags and opens the next update PR.
         x-checker-data:
