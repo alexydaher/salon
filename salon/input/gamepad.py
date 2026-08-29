@@ -7,12 +7,11 @@ the D-pad reported either as digital buttons (BTN_DPAD_*) or as a hat
 switch (ABS_HAT0X/Y), since controllers disagree about which they use.
 
 The right stick is also exposed as continuous, unquantized motion via
-on_right_stick, polled on a timer rather than only on evdev change events —
-holding the stick at a steady deflection can stop generating events, and a
-mouse cursor needs continuous motion while held. What it reports is
-dead-zoned and rescaled by `actions.stick_deflection`, because a stick at
-rest is not at zero: a DualSense idles at +0.11..+0.15 on both Y axes. Everything else (D-pad,
-left stick, face buttons) goes through the quantized Action stream.
+on_right_stick, polled on a timer while a pad is connected — a stick held
+at a steady deflection stops generating evdev events, and a mouse cursor
+needs motion while held. It is dead-zoned and rescaled by
+`actions.stick_deflection`: a DualSense at rest idles at +0.11..+0.15 on
+both Y axes. Everything else goes through the quantized Action stream.
 """
 
 from __future__ import annotations
@@ -89,6 +88,7 @@ class GamepadSource:
         self._devices: set[Manette.Device] = set()
         self._axis_state: dict[tuple[Manette.Device, int], int] = {}
         self._right_stick_raw: dict[tuple[Manette.Device, int], float] = {}
+        self._stick_poll_id: int | None = None
         self._monitor = Manette.Monitor.new()
 
         it = self._monitor.iterate()
@@ -100,9 +100,6 @@ class GamepadSource:
 
         self._monitor.connect("device-connected", self._on_device_connected)
         self._monitor.connect("device-disconnected", self._on_device_disconnected)
-
-        if self._on_right_stick is not None:
-            GLib.timeout_add(_POLL_INTERVAL_MS, self._poll_right_stick)
 
     def set_bindings(self, bindings: Bindings) -> None:
         self._bindings = bindings
@@ -165,6 +162,15 @@ class GamepadSource:
         device.connect("button-press-event", self._on_button_press)
         device.connect("button-release-event", self._on_button_release)
         device.connect("absolute-axis-event", self._on_axis)
+        self._arm_stick_poll()
+
+    def _arm_stick_poll(self) -> None:
+        """On connect, not at startup: with no pad this woke the main loop
+        62 times a second to read an empty dict, which measured 1.03% of a
+        core against 0.117% gated. `_poll_right_stick` retires itself when
+        the last pad goes, so there is no disarm."""
+        if self._devices and self._on_right_stick is not None and self._stick_poll_id is None:
+            self._stick_poll_id = GLib.timeout_add(_POLL_INTERVAL_MS, self._poll_right_stick)
 
     def _on_button_press(self, device: Manette.Device, event: Manette.Event) -> None:
         # get_button() is libmanette's normalized button id — unlike
@@ -201,6 +207,9 @@ class GamepadSource:
             self._right_stick_raw[key] = stick_deflection(value, _STICK_DEAD_ZONE)
 
     def _poll_right_stick(self) -> bool:
+        if not self._devices:
+            self._stick_poll_id = None
+            return bool(GLib.SOURCE_REMOVE)
         if self._on_right_stick is not None and self._right_stick_raw:
             x = sum(v for (d, a), v in self._right_stick_raw.items() if a == ABS_RX)
             y = sum(v for (d, a), v in self._right_stick_raw.items() if a == ABS_RY)
