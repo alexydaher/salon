@@ -51,27 +51,27 @@ def test_no_wraparound_down_bumps_at_last_row() -> None:
     assert change.bump is Bump.DOWN
 
 
-def test_vertical_movement_restores_each_rows_column() -> None:
+def test_vertical_movement_carries_the_column() -> None:
+    """No per-row memory: DOWN lands under the cursor, not where that row
+    was last left."""
     model = FocusModel([5, 5])
     for _ in range(4):
         model.handle(Action.RIGHT)
     assert model.position == (0, 4)
     model.handle(Action.DOWN)
-    assert model.position == (1, 0)
-    model.handle(Action.RIGHT)
-    assert model.position == (1, 1)
+    assert model.position == (1, 4)
+    model.handle(Action.LEFT)
+    assert model.position == (1, 3)
     model.handle(Action.UP)
-    assert model.position == (0, 4)
-    model.handle(Action.DOWN)
-    assert model.position == (1, 1)
+    assert model.position == (0, 3)
 
 
-def test_vertical_movement_does_not_clamp_another_rows_memory() -> None:
+def test_a_short_row_clamps_without_losing_the_column() -> None:
     model = FocusModel([5, 2])
     for _ in range(4):
         model.handle(Action.RIGHT)
     model.handle(Action.DOWN)
-    assert model.position == (1, 0)
+    assert model.position == (1, 1)
     model.handle(Action.UP)
     assert model.position == (0, 4)
 
@@ -89,7 +89,7 @@ def test_set_row_lengths_recovers_to_nearest_row_when_current_row_removed() -> N
     model = FocusModel([3, 3, 3], start=(2, 1))
     change = model.set_row_lengths([3, 3])
     assert change.row == 1
-    assert change.col == 0
+    assert change.col == 1
 
 
 def test_set_row_lengths_with_no_rows_resets_to_origin() -> None:
@@ -131,7 +131,7 @@ def test_ok_and_back_are_noops_for_focus_position() -> None:
     assert model.position == before
 
 
-def test_column_for_reports_independent_row_memory() -> None:
+def test_column_for_is_the_same_column_in_every_row() -> None:
     model = FocusModel([4, 4, 4])
     for _ in range(3):
         model.handle(Action.RIGHT)
@@ -139,8 +139,8 @@ def test_column_for_reports_independent_row_memory() -> None:
 
     model.handle(Action.DOWN)
     assert model.column_for(0) == 3
-    assert model.column_for(1) == 0
-    assert model.column_for(2) == 0
+    assert model.column_for(1) == 3
+    assert model.column_for(2) == 3
 
 
 def test_column_for_clamps_to_a_shorter_row() -> None:
@@ -148,7 +148,7 @@ def test_column_for_clamps_to_a_shorter_row() -> None:
     for _ in range(4):
         model.handle(Action.RIGHT)
     assert model.column_for(0) == 4
-    assert model.column_for(1) == 0
+    assert model.column_for(1) == 1
 
 
 def test_column_for_out_of_range_row_is_zero() -> None:

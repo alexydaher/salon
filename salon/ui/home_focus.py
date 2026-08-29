@@ -45,16 +45,12 @@ class HomeFocusController(ServiceComponent):
                 self._owner._backdrop.set_focus(focused_widget.artwork_accent)
                 self._publish_active_descendant(focused_widget)
         self._update_backdrop_position()
-        # A live interaction moves exactly one horizontal strip. On a
-        # rebuild/resize every row is positioned once without animation;
-        # afterwards its own spring and remembered column are left alone
-        # until that row owns focus.
-        indices = (
-            [self._owner._focus.row]
-            if animate
-            else list(range(len(self._owner._rows)))
-        )
-        for index in indices:
+        # Every row follows the one column the cursor carries, so the grid
+        # stays aligned and moving down lands on the tile that was already
+        # under the cursor rather than sliding sideways on arrival. A row
+        # already at its target is a no-op inside the spring, so this costs
+        # nothing for the rows the press did not move.
+        for index in range(len(self._owner._rows)):
             self._update_row_scroll(
                 index, self._owner._focus.column_for(index), animate=animate
             )

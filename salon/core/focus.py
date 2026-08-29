@@ -46,7 +46,8 @@ class FocusModel:
 
     def __init__(self, row_lengths: Sequence[int], start: tuple[int, int] = (0, 0)) -> None:
         self._row_lengths: list[int] = list(row_lengths)
-        self._columns: list[int] = [0 for _ in self._row_lengths]
+        # One column for the whole grid, not one per row: see column_for().
+        self._desired_col = 0
         self._row = 0
         self._col = 0
         if self._row_lengths:
@@ -65,16 +66,18 @@ class FocusModel:
         return (self._row, self._col)
 
     def column_for(self, row: int) -> int:
-        """The column this row is currently resting at.
+        """The column this row rests at — the same one for every row.
 
-        Rows remember independently. Horizontal work therefore moves only
-        the row the user is manipulating, and returning vertically restores
-        the destination instead of snapping every visible row into a shared
-        column.
+        Rows used to remember a column each, so moving down landed on
+        whatever that row had been left at rather than on the tile already
+        under the cursor, and two rows on screen sat at different offsets.
+        The cursor carries one column instead: vertical movement keeps it,
+        and a row too short to hold it is clamped for display only, so
+        passing through a short row and coming back out restores it.
         """
         if not (0 <= row < len(self._row_lengths)):
             return 0
-        return _clamp_col(self._columns[row], self._row_lengths[row])
+        return _clamp_col(self._desired_col, self._row_lengths[row])
 
     def handle(self, action: Action) -> FocusChange:
         """Only the four directions move focus; anything else is a no-op
@@ -108,18 +111,14 @@ class FocusModel:
         focused tile id to a target (row, col) in the new catalog first and
         call jump_to() instead when that's possible.
         """
-        previous = self._columns
         self._row_lengths = list(row_lengths)
-        self._columns = [
-            _clamp_col(previous[index] if index < len(previous) else 0, length)
-            for index, length in enumerate(self._row_lengths)
-        ]
         if not self._row_lengths:
             self._row = 0
             self._col = 0
+            self._desired_col = 0
             return FocusChange(0, 0, moved=False)
         self._row = min(self._row, len(self._row_lengths) - 1)
-        self._col = self._columns[self._row]
+        self._col = _clamp_col(self._desired_col, self._row_lengths[self._row])
         return FocusChange(self._row, self._col, moved=False)
 
     def jump_to(self, row: int, col: int) -> FocusChange:
@@ -131,7 +130,7 @@ class FocusModel:
             return FocusChange(0, 0, moved=False)
         self._row = max(0, min(row, len(self._row_lengths) - 1))
         self._col = _clamp_col(col, self._row_lengths[self._row])
-        self._columns[self._row] = self._col
+        self._desired_col = self._col
         return FocusChange(self._row, self._col, moved=True)
 
     def _move_vertical(self, delta: int) -> FocusChange:
@@ -141,7 +140,10 @@ class FocusModel:
                 self._row, self._col, moved=False, bump=Bump.UP if delta < 0 else Bump.DOWN
             )
         self._row = new_row
-        self._col = self._columns[new_row]
+        # The desired column survives a row too short to hold it: it is
+        # clamped for the destination only, so coming back out of a
+        # two-tile row returns to the column the cursor arrived with.
+        self._col = _clamp_col(self._desired_col, self._row_lengths[new_row])
         return FocusChange(self._row, self._col, moved=True)
 
     def _move_horizontal(self, delta: int) -> FocusChange:
@@ -152,5 +154,5 @@ class FocusModel:
                 self._row, self._col, moved=False, bump=Bump.LEFT if delta < 0 else Bump.RIGHT
             )
         self._col = new_col
-        self._columns[self._row] = new_col
+        self._desired_col = new_col
         return FocusChange(self._row, self._col, moved=True)
