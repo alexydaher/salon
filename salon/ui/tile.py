@@ -211,12 +211,15 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         snapshot.pop()
 
         # A hairline edge so a dark tile still separates from a dark
-        # backdrop; the accent ring replaces it as focus comes up.
+        # backdrop; the app-coloured ring replaces it as focus comes up.
         hairline = max(1.0, self._scale.du(1.0))
         edge = _with_alpha(theme.color("text-primary"), 0.10 * (1.0 - focus))
         snapshot.append_border(rounded, [hairline] * 4, [edge] * 4)
 
         if focus > 0.01:
             ring_width = self._scale.du(tokens.FOCUS_RING_DU)
-            ring = _with_alpha(theme.accent(), focus)
+            # The backdrop and bloom already follow the focused app's
+            # artwork colour. Keep the crisp part of that same halo in sync
+            # instead of falling back to Salon's global interface accent.
+            ring = _with_alpha(self._artwork.accent, focus)
             snapshot.append_border(rounded, [ring_width] * 4, [ring] * 4)
