@@ -8,12 +8,21 @@ salon_runtime_dir="$(mktemp -d)"
 chmod 700 "$salon_runtime_dir"
 salon_weston_pid=""
 cleanup() {
+  local status=$?
   if [ -n "$salon_weston_pid" ]; then
     kill "$salon_weston_pid" 2>/dev/null || true
     wait "$salon_weston_pid" 2>/dev/null || true
   fi
-  find "$salon_runtime_dir" -mindepth 1 -delete
-  rmdir "$salon_runtime_dir"
+  # Running the app starts the session's own daemons, and gvfsd-fuse mounts
+  # itself inside XDG_RUNTIME_DIR — which is this temporary directory. A
+  # live FUSE mount cannot be unlinked, so `find -delete` failed and, under
+  # `set -e` in an EXIT trap, turned a smoke test that had passed every one
+  # of its assertions into a failed gate. Unmount what is there, and never
+  # let tidying up decide the result.
+  fusermount -u "$salon_runtime_dir/gvfs" 2>/dev/null || true
+  find "$salon_runtime_dir" -mindepth 1 -delete 2>/dev/null || true
+  rmdir "$salon_runtime_dir" 2>/dev/null || true
+  return "$status"
 }
 trap cleanup EXIT
 

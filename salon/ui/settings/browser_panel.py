@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Focused settings panel builder."""
+"""Web tiles: which browser opens them, and what it can be told to do.
+
+No longer a top-level section. It was four rows — two of them read-only,
+and one of those a verbatim copy of a row in About — sitting beside Audio
+and Network in a list of nine that had stopped fitting the screen without
+scrolling. It is reached from System → Web tiles, which is where "how does
+Salon launch things" belongs.
+"""
 
 from __future__ import annotations
 
@@ -14,15 +21,23 @@ from salon.services import launcher  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
+    GroupRow,
     InfoRow,
+    Keyed,
     SettingsRow,
     TextRow,
+    opens_panel,
 )
+
+_FAILURES = {
+    launcher.BrowserAvailability.NOT_INSTALLED: "No supported browser is installed.",
+    launcher.BrowserAvailability.HOST_EXECUTION_FAILED: "Host browser detection failed.",
+}
 
 
 def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     resolution = launcher.BrowserResolution(launcher.BrowserAvailability.NOT_INSTALLED)
-    preflight_started = False
+    started = False
 
     def on_preflight(result: launcher.BrowserResolution) -> bool:
         nonlocal resolution
@@ -31,16 +46,14 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         return GLib.SOURCE_REMOVE
 
     def build() -> list[SettingsRow]:
-        nonlocal preflight_started
-        if not preflight_started:
-            preflight_started = True
+        nonlocal started
+        if not started:
+            started = True
             launcher.preflight_browser(on_preflight)
         detected = resolution.argv
-        failure_detail = {
-            launcher.BrowserAvailability.NOT_INSTALLED: "No supported browser is installed.",
-            launcher.BrowserAvailability.HOST_EXECUTION_FAILED: "Host browser detection failed.",
-        }.get(resolution.availability, "")
+        failure = _FAILURES.get(resolution.availability, "")
         return [
+            GroupRow("Browser"),
             InfoRow(
                 "Detected",
                 " ".join(detected) if detected else "None",
@@ -51,49 +64,65 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 lambda: context.toast(
                     f"Browser ready: {' '.join(detected)}"
                     if detected
-                    else failure_detail or "Browser check is still running."
+                    else failure or "Browser check is still running."
                 ),
                 detail="Checks the command Salon would use without opening a window",
             ),
+            GroupRow("Streaming"),
             InfoRow(
-                "Streaming quality",
-                "720p maximum",
+                "Maximum quality",
+                "720p on Linux",
                 detail=(
-                    "Chrome on Linux uses software Widevine, so Netflix and "
-                    "others cap resolution. This is a licensing limit, not a setting."
+                    "Chrome on Linux uses software Widevine, so Netflix, Prime Video "
+                    "and Disney+ cap resolution. This is a licensing limit, not a setting."
                 ),
             ),
-            ActionRow(
-                "Advanced browser",
+            GroupRow("This section"),
+            opens_panel(
+                "Custom command and flags",
                 lambda: context.push(_advanced_browser_panel(context, settings)),
-                detail="Custom command and launch flags",
-                value="›",
+                detail="For a browser Salon does not detect, or flags a site needs",
             ),
         ]
 
-    return Panel(title="Browser", build=build, panel_id="browser", icon_name="web-browser-symbolic")
+    return Panel(
+        title="Web tiles",
+        build=build,
+        subtitle="Which browser opens them",
+        panel_id="browser",
+        icon_name="web-browser-symbolic",
+    )
 
 
 def _advanced_browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
+    keyed = Keyed(settings)
+
     def build() -> list[SettingsRow]:
         return [
-            TextRow(
+            keyed.text(
+                "browser-command",
                 "Browser command",
-                lambda: settings.get_string("browser-command"),
                 lambda: _edit_browser(context, settings),
                 placeholder="Autodetect",
                 detail="Leave empty to use Salon's detected browser",
             ),
-            TextRow(
-                "Extra flags",
-                lambda: " ".join(settings.get_strv("browser-extra-flags")),
-                lambda: _edit_flags(context, settings),
-                placeholder="None",
-                detail="Appended after the flags Salon computes for each tile",
-            ),
+            _flags_row(context, settings),
         ]
 
-    return Panel(title="Advanced browser", build=build)
+    return Panel(title="Custom browser", build=build)
+
+
+def _flags_row(context: SettingsContext, settings: Gio.Settings) -> SettingsRow:
+    """A `as` key, so `Keyed.text` cannot own it — the stored type is a
+    string list and the row edits a space-separated line."""
+    return TextRow(
+        "Extra flags",
+        lambda: " ".join(settings.get_strv("browser-extra-flags")),
+        lambda: _edit_flags(context, settings),
+        placeholder="None",
+        detail="Appended after the flags Salon computes for each tile",
+        default=" ".join(settings.get_default_value("browser-extra-flags").unpack()),
+    )
 
 
 def _edit_browser(context: SettingsContext, settings: Gio.Settings) -> None:

@@ -12,30 +12,21 @@ from gi.repository import Gtk  # noqa: E402
 
 from salon.ui.motion import AxisSpring  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
+from salon.ui.settings.list_chrome import ListChrome  # noqa: E402
+from salon.ui.settings.list_layout import (  # noqa: E402
+    _first_stop,
+    _rebuilt_selection,
+    _selection_offset,
+)
 from salon.ui.settings.settings_row import SettingsRow  # noqa: E402
-
-
-def _selection_offset(
-    row_heights: list[int], selected: int, viewport_height: int, spacing: int
-) -> float:
-    """Return the y offset that keeps ``selected`` inside the viewport."""
-    if not row_heights or not 0 <= selected < len(row_heights) or viewport_height <= 0:
-        return 0.0
-
-    content_height = sum(row_heights) + spacing * (len(row_heights) - 1)
-    top = sum(row_heights[:selected]) + spacing * selected
-    bottom = top + row_heights[selected]
-    wanted = min(0, viewport_height - bottom)
-    return float(max(min(0, viewport_height - content_height), wanted))
 
 
 class SettingsList(Gtk.Fixed):
     """A vertically scrolling list of rows with a single selection.
 
     A Gtk.Fixed clipping around a taller box, translated by a spring — the
-    same mechanism the home rows use, rather than a Gtk.ScrolledWindow,
-    because the selection drives the scroll here and not the reverse.
-    """
+    same mechanism the home rows use rather than a Gtk.ScrolledWindow,
+    because the selection drives the scroll here and not the reverse."""
 
     def __init__(self, scale: Scale) -> None:
         super().__init__()
@@ -47,6 +38,11 @@ class SettingsList(Gtk.Fixed):
         self._scale = scale
         self._rows: list[SettingsRow] = []
         self._selected = 0
+        # Whether the cursor is where the *user* put it. A panel that fills
+        # in asynchronously rebuilds under an untouched cursor, and then
+        # "keep the selection" means keeping a row nobody chose — see
+        # `list_layout._rebuilt_selection`.
+        self._pinned = False
         self._hover_enabled = False
         # Where a click goes. Unset it activates the row directly, which is
         # right for the sections list; the panel list hands this to the
@@ -60,33 +56,25 @@ class SettingsList(Gtk.Fixed):
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.put(self._content, 0, 0)
         self._scroll = AxisSpring(self, self._content, vertical=True)
-        self._top_more = Gtk.Label(label="▲ More")
-        self._bottom_more = Gtk.Label(label="▼ More")
-        for indicator in (self._top_more, self._bottom_more):
-            indicator.add_css_class("salon-scroll-indicator")
-            indicator.set_halign(Gtk.Align.FILL)
-            indicator.set_can_target(False)
-            indicator.set_visible(False)
-            self.put(indicator, 0, 0)
+        self._chrome = ListChrome(self)
+
+    def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
+        self._chrome.snapshot(snapshot, self._scale, self._content)
 
     def on_resize(self, width: int, height: int) -> None:
         """Fed by the `SizeReporter` this list is wrapped in.
 
-        A Gtk.Fixed hands every child its own measured size, and an
-        ellipsized label measures one ellipsis wide — the same trap the home
-        screen's row headings fell into. The content box has to be told how
-        wide the viewport actually is.
-        """
+        A Gtk.Fixed hands every child its own measured size and an
+        ellipsized label measures one ellipsis wide, so the content box has
+        to be told how wide the viewport actually is."""
         self._allocated_width = width
         self._allocated_height = height
         self._content.set_size_request(width, -1)
-        indicator_height = self._scale.px(34.0)
-        indicator_width = min(width, self._scale.px(112.0))
-        self._top_more.set_size_request(indicator_width, indicator_height)
-        self._bottom_more.set_size_request(indicator_width, indicator_height)
-        indicator_x = max(0, width - indicator_width)
-        Gtk.Fixed.move(self, self._top_more, indicator_x, 0)
-        Gtk.Fixed.move(self, self._bottom_more, indicator_x, max(0, height - indicator_height))
+        for row in self._rows:
+            row.set_content_width(width)
+        gutter = self._chrome.layout(self._scale, width, height)
+        self._content.set_margin_top(gutter)
+        self._content.set_margin_bottom(gutter)
         # And only now is there a height to scroll within: set_rows runs
         # before the first allocation, so without this the list opens
         # unscrolled however far down the selection sits.
@@ -128,6 +116,8 @@ class SettingsList(Gtk.Fixed):
             row.set_scale(scale)
 
     def set_rows(self, rows: list[SettingsRow], *, keep_selection: bool = False) -> None:
+        previous = self.selected_row
+        previous_key = previous.identity if previous is not None else ""
         child = self._content.get_first_child()
         while child is not None:
             next_child = child.get_next_sibling()
@@ -135,16 +125,35 @@ class SettingsList(Gtk.Fixed):
             child = next_child
 
         self._rows = rows
+        # One decision for the whole list: either every row indents past a
+        # dot gutter or none does. The sections list has no resettable rows
+        # in it at all, and its column is the one already short of room for
+        # the summaries — so it keeps no gutter for a dot that can never
+        # appear there.
+        reserve_dot = any(row.has_default for row in rows)
         for index, row in enumerate(rows):
+            row.set_dot_reserved(reserve_dot)
             row.set_scale(self._scale)
+            row.set_content_width(self._allocated_width)
             row.connect("clicked", lambda _b, i=index: self._click(i))
             motion = Gtk.EventControllerMotion()
             motion.connect("motion", lambda *_, i=index: self._hover(i))
             row.add_controller(motion)
             self._content.append(row)
 
-        if not keep_selection or self._selected >= len(rows) or not rows[self._selected].selectable:
-            self._selected = next((index for index, row in enumerate(rows) if row.selectable), 0)
+        kept = (
+            _rebuilt_selection(
+                [row.identity for row in rows],
+                [row.selectable for row in rows],
+                previous_key=previous_key,
+                previous_index=self._selected,
+                pinned=self._pinned,
+            )
+            if keep_selection
+            else None
+        )
+        self._selected = _first_stop(rows) if kept is None else kept
+        self._pinned = self._pinned and keep_selection
         self._content.set_spacing(self._scale.px(6.0))
         self._update_selection(animate=False)
 
@@ -161,6 +170,7 @@ class SettingsList(Gtk.Fixed):
         if not 0 <= target < len(self._rows):
             return False
         self._selected = target
+        self._pinned = True
         self._update_selection()
         return True
 
@@ -169,8 +179,12 @@ class SettingsList(Gtk.Fixed):
             self._rows[self._selected].activate_row()
 
     def select(self, index: int) -> None:
+        """Put the cursor on one row. This is a *placement*, so it pins the
+        selection: a later rebuild follows the row rather than re-deciding
+        where to start."""
         if 0 <= index < len(self._rows) and self._rows[index].selectable:
             self._selected = index
+            self._pinned = True
             self._update_selection()
 
     def bump(self, distance: float) -> None:
@@ -210,15 +224,19 @@ class SettingsList(Gtk.Fixed):
         row_heights = [
             row.measure(Gtk.Orientation.VERTICAL, self._allocated_width)[1] for row in self._rows
         ]
+        gutter = self._chrome.gutter(self._scale)
         offset = _selection_offset(
             row_heights,
             self._selected,
             viewport_height,
             self._content.get_spacing(),
+            gutter=gutter,
         )
         content_height = sum(row_heights) + self._content.get_spacing() * max(
             0, len(row_heights) - 1
         )
-        self._top_more.set_visible(offset < -1.0)
-        self._bottom_more.set_visible(content_height + offset > viewport_height + 1.0)
+        band = viewport_height - 2 * gutter
+        self._chrome.set_overhang(
+            above=offset < -1.0, below=content_height + offset > band + 1.0
+        )
         self._scroll.animate_to(offset) if animate else self._scroll.jump_to(offset)

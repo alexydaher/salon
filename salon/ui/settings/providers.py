@@ -1,10 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Settings → Providers (§6.10).
+"""Settings → Home screen: which rows appear, and why one didn't (§6.10).
 
-The point of this panel is accountability. A plugin system whose failure
-mode is "your row silently isn't there any more" is worse than no plugin
-system, so every provider is listed whether it worked or not, with what it
-contributed or why it didn't, and a switch to turn it off.
+Two things were wrong with this as "Providers".
+
+**The name.** A provider is an implementation detail — a thread with a
+three-second deadline contributing rows to a catalogue. What the user is
+choosing is what appears on the home screen, and the section is now called
+that. The diagnostics that gave the panel its name ("Ran, contributed
+nothing", import failures, the Python folder) are still here, one press
+away, where somebody debugging a plugin will look for them.
+
+**The same row was switched twice.** `show-games-row` and the `games`
+provider were separate switches over one row, four lines apart, both
+reading Off — and turning on the first while the second was off produced
+nothing, with no explanation available anywhere. `_row_switch` makes one
+row own both: reading it means "on only if nothing is holding it off", and
+setting it clears whichever half was.
+
+The panel is still accountable, which is the point of it: a plugin system
+whose failure mode is "your row silently isn't there" is worse than no
+plugin system, so every source is listed whether it worked or not.
 """
 
 from __future__ import annotations
@@ -23,10 +38,24 @@ from salon.providers.registry import ProviderRegistry  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
+    GroupRow,
     InfoRow,
     SettingsRow,
     ToggleRow,
+    opens_panel,
 )
+
+# The two providers that also have a GSettings key of their own, and the
+# key that gates each. Everything else is switched by the registry alone.
+_GATED: dict[str, str] = {"games": "show-games-row", "apps": "show-apps-row"}
+
+_DESCRIPTIONS: dict[str, str] = {
+    "games": "Steam, Heroic, Lutris and RetroArch, with the cover art they downloaded",
+    "apps": "One row of everything installed. Long — the all-apps grid is easier.",
+    "recents": "What you opened most recently, newest first",
+    "favourites": "The tiles you have pinned",
+    "static": "The rows you have made yourself",
+}
 
 
 def providers_panel(
@@ -36,59 +65,84 @@ def providers_panel(
     outcomes: Callable[[], tuple[ProviderOutcome, ...]],
     reload_catalog: Callable[[], None],
 ) -> Panel:
+    def apply() -> None:
+        reload_catalog()
+        context.rebuild()
+
+    def row_switch(provider_id: str, title: str, outcome: ProviderOutcome | None) -> ToggleRow:
+        """One switch for one row, whatever is holding it off.
+
+        The gate and the registry are separate storage — one is a boolean
+        in GSettings that predates providers, the other is a list of
+        disabled ids — but they are not separate *questions*, and the
+        screen has no business asking both.
+        """
+        gate = _GATED.get(provider_id)
+
+        def get() -> bool:
+            if gate is not None and not settings.get_boolean(gate):
+                return False
+            return provider_id not in registry.disabled()
+
+        def set_(enabled: bool) -> None:
+            if gate is not None:
+                settings.set_boolean(gate, enabled)
+            registry.set_enabled(provider_id, enabled)
+            apply()
+
+        return ToggleRow(
+            title,
+            get,
+            set_,
+            detail=_DESCRIPTIONS.get(provider_id) or _describe(outcome),
+        )
+
     def build() -> list[SettingsRow]:
         by_id = {outcome.provider_id: outcome for outcome in outcomes()}
-        # The two rows a provider can be *enabled* and still not produce.
-        # Both were reachable only by editing dconf by hand, which for a
-        # setting whose entire purpose is "put my games on the home screen"
-        # is the same as not existing.
-        rows: list[SettingsRow] = [
-            ToggleRow(
-                "Show installed games",
-                lambda: settings.get_boolean("show-games-row"),
-                lambda value: _set_row(context, reload_catalog, settings, "show-games-row", value),
-                detail="Steam, Heroic, Lutris and RetroArch, with the cover art they downloaded",
-            ),
-            ToggleRow(
-                "Show every application",
-                lambda: settings.get_boolean("show-apps-row"),
-                lambda value: _set_row(context, reload_catalog, settings, "show-apps-row", value),
-                detail="One row of everything installed. Long — the all-apps grid is easier.",
-            ),
-        ]
+        rows: list[SettingsRow] = [GroupRow("Rows on the home screen")]
         for provider in registry.all_providers():
             if provider.id not in registry.builtin_ids:
                 continue
-            outcome = by_id.get(provider.id)
-            rows.append(
-                ToggleRow(
-                    provider.title,
-                    lambda pid=provider.id: pid not in registry.disabled(),
-                    lambda enabled, pid=provider.id: _set_enabled(
-                        context, registry, reload_catalog, pid, enabled
-                    ),
-                    detail=_describe(outcome),
-                )
-            )
-
+            rows.append(row_switch(provider.id, provider.title, by_id.get(provider.id)))
+        rows.append(GroupRow("Diagnostics"))
+        rows.extend(_outcome_rows(registry, by_id))
         rows.append(
-            ActionRow(
+            opens_panel(
                 "Developer providers",
                 lambda: context.push(
                     _developer_providers_panel(context, registry, outcomes, reload_catalog)
                 ),
                 detail="Local Python extensions that run code on this computer",
-                value="›",
             )
         )
         return rows
 
     return Panel(
-        title="Providers",
+        title="Home screen",
         build=build,
+        subtitle="Which rows appear, and why",
         panel_id="providers",
-        icon_name="application-x-addon-symbolic",
+        icon_name="view-grid-symbolic",
     )
+
+
+def _outcome_rows(
+    registry: ProviderRegistry, by_id: dict[str, ProviderOutcome]
+) -> list[SettingsRow]:
+    """What each enabled source actually contributed on the last build.
+
+    Only the ones that ran: an outcome line under a switch that is off says
+    "Turned off", which the switch beside it already said.
+    """
+    rows: list[SettingsRow] = []
+    for provider in registry.all_providers():
+        outcome = by_id.get(provider.id)
+        if outcome is None or outcome.disabled:
+            continue
+        rows.append(InfoRow(provider.title, _describe(outcome)))
+    if not rows:
+        rows.append(InfoRow("Nothing has run yet", "", detail="Open the home screen once"))
+    return rows
 
 
 def _developer_providers_panel(
@@ -143,18 +197,6 @@ def _developer_providers_panel(
         return rows
 
     return Panel(title="Developer providers", build=build)
-
-
-def _set_row(
-    context: SettingsContext,
-    reload_catalog: Callable[[], None],
-    settings: Gio.Settings,
-    key: str,
-    enabled: bool,
-) -> None:
-    settings.set_boolean(key, enabled)
-    reload_catalog()
-    context.rebuild()
 
 
 def _describe(outcome: ProviderOutcome | None) -> str:

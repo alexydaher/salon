@@ -118,3 +118,138 @@
   background: var(--accent);
 }
 #volume.off #vol { opacity: 0.45; }
+
+
+/* Picture: the settings whose effect is on the television, as a drawer in
+   the Remote pane rather than a fourth tab. Navigation is three stops and
+   typing already lost its tab for that reason — a stop every session pays
+   for, to reach a surface most sessions never open, is the wrong trade. It
+   lives here with the other things that open over a pane.
+
+   Wide targets throughout: this is the one surface on the phone whose
+   controls are dragged rather than tapped, and a 4px track on a phone held
+   at arm's length is a control you miss. */
+#tune-drawer {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--s2);
+}
+
+#tune-drawer > summary {
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.tune-row {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--s2);
+}
+
+.tune-row:last-child { border-bottom: none; }
+
+.tune-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tune-label { font-weight: 600; }
+
+.tune-value {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tune-detail {
+  color: var(--dim);
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+}
+
+/* The thumb is sized explicitly for both engines: they disagree about what
+   a range input looks like by default, and the default is small. */
+.tune-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2.2rem;
+  margin-top: 0.45rem;
+  background: transparent;
+  touch-action: none;
+}
+
+.tune-slider::-webkit-slider-runnable-track,
+.tune-slider::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--s2);
+}
+
+.tune-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -0.6rem;
+}
+
+.tune-slider::-webkit-slider-thumb,
+.tune-slider::-moz-range-thumb {
+  width: 1.7rem;
+  height: 1.7rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* minmax(0, …), never a bare 1fr: a bare `1fr` is `minmax(auto, 1fr)`,
+   whose floor is the item's min-content width, and one long option label
+   would push the rest of the row to zero. Enforced by test_phone_page.py. */
+.tune-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.tune-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--s2);
+  border-radius: 0.7rem;
+  background: var(--s1);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+
+.tune-option.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--s1));
+}
+
+.tune-option-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The colour itself, on the phone exactly as on the television. */
+.tune-chip {
+  flex: 0 0 auto;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 0.4rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.tune-empty {
+  color: var(--dim);
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+}

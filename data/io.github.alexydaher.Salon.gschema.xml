@@ -54,11 +54,6 @@
       <summary>Last focused tile id</summary>
       <description>Used to restore focus on startup.</description>
     </key>
-    <key name="monitor" type="s">
-      <default>''</default>
-      <summary>Target monitor connector name</summary>
-      <description>Empty means the primary monitor.</description>
-    </key>
     <key name="cec-enabled" type="b">
       <default>false</default>
       <summary>Enable HDMI-CEC input</summary>

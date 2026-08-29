@@ -15,6 +15,7 @@ from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
     InfoRow,
     SettingsRow,
+    opens_gnome,
 )
 
 
@@ -133,6 +134,18 @@ def _bluetooth_panel(context: SettingsContext) -> Panel:
                 )
             )
         rows.append(ActionRow("Look again", rescan, detail="Scan for another few seconds"))
+        # The full Bluetooth panel belongs *here*, not beside the row that
+        # opens this one. Two adjacent rows in Input both said Bluetooth and
+        # you had to read both to find out which was which; a device that
+        # needs a typed PIN is a thing you discover once this list has
+        # failed you, which is exactly where this sits now.
+        rows.append(
+            opens_gnome(
+                "Bluetooth, in detail",
+                lambda: context.open_control_center("bluetooth"),
+                detail="Devices needing a typed PIN, and everything else",
+            )
+        )
         return rows
 
     return Panel(title="Pair a device", build=build, on_leave=leave)

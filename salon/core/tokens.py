@@ -129,6 +129,7 @@ TYPE_SCALE: tuple[TypeToken, ...] = (
     TypeToken("tile-title", 30.0, 600),
     TypeToken("tile-subtitle", 24.0, 400),
     TypeToken("settings-body", 26.0, 400),
+    TypeToken("settings-group", 22.0, 700),
     TypeToken("menu-item", 30.0, 600),
     TypeToken("overlay-title", 40.0, 700),
     TypeToken("overlay-body", 26.0, 400),

@@ -106,8 +106,12 @@ class SettingsPreviewController(ServiceComponent):
         row.refresh()
         self._owner._preview_label.set_label(row.label_text)
         self._owner._preview_value.set_label(f"‹  {row.value_text}  ›")
+        # "OPTIONS restores" appears only when there is something to
+        # restore: on a row already at its default it would name a press
+        # that does nothing but flash.
+        restore = "OPTIONS restores · " if row.modified else ""
         self._owner._preview_hint.set_label(
-            "LEFT/RIGHT adjusts · UP/DOWN changes setting · OK/BACK returns · MENU home"
+            f"LEFT/RIGHT adjusts · UP/DOWN changes setting · {restore}OK/BACK returns · MENU home"
         )
 
     def _previewable_indices(self) -> list[int]:

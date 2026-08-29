@@ -144,3 +144,84 @@ def label(action: Action, source: str, *, family: str = GENERIC) -> str:
     if source in (CEC, PHONE):
         return _REMOTE.get(action, "")
     return _REMOTE.get(action, "")
+
+
+# --- naming a button by its hardware code --------------------------------
+
+# The physical position of each face and shoulder button, in evdev's
+# vocabulary. `_GAMEPAD_FAMILIES` above already says what each *action* is
+# called on a given pad; this is the other direction, for Settings → Change
+# buttons, which has a code in hand and no action to look it up by.
+_PAD_POSITIONS: dict[int, str] = {
+    0x130: "south",
+    0x131: "east",
+    0x133: "north",
+    0x134: "west",
+    0x136: "left shoulder",
+    0x137: "right shoulder",
+    0x13A: "select",
+    0x13B: "start",
+    0x13D: "left stick",
+    0x13E: "right stick",
+    0x220: "up",
+    0x221: "down",
+    0x222: "left",
+    0x223: "right",
+}
+
+# What each position is *printed* as, per family. Derived from the same
+# physical facts as `_GAMEPAD_FAMILIES` and kept beside it so the two can
+# never drift: OK is bound to south, and south is Cross on a PlayStation
+# pad in both tables.
+_PAD_NAMES: dict[str, dict[str, str]] = {
+    GENERIC: {"south": "A", "east": "B", "north": "Y", "west": "X",
+              "select": "View", "start": "Start"},
+    PLAYSTATION: {"south": "Cross", "east": "Circle", "north": "Triangle", "west": "Square",
+                  "select": "Create", "start": "Options"},
+    NINTENDO: {"south": "B", "east": "A", "north": "X", "west": "Y",
+               "select": "Minus", "start": "Plus"},
+}
+_PAD_SHARED: dict[str, str] = {
+    "left shoulder": "L1",
+    "right shoulder": "R1",
+    "left stick": "L3",
+    "right stick": "R3",
+    "up": "D-pad up",
+    "down": "D-pad down",
+    "left": "D-pad left",
+    "right": "D-pad right",
+}
+
+# CEC 1.4 user-control codes, in the words a television manual uses. Only
+# the ones Salon reacts to plus the handful a remote sends by accident —
+# a code nobody has named is shown as its number, which is still the most
+# useful thing that can be said about it.
+_CEC_NAMES: dict[int, str] = {
+    0x00: "Select", 0x01: "Up", 0x02: "Down", 0x03: "Left", 0x04: "Right",
+    0x09: "Root menu", 0x0B: "Contents menu", 0x0D: "Exit",
+    0x30: "Channel up", 0x31: "Channel down",
+    0x40: "Power", 0x41: "Volume up", 0x42: "Volume down", 0x43: "Mute",
+    0x44: "Play", 0x45: "Stop", 0x46: "Pause", 0x48: "Rewind",
+    0x49: "Fast forward", 0x6B: "Power on", 0x71: "Blue", 0x72: "Red",
+    0x73: "Green", 0x74: "Yellow",
+}
+
+
+def code_label(source: str, code: int, *, family: str = GENERIC) -> str:
+    """What the button with this hardware code is called, or "".
+
+    Settings → Change buttons used to print `Controller 0x130`, which names
+    a button nobody can find by looking down at the pad in their hands.
+    Empty for a code this doesn't know and for `KEYBOARD`, whose codes are
+    GDK keyvals — the toolkit already names those and duplicating its table
+    here would be a second thing to keep current.
+    """
+    if source == GAMEPAD:
+        position = _PAD_POSITIONS.get(code)
+        if position is None:
+            return ""
+        names = _PAD_NAMES.get(family, _PAD_NAMES[GENERIC])
+        return names.get(position) or _PAD_SHARED.get(position, "")
+    if source == CEC:
+        return _CEC_NAMES.get(code, "")
+    return ""

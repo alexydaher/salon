@@ -55,6 +55,7 @@ from salon.core.model import Tile  # noqa: E402
 from salon.core.provider import ProviderOutcome  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.providers.registry import ProviderRegistry  # noqa: E402
+from salon.services.artwork import ArtworkResolver  # noqa: E402
 from salon.ui import motion  # noqa: E402
 from salon.ui.motion import SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402

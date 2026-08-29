@@ -56,6 +56,8 @@ class HomeSurfaceSetup(ServiceComponent):
             on_button=self._owner._on_phone_button,
             on_apps=self._owner._all_apps_for_phone,
             np_art_for=self._owner._now_playing_art_for_phone,
+            tune_read=self._owner._tune_read_for_phone,
+            tune_write=self._owner._tune_write_for_phone,
         )
         self._owner._status_info = StatusInfo(self._owner._scale)
         self._owner._overlay.add_overlay(self._owner._status_info)

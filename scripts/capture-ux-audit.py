@@ -33,8 +33,9 @@ from salon import config  # noqa: E402
 from salon.app import SalonApplication  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.ui.search_models import Pane  # noqa: E402
-from salon.ui.settings.input_panel import _advanced_input_panel  # noqa: E402
-from salon.ui.settings.reorder_panels import reorder_rows_panel  # noqa: E402
+from salon.ui.settings.advanced_input_panel import advanced_input_panel  # noqa: E402
+from salon.ui.settings.row_panels import row_panel  # noqa: E402
+from salon.ui.settings.tile_panel import tile_panel  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "build-sdk" / "ux-audit"
@@ -82,14 +83,16 @@ def main() -> int:
             def shot(name: str) -> None:
                 CAPTURE(window, OUTPUT / f"{name}.png")
 
-            def settings_reorder() -> None:
+            def settings_tile_editor() -> None:
                 screen = home._settings_screen
                 screen.open_at("tiles")
-                screen._push(reorder_rows_panel(screen._context))
+                row = screen._context.config.rows[0]
+                screen._push(row_panel(screen._context, row.id))
+                screen._push(tile_panel(screen._context, row.id, row.tiles[0].id))
 
             def settings_advanced_input() -> None:
                 screen = home._settings_screen
-                screen._push(_advanced_input_panel(screen._context, home._settings))
+                screen._push(advanced_input_panel(screen._context, home._settings))
 
             def search_options() -> None:
                 home._search._pane = Pane.RESULTS
@@ -135,7 +138,7 @@ def main() -> int:
                     ),
                     450,
                 ),
-                ("reorder-rows", settings_reorder, 350),
+                ("tile-editor", settings_tile_editor, 600),
                 (
                     "phone-pairing",
                     lambda: (home._settings_screen.close(), home._open_phone_pairing()),

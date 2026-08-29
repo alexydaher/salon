@@ -13,16 +13,21 @@ gi.require_version("Pango", "1.0")
 from gi.repository import Gtk, Pango  # noqa: E402
 
 from salon.ui.scale import Scale  # noqa: E402
+from salon.ui.settings.indicators import Swatch  # noqa: E402
 
 _CHECK_GLYPH = "✓"
 
 
 class ValueOption(Gtk.Button):
-    """A label, and a tick when this is the value currently set.
+    """A label, a colour when the value is one, and a tick when it is set.
 
     A Gtk.Button so a click and a hover come for free; the remote never
     touches these directly — `ValuePopup` drives the selection and this
     only reports what the pointer did.
+
+    The swatch is why the accent list stopped being four words about
+    colours: "Ember", "Cold blue" and "Violet" describe a palette nobody
+    can see, and this is the screen where the choice is actually made.
     """
 
     def __init__(
@@ -35,6 +40,7 @@ class ValueOption(Gtk.Button):
         height: int,
         on_click: Callable[[int], None],
         on_hover: Callable[[int], None],
+        swatch: str = "",
     ) -> None:
         super().__init__()
         self.add_css_class("salon-value-option")
@@ -42,6 +48,11 @@ class ValueOption(Gtk.Button):
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         box.set_spacing(scale.px(12.0))
+        if swatch:
+            chip = Swatch()
+            chip.set_metrics(scale.px(30.0))
+            chip.set_color(swatch)
+            box.append(chip)
         text = Gtk.Label(label=label)
         text.set_halign(Gtk.Align.START)
         text.set_hexpand(True)

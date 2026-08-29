@@ -12,8 +12,11 @@ from salon.services import netinfo, wifi  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
+    GroupRow,
     InfoRow,
     SettingsRow,
+    opens_gnome,
+    opens_panel,
 )
 
 
@@ -38,6 +41,7 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         netinfo.status_async(on_status)
         current = status[0] if status else None
         return [
+            GroupRow("Status"),
             InfoRow(
                 "Connection",
                 current.summary if current else "Checking…",
@@ -46,26 +50,35 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 # bar can never disagree about what the connection is.
                 icon_name=(current.icon_name if current else "") or "network-wireless-symbolic",
             ),
-            ActionRow(
+            GroupRow("Wi-Fi"),
+            opens_panel(
                 "Choose a network",
                 lambda: context.push(_wifi_panel(context)),
                 detail="Every network in range, and its password if it needs one",
-                value="›",
             ),
-            ActionRow(
+            opens_gnome(
                 "Wi-Fi, in detail",
                 lambda: context.open_control_center("wifi"),
                 detail="Enterprise logins, hidden networks and static addresses",
             ),
-            ActionRow(
+            GroupRow("Everything else"),
+            opens_gnome(
                 "Wired and VPN",
                 lambda: context.open_control_center("network"),
                 detail="Ethernet, VPN and proxy settings",
             ),
         ]
 
+    def summary() -> str:
+        return status[0].summary if status else ""
+
     return Panel(
-        title="Network", build=build, panel_id="network", icon_name="network-wireless-symbolic"
+        title="Network",
+        build=build,
+        subtitle="Wi-Fi, wired and VPN",
+        summary=summary,
+        panel_id="network",
+        icon_name="network-wireless-symbolic",
     )
 
 

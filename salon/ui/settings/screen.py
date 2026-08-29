@@ -8,6 +8,7 @@ from salon.ui.settings.screen_actions import SettingsActionController
 from salon.ui.settings.screen_navigation import SettingsNavigationController
 from salon.ui.settings.screen_preview import SettingsPreviewController
 from salon.ui.settings.screen_shared import (
+    ArtworkResolver,
     Callable,
     Config,
     Gio,
@@ -27,6 +28,7 @@ from salon.ui.settings.screen_shared import (
     motion,
 )
 from salon.ui.settings.screen_state import SettingsStateController
+from salon.ui.settings.screen_values import SettingsValuesController
 
 
 class SettingsScreen(
@@ -35,6 +37,7 @@ class SettingsScreen(
     SettingsStateController,
     SettingsNavigationController,
     SettingsPreviewController,
+    SettingsValuesController,
     SettingsActionController,
 ):
     def __init__(
@@ -48,6 +51,7 @@ class SettingsScreen(
         edit_text: Callable[[str, str, Callable[[str | None], None]], None],
         choose_path: Callable[[str, bool, Callable[[str | None], None]], None],
         installed_apps: Callable[[Callable[[list[Tile]], None]], None],
+        artwork: ArtworkResolver,
         provider_registry: ProviderRegistry,
         provider_outcomes: Callable[[], tuple[ProviderOutcome, ...]],
         reload_catalog: Callable[[], None],
@@ -86,6 +90,9 @@ class SettingsScreen(
         self._reload_catalog = reload_catalog
         self._pane = Pane.SECTIONS
         self._stack: list[Panel] = []
+        # Which panel the row list currently holds, so a rebuild can tell
+        # itself apart from a navigation. See `_rebuild_panel`.
+        self._built_panel: Panel | None = None
         self._pointer_active = False
 
         self._context = SettingsContext(
@@ -110,6 +117,12 @@ class SettingsScreen(
             cancel_capture=cancel_capture,
             rebind=rebind,
             reset_bindings=reset_bindings,
+            # The tile editor draws the tile it is editing, so it resolves
+            # artwork exactly as the home screen does — same cache, same
+            # fallbacks, same result. A bound method rather than the
+            # resolver itself: the editor needs one call, not a service.
+            resolve_artwork=artwork.resolve,
+            scale=lambda: self._scale,
             version=version,
             config_path=config_path,
         )
@@ -195,19 +208,26 @@ class SettingsScreen(
         self._preview_bar.set_vexpand(True)
         self.append(self._preview_bar)
 
+        # Label and value sit together on the left and the hint takes the
+        # rest: the label used to expand, which pushed the two halves of one
+        # statement a thousand pixels apart and left the value touching the
+        # hint. "Tile size" and "65%" are one thing being said.
         self._preview_label = Gtk.Label()
         self._preview_label.add_css_class("salon-settings-label")
         self._preview_label.set_halign(Gtk.Align.START)
-        self._preview_label.set_hexpand(True)
         self._preview_label.set_ellipsize(Pango.EllipsizeMode.END)
         self._preview_bar.append(self._preview_label)
 
         self._preview_value = Gtk.Label()
         self._preview_value.add_css_class("salon-settings-preview-value")
+        self._preview_value.set_halign(Gtk.Align.START)
         self._preview_bar.append(self._preview_value)
 
         self._preview_hint = Gtk.Label()
         self._preview_hint.add_css_class("salon-settings-legend")
+        self._preview_hint.set_hexpand(True)
+        self._preview_hint.set_halign(Gtk.Align.END)
+        self._preview_hint.set_ellipsize(Pango.EllipsizeMode.END)
         self._preview_bar.append(self._preview_hint)
 
         self._content.set_vexpand(True)

@@ -17,10 +17,27 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Protocol
 
 from salon.core.config import Config
 from salon.core.model import Tile
 from salon.ui.settings.widgets import ActionRow, InfoRow, SettingsRow
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from salon.services.artwork_models import Artwork
+    from salon.ui.scale import Scale
+
+
+class ResolveArtwork(Protocol):
+    """`ArtworkResolver.resolve`, narrowed to what the editor needs.
+
+    A protocol rather than the resolver itself: the tile editor's preview
+    wants one call, and handing a panel the whole caching, fetching,
+    dominant-colour service would be the sort of reach-through
+    `SettingsContext` exists to prevent.
+    """
+
+    def __call__(self, tile: Tile, *, icon_size: int) -> Artwork: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +60,19 @@ class Panel:
     # that is eight identical lines of text gives the eye nothing to aim at
     # from a sofa; the icon is what makes "Audio" findable without reading.
     icon_name: str = ""
+    # What this section is currently *set to*, read when the section list is
+    # built. "Appearance › Midnight · Lamplight amber" answers the question
+    # a lot of visits to Settings are actually asking, without entering it.
+    # A callable rather than a string because it is live: `subtitle` is the
+    # fixed description of the section and this is its state.
+    summary: Callable[[], str] | None = None
+    # What to *call* this panel while it is open, when that depends on
+    # something the panel edits. The tile editor's title was the word
+    # "Tile"; this is how it says "Movie Night" instead, and keeps saying
+    # the right thing after the row above it renames the tile. Distinct
+    # from `summary`, which is state ("Midnight · Amber") rather than
+    # identity and belongs in the section list, not the heading.
+    live_title: Callable[[], str] | None = None
 
 
 @dataclass(slots=True)
@@ -80,6 +110,11 @@ class SettingsContext:
     cancel_capture: Callable[[], None]
     rebind: Callable[[str, int, str], None]
     reset_bindings: Callable[[], None]
+    # The tile editor draws the tile it is editing (`tile_preview.py`), so
+    # it needs the same artwork the home screen would resolve and the same
+    # scale it would draw at.
+    resolve_artwork: ResolveArtwork
+    scale: Callable[[], Scale]
     version: str
     config_path: str
     notes: list[str] = field(default_factory=list)

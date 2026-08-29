@@ -265,8 +265,11 @@ toast > label {
   transition: background-color 120ms ease;
 }
 
+/* The cursor. Fill *and* ring, so the pane that owns it is unmistakably
+   the heavier of the two — see the inactive rule below for why that
+   ordering had to be made explicit. */
 .salon-settings-row.selected {
-  background-color: alpha(@accent, 0.16);
+  background-color: alpha(@accent, 0.22);
   box-shadow: inset 0 0 0 var(--focus-ring) @accent;
 }
 
@@ -313,8 +316,60 @@ toast > label {
   font-weight: var(--weight-settings-body);
 }
 
+/* A value that means "nothing is set". The value column carries the accent,
+   so a row reading "Off" used to render the disabled state in the brightest
+   colour on the screen — "Off", "Not set" and "Default" are the absence of a
+   setting and are now drawn as one. */
+.salon-settings-value.muted,
 .salon-settings-row.info .salon-settings-value {
   color: @text-secondary;
+}
+
+/* The drawn value affordances (ui/settings/indicators.py) take their colour
+   from CSS `color` and their size from Python, so a theme change repaints
+   them with everything else and no palette lives in the widget. */
+.salon-switch {
+  color: @text-primary;
+}
+
+.salon-switch.on {
+  color: @accent;
+}
+
+.salon-meter,
+.salon-swatch {
+  color: @accent;
+}
+
+.salon-settings-row.info .salon-meter,
+.salon-settings-list:not(.active) .salon-meter {
+  color: @text-secondary;
+}
+
+/* A row that no longer holds what Salon shipped. Reading a whole screen and
+   knowing every default is not something anyone does, so the screen says it. */
+.salon-settings-dot {
+  color: @accent;
+  font-size: var(--font-tile-subtitle);
+  opacity: 0.75;
+}
+
+/* A heading over a group of rows. Panels here run to fifteen rows and about
+   nine fit; a flat column that long is a haystack, and this is the cheapest
+   thing that says where each group starts. Unselectable, so it costs no
+   presses — see static_rows.GroupRow. */
+.salon-settings-row.group {
+  color: @text-secondary;
+  padding: var(--pad-m) var(--pad-m) var(--pad-s) var(--pad-m);
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.salon-settings-row.group .salon-settings-label {
+  color: @accent;
+  font-size: var(--font-settings-group);
+  font-weight: var(--weight-settings-group);
+  opacity: 0.85;
 }
 
 .salon-settings-row.danger .salon-settings-label {
@@ -328,10 +383,15 @@ toast > label {
 
 /* The pane that doesn't have the cursor keeps its selection visible but
    inert — same rule as the search overlay's keyboard, and for the same
-   reason: only one thing on screen may look like what OK will hit. */
+   reason: only one thing on screen may look like what OK will hit.
+
+   It is a hairline rather than a fill. At three metres a filled block is
+   more visible than a two-pixel outline, so the *inactive* pane used to be
+   the more prominent of the two — the active one drew a ring on a 16%
+   tint, the inactive one a flat 7% block, and the eye goes to the block. */
 .salon-settings-list:not(.active) .salon-settings-row.selected {
-  background-color: alpha(@text-primary, 0.07);
-  box-shadow: none;
+  background-color: transparent;
+  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@text-primary, 0.20);
 }
 
 .salon-settings-list:not(.active) .salon-settings-row.selected

@@ -7,6 +7,14 @@ from collections.abc import Callable, Sequence
 
 from salon.ui.settings.settings_row import SettingsRow
 
+_OPENS_LIST = "OK opens the list"
+
+
+def _is_colour(key: str) -> bool:
+    """A choice whose key *is* the value it names. `#E8A33D` is the accent
+    itself, so the row can show the colour without being told twice."""
+    return key.startswith("#") and len(key) in (4, 7, 9)
+
 
 class ChoiceRow(SettingsRow):
     def __init__(
@@ -18,11 +26,13 @@ class ChoiceRow(SettingsRow):
         *,
         detail: str = "",
         preview: bool = False,
+        default: str | None = None,
     ) -> None:
         super().__init__(label, detail=detail, preview=preview)
         self._options = list(options)
         self._get = get
         self._set = set_
+        self._default = default
         self.refresh()
 
     def _index(self) -> int:
@@ -37,6 +47,10 @@ class ChoiceRow(SettingsRow):
         return list(self._options)
 
     @property
+    def swatches(self) -> dict[str, str]:
+        return {key: key for key, _ in self._options if _is_colour(key)}
+
+    @property
     def current_choice(self) -> str:
         return self._get()
 
@@ -46,11 +60,25 @@ class ChoiceRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "OK opens the list"
+        return _OPENS_LIST
+
+    @property
+    def modified(self) -> bool:
+        return self._default is not None and self._get() != self._default
+
+    def reset_to_default(self) -> bool:
+        if self._default is None or self._get() == self._default:
+            return False
+        self._set(self._default)
+        self.refresh()
+        return True
 
     def refresh(self) -> None:
-        if self._options:
-            self.set_value(self._options[self._index()][1])
+        if not self._options:
+            return
+        current = self._options[self._index()]
+        self.set_value(current[1])
+        self._content.set_swatch(current[0] if _is_colour(current[0]) else "")
 
     def can_adjust(self, delta: int) -> bool:
         return bool(self._options) and 0 <= self._index() + delta < len(self._options)
@@ -76,14 +104,18 @@ class RangeRow(SettingsRow):
         fmt: Callable[[float], str] = lambda v: f"{v:g}",
         detail: str = "",
         preview: bool = False,
+        default: float | None = None,
+        off_at: float | None = None,
     ) -> None:
         super().__init__(label, detail=detail, preview=preview)
         self._get = get
         self._set = set_
+        self._off_at = off_at
         self._minimum = minimum
         self._maximum = maximum
         self._step = step
         self._fmt = fmt
+        self._default = default
         self.refresh()
 
     @property
@@ -132,10 +164,31 @@ class RangeRow(SettingsRow):
 
     @property
     def hint(self) -> str:
-        return "OK opens the list"
+        return _OPENS_LIST
+
+    @property
+    def modified(self) -> bool:
+        return self._default is not None and abs(self._get() - self._default) > 1e-9
+
+    def reset_to_default(self) -> bool:
+        if not self.modified or self._default is None:
+            return False
+        self._set(self._default)
+        self.refresh()
+        return True
 
     def refresh(self) -> None:
-        self.set_value(self._fmt(self._get()))
+        value = self._get()
+        # A range can land on a value that means *nothing is happening* —
+        # "Off", "Never" — and that reads as the brightest thing on the row
+        # unless it is muted, exactly as a switch's Off is.
+        off = self._off_at is not None and abs(value - self._off_at) < 1e-9
+        self.set_value(self._fmt(value), muted=off)
+        # Where the value sits in its own span, so a number is also a
+        # position. A range of zero width would divide by nothing; there
+        # are none, but a schema edit could make one.
+        span = self._maximum - self._minimum
+        self._content.set_meter((value - self._minimum) / span if span > 0 else 0.0)
 
     def _target(self, delta: int) -> float:
         return min(self._maximum, max(self._minimum, self._get() + delta * self._step))
@@ -163,11 +216,13 @@ class TextRow(SettingsRow):
         *,
         placeholder: str = "Not set",
         detail: str = "",
+        default: str | None = None,
     ) -> None:
         super().__init__(label, detail=detail)
         self._get = get
         self._on_edit = on_edit
         self._placeholder = placeholder
+        self._default = default
         self.refresh()
 
     @property
@@ -178,8 +233,14 @@ class TextRow(SettingsRow):
     def hint(self) -> str:
         return "OK or RIGHT edits it"
 
+    @property
+    def modified(self) -> bool:
+        return self._default is not None and self._get() != self._default
+
     def refresh(self) -> None:
-        self.set_value(self._get() or self._placeholder)
+        value = self._get()
+        self.set_value(value or self._placeholder, muted=not value)
+        self._content.set_swatch(value if _is_colour(value.strip()) else "")
 
     def activate_row(self) -> None:
         self._on_edit()

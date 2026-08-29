@@ -7,6 +7,25 @@ from salon.ui.settings import preview_policy
 from salon.ui.settings.screen_shared import Pane, Panel
 
 
+def _panel_name(panel: Panel) -> str:
+    """What to call a panel on screen.
+
+    The tile editor's title was the word "Tile" and its breadcrumb read
+    `Tiles › Row › Tile` — three levels of navigation naming nothing you
+    had navigated to. A panel whose subject has a name supplies it through
+    `live_title`, read now rather than when the panel was built, because
+    renaming a tile is one of the things its own editor does.
+    """
+    if panel.live_title is not None:
+        try:
+            live = panel.live_title()
+        except Exception:  # noqa: BLE001 - a summary may not be answerable yet
+            live = ""
+        if live:
+            return live
+    return panel.title
+
+
 class SettingsNavigationController(ServiceComponent):
     def _enter_section(self, index: int) -> None:
         self._owner._popup.close()
@@ -49,9 +68,17 @@ class SettingsNavigationController(ServiceComponent):
         if not self._owner._stack:
             return
         panel = self._owner._stack[-1]
-        self._owner._panel_list.set_rows(panel.build(), keep_selection=True)
-        self._owner._title.set_label(panel.title)
-        trail = " › ".join(p.title for p in self._owner._stack)
+        # Keep the cursor only when this is the *same* panel being rebuilt.
+        # `_rebuild_panel` serves both "a value changed, redraw the rows"
+        # and "we are now looking at a different panel", and treating the
+        # second as the first is why the first-actionable-row rule never
+        # fired: About and Setup both opened on a read-only row with the
+        # legend reading "Nothing to change on this row", which is the bug
+        # `_first_stop` exists to prevent.
+        same = panel is self._owner._built_panel
+        self._owner._built_panel = panel
+        self._owner._panel_list.set_rows(panel.build(), keep_selection=same)
+        trail = " › ".join(_panel_name(p) for p in self._owner._stack)
         self._owner._breadcrumb.set_label(trail if len(self._owner._stack) > 1 else "")
         self._update_pane_style()
 
@@ -59,7 +86,15 @@ class SettingsNavigationController(ServiceComponent):
         sections = self._owner._pane is Pane.SECTIONS
         self._owner._sections.set_active(sections)
         self._owner._panel_list.set_active(not sections)
-        self._owner._title.set_label("Settings" if sections else self._owner._stack[-1].title)
+        self._owner._title.set_label(
+            "Settings" if sections else _panel_name(self._owner._stack[-1])
+        )
+        # The section list is orientation, and three levels into the tile
+        # editor it is orienting you to somewhere you left: it kept saying
+        # "Tiles" while the panel beside it was one tile's artwork. Past
+        # the first level the breadcrumb is the thing that knows where you
+        # are, and the column steps back to being a place, not a cursor.
+        self._owner._sections_host.set_visible(len(self._owner._stack) <= 1)
         self._update_legend()
 
     def _update_legend(self) -> None:
@@ -90,6 +125,11 @@ class SettingsNavigationController(ServiceComponent):
             # the screen at all, which is the better way to judge a safe
             # area or a tile size once you know what you are looking for.
             parts.append("OPTIONS adjusts it there")
+        elif row is not None and row.modified:
+            # The only other thing OPTIONS has to offer on a settings row,
+            # and it is worth naming: without it, "you have changed this"
+            # is a dot with no way to act on it.
+            parts.append("OPTIONS restores the default")
         parts.append(
             "BACK goes back" if len(self._owner._stack) > 1 else "BACK returns to sections"
         )

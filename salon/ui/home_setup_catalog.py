@@ -42,6 +42,7 @@ class HomeCatalogSetup(ServiceComponent):
             edit_text=self._owner._edit_text,
             choose_path=self._owner._choose_path,
             installed_apps=appinfo.list_installed_async,
+            artwork=self._owner._artwork,
             provider_registry=self._owner._provider_registry,
             provider_outcomes=lambda: self._owner._provider_outcomes,
             reload_catalog=lambda: self._owner._refresh_catalog(preserve_focus=True),

@@ -22,6 +22,7 @@ from salon.services.phone_remote_shared import (
     StateFeed,
 )
 from salon.services.phone_remote_state import PhoneRemoteState
+from salon.services.phone_remote_tuning import PhoneRemoteTuning
 
 __all__ = ["MAX_ATTEMPTS", "SESSION_TIMEOUT_SECONDS", "PairingServer"]
 
@@ -51,6 +52,10 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         on_button: Callable[[str, str], None] | None = None,
         on_apps: Callable[[], list[RemoteTile]] | None = None,
         np_art_for: Callable[[], Path | None] | None = None,
+        # The settings the phone may read and write — `core/remote_settings`
+        # says which, and nothing here names a GSettings key of its own.
+        tune_read: Callable[[], dict[str, object]] | None = None,
+        tune_write: Callable[[str, object], None] | None = None,
     ) -> None:
         self._on_action = on_action
         self._on_pointer = on_pointer
@@ -73,6 +78,8 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         # the first through its own grid and never draws the second.
         self._on_apps = on_apps
         self._np_art_for = np_art_for
+        self._tune_read = tune_read
+        self._tune_write = tune_write
         self._port = port
         self._server: Soup.Server | None = None
         self._code = ""
@@ -118,6 +125,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         self._catalog = PhoneRemoteCatalog(self)
         self._browse = PhoneRemoteBrowse(self)
         self._state = PhoneRemoteState(self)
+        self._tuning = PhoneRemoteTuning(self)
 
     def start(self) -> bool:
         return self._lifecycle.start()

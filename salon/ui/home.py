@@ -17,6 +17,7 @@ from salon.ui.home_overlays import HomeOverlayController
 from salon.ui.home_phone_catalog import HomePhoneCatalogController
 from salon.ui.home_phone_input import HomePhoneInputController
 from salon.ui.home_phone_lifecycle import HomePhoneLifecycleController
+from salon.ui.home_phone_tuning import HomePhoneTuning
 from salon.ui.home_power_menu import HomePowerMenuController
 from salon.ui.home_preferences import HomePreferences
 from salon.ui.home_reload_pointer import HomeReloadAndPointerController
@@ -48,6 +49,7 @@ class HomeView(
     HomeLegendController,
     HomePhoneInputController,
     HomePhoneCatalogController,
+    HomePhoneTuning,
     HomePhoneLifecycleController,
     HomeRepeatController,
     HomeActionRouter,

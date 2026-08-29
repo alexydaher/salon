@@ -147,7 +147,8 @@ class ValuePopup(Gtk.Popover):
             self._list.remove(child)
             child = following
 
-        for index, (_, label) in enumerate(choices):
+        swatches = row.swatches
+        for index, (key, label) in enumerate(choices):
             button = ValueOption(
                 self._scale,
                 label,
@@ -156,6 +157,7 @@ class ValuePopup(Gtk.Popover):
                 height=self._row_height,
                 on_click=self._activate,
                 on_hover=self._hover,
+                swatch=swatches.get(key, ""),
             )
             self._list.append(button)
             self._buttons.append(button)

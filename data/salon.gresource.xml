@@ -43,6 +43,7 @@
     <file compressed="true">remote/ui/tabs.js</file>
     <file compressed="true">remote/ui/tiles.js</file>
     <file compressed="true">remote/ui/transport.js</file>
+    <file compressed="true">remote/ui/tune.js</file>
     <file compressed="true">remote/ui/typing.js</file>
     <file compressed="true">remote/ui/volume.js</file>
     <file compressed="true">remote/manifest.webmanifest</file>

@@ -23,6 +23,7 @@ import { bindPad } from "./pad.js";
 import { bindTyping, focusTypeField } from "./typing.js";
 import { bindVolume, closeVolume } from "./volume.js";
 import { bindNowPlaying, closeNowPlaying } from "./nowplaying.js";
+import { bindTune } from "./tune.js";
 import { bindTabs, showTab } from "./tabs.js";
 import { keepAwake, releaseAwake } from "./awake.js";
 import { bindConnect, connect, dropSession } from "./connect.js";
@@ -50,6 +51,7 @@ bindPad($("pad"));
 bindTyping();
 bindVolume(closeNowPlaying);
 bindNowPlaying(closeVolume);
+bindTune();
 
 $("retry").addEventListener("click", () => {
   resetBackoff();

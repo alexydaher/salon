@@ -16,11 +16,29 @@ from salon.ui.settings.screen_shared import (
 )
 
 
+def _section_detail(panel: Panel) -> str:
+    """The live summary if the panel offers one, else its fixed subtitle.
+
+    Guarded: a summary reads real state — an audio sink, a network — and
+    the section list is built before any of those have answered. A section
+    that cannot describe itself yet falls back rather than failing.
+    """
+    if panel.summary is not None:
+        try:
+            live = panel.summary()
+        except Exception:  # noqa: BLE001 - a summary may not be answerable yet
+            live = ""
+        if live:
+            return live
+    return panel.subtitle
+
+
 class SettingsStateController(ServiceComponent):
     def _build_sections(self) -> None:
         context = self._owner._context
         settings = self._owner._settings
         self._owner._section_panels = [
+            panel_builders.setup_panel(context, settings),
             tile_panels.rows_panel(context),
             provider_panels.providers_panel(
                 context,
@@ -29,11 +47,10 @@ class SettingsStateController(ServiceComponent):
                 self._owner._provider_outcomes,
                 self._owner._reload_catalog,
             ),
-            panel_builders.network_panel(context, settings),
             panel_builders.appearance_panel(context, settings),
-            panel_builders.input_panel(context, settings),
-            panel_builders.browser_panel(context, settings),
             panel_builders.audio_panel(context, settings),
+            panel_builders.input_panel(context, settings),
+            panel_builders.network_panel(context, settings),
             panel_builders.system_panel(context, settings),
             panel_builders.about_panel(context, settings),
         ]
@@ -43,6 +60,11 @@ class SettingsStateController(ServiceComponent):
                 lambda i=index: self._owner._enter_section(i),
                 value="›",
                 icon_name=panel.icon_name,
+                # What the section *is*, and what it is currently set to.
+                # Eight identical lines of one word each gave the eye
+                # nothing, and half the visits to Settings are answered by
+                # "Midnight · Lamplight amber" without entering at all.
+                detail=_section_detail(panel),
             )
             for index, panel in enumerate(self._owner._section_panels)
         ]
@@ -116,6 +138,7 @@ class SettingsStateController(ServiceComponent):
         # Emptied, not kept: reopening builds a fresh stack, and a panel
         # still sitting here would be told it had left a second time.
         self._owner._stack = []
+        self._owner._built_panel = None
         self._owner._leave_preview()
         self._owner.set_visible(False)
         self._owner._on_close()
@@ -130,7 +153,12 @@ class SettingsStateController(ServiceComponent):
         self._owner._content.set_spacing(scale.px(8.0))
         self._owner._body.set_spacing(scale.px(48.0))
         self._owner._body.set_margin_top(scale.px(24.0))
-        self._owner._sections_host.set_size_request(scale.px(420.0), -1)
+        # 420du here cut seven of the nine live summaries mid-word
+        # ("Midnight · Lamplight am…"), which is most of the value of
+        # having them — the point is answering the visit without entering
+        # the section. The panel beside it is capped at 1150du anyway, so
+        # the extra 100du comes out of dead space rather than out of a row.
+        self._owner._sections_host.set_size_request(scale.px(520.0), -1)
         self._owner._sections.set_scale(scale)
         self._owner._panel_list.set_scale(scale)
         self._owner._preview_bar.set_spacing(scale.px(24.0))
