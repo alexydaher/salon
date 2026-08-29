@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# One tag-triggered run owns the complete release: quality gates first,
+# followed by metadata validation, packaging, repository deployment and
+# publication. Pull requests exercise the same gates without entering any
+# tag-only release job.
 name: Salon release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   pull_request:
@@ -18,8 +20,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gates:
+    name: Quality gates
+    runs-on: ubuntu-24.04
+    container: fedora:41
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          dnf install -y \
+            python3-gobject python3-cairo python3-pytest python3-ruff python3-mypy \
+            gtk4-devel libadwaita-devel libsoup3-devel gdk-pixbuf2-devel \
+            libmanette-devel glib2-devel meson ninja-build \
+            desktop-file-utils appstream adwaita-icon-theme \
+            xorg-x11-server-Xvfb dbus-x11 weston
+
+      - name: ruff
+        run: ruff check .
+
+      - name: mypy --strict (salon.core, salon.input)
+        run: mypy --strict salon/core salon/input
+
+      - name: pytest
+        run: xvfb-run -a python3 -m pytest -q
+        env:
+          PYTHONPATH: .
+
+      - name: meson compile
+        run: |
+          meson setup build
+          meson compile -C build
+
+      - name: Reject missing or too-old native dependencies
+        run: python3 scripts/meson-negative-dependencies.py
+
+      - name: Wayland smoke test
+        run: bash scripts/wayland-smoke.sh
+
+      - name: Upload Wayland smoke frame
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wayland-smoke-frame
+          path: build/meson-logs/wayland-smoke.png
+          if-no-files-found: warn
+
+      - name: meson test (AppStream and desktop entry validation)
+        run: meson test -C build --print-errorlogs
+
+      - name: meson install into a staging prefix
+        run: DESTDIR="$PWD/staging" meson install -C build
+
   version:
     name: Check release metadata
+    needs: gates
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

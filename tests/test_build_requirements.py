@@ -27,7 +27,7 @@ def test_readme_and_meson_share_the_authoritative_minimums() -> None:
 
 
 def test_ci_installs_every_native_dependency_family() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "checks.yml").read_text()
+    workflow = (ROOT / ".github" / "workflows" / "flatpak-release.yml").read_text()
     for package in (
         "gtk4-devel",
         "libadwaita-devel",

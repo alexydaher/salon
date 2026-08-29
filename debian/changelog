@@ -1,3 +1,10 @@
+salon (0.3.2-1) unstable; urgency=medium
+
+  * Run quality gates as the first job of the release workflow.
+  * Avoid duplicate branch and tag workflow runs for one release.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 11:15:49 +0200
+
 salon (0.3.1-1) unstable; urgency=medium
 
   * Keep Flatpak host-app icon failures from interrupting the Home layout.
