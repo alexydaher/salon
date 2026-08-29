@@ -13,7 +13,7 @@ rows are ten, nine and seven keys wide, and wrapping the alphabet at six
 columns produces a grid nobody can read as a keyboard. The stated intent is
 a recognisable QWERTY that arrow keys can cross, so this is a ten-column
 layout with ragged rows, which is what every TV keyboard worth copying
-does. See DECISIONS.md.
+does.
 
 Vertical movement is spatial, not by index: each key occupies a span of
 grid cells, and moving up or down lands on whichever key in the target row

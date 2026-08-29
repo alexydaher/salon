@@ -1,11 +1,33 @@
+# Build trees. `build-*/` covers the scratch prefixes (build-system,
+# build-sdk, build-flatpak, …); build-aux/ is source and must survive it.
 build/
 _build/
+build-*/
+!build-aux/
+.flatpak-builder/
+
+# Python
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
+
+# Tool caches
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
-*.egg-info/
-build-flatpak/
-.flatpak-builder/
+
+# Working notes, kept on disk and out of the published repository.
+# CLAUDE.md is agent orientation; DECISIONS.md is the design journal;
+# the docs/ files are maintainer-only release procedure and QA status;
+# CONTRIBUTING.md and CHANGELOG.md are house rules and release history
+# for a repository that has no outside contributors yet.
+CLAUDE.md
+DECISIONS.md
+docs/publishing.md
+docs/release-checklist.md
+docs/sessions.md
+docs/development.md
+docs/providers.md
+CONTRIBUTING.md
+CHANGELOG.md

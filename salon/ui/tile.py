@@ -20,7 +20,7 @@ from salon.ui import motion, theme  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 # Tighter than the brief's literal 0.82/320 — that combination read as
-# loose and bouncy on a real screen (see DECISIONS.md). A higher damping
+# loose and bouncy on a real screen. A higher damping
 # ratio cuts the overshoot almost entirely and a higher stiffness keeps it
 # fast; it's still a spring, so reversing direction mid-flight settles
 # physically instead of snapping onto a new curve.

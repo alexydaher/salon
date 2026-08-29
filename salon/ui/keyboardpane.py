@@ -10,7 +10,7 @@ phone to type" button and its own QR code, from the days when the phone was
 a keyboard you summoned for one URL. The phone is now a remote you connect
 once, from the top bar, and leave connected — so a second place to turn it
 on was two switches for one thing, and the one buried in a keyboard was the
-one nobody would find. See DECISIONS.md 2026-08-22.
+one nobody would find.
 
 What is left is the part that was always the point: while this pane is on
 screen it *claims the text sink*, so whatever the phone types goes to the

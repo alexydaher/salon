@@ -49,7 +49,7 @@ def checked_version(root: Path, requested_tag: str | None) -> tuple[str, str]:
     metainfo_path = root / "data" / f"{APP_ID}.metainfo.xml.in"
     metainfo_text = metainfo_path.read_text()
     manifest = (root / f"{APP_ID}.yaml").read_text()
-    changelog = (root / "CHANGELOG.md").read_text()
+    changelog_path = root / "CHANGELOG.md"
     debian_changelog = (root / "debian" / "changelog").read_text()
 
     meson_version = match_one(r"^\s*version:\s*'([^']+)'", meson, "Meson version")
@@ -79,8 +79,12 @@ def checked_version(root: Path, requested_tag: str | None) -> tuple[str, str]:
         fail(f"manifest tag is {manifest_tag!r}; expected {expected_tag!r}")
     if requested_tag is not None and requested_tag != expected_tag:
         fail(f"pushed tag is {requested_tag!r}; expected {expected_tag!r}")
-    if not re.search(rf"^## {re.escape(version)}(?:\s|$)", changelog, re.MULTILINE):
-        fail(f"CHANGELOG.md has no {version} release heading")
+    # CHANGELOG.md is kept on disk and out of the repository (see .gitignore),
+    # so a clean checkout has nothing to check here.
+    if changelog_path.exists():
+        changelog = changelog_path.read_text()
+        if not re.search(rf"^## {re.escape(version)}(?:\s|$)", changelog, re.MULTILINE):
+            fail(f"CHANGELOG.md has no {version} release heading")
 
     screenshot_pattern = r"raw\.githubusercontent\.com/alexydaher/salon/(v[^/]+)/"
     screenshot_tags = set(re.findall(screenshot_pattern, metainfo_text))

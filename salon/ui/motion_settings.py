@@ -11,7 +11,7 @@ from gi.repository import (  # noqa: E402
 )
 
 # Tighter than the brief's literal 0.82/320 — that combination read as
-# loose and bouncy on a real screen (see DECISIONS.md). A higher damping
+# loose and bouncy on a real screen. A higher damping
 # ratio cuts the overshoot almost entirely and a higher stiffness keeps it
 # fast.
 SPRING_DAMPING_RATIO = 0.92

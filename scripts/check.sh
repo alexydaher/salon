@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Runs every quality gate from the implementation plan (§10). Must exit 0
-# before any milestone is considered done — see CLAUDE.md ground rules.
+# before any milestone is considered done.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

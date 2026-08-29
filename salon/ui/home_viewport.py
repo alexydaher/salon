@@ -73,8 +73,8 @@ class _RowViewport(Gtk.Fixed):
     passed every reading of the code, and did not exist on the display.
     So the visible span is passed in from the layout pass, which knows the
     window's width, rather than measured here. (This is the horizontal face
-    of the Gtk.Fixed sizing trap in CLAUDE.md; it has now been hit on both
-    axes.)
+    of the same Gtk.Fixed sizing trap the vertical viewports hit: such a
+    container is allocated its *natural* size, whatever it was asked for.)
     """
 
     def __init__(self) -> None:

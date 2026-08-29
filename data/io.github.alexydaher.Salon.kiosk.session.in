@@ -13,10 +13,10 @@ Name=Salon (Kiosk)
 # window state and no other client may override it, which is why only URL
 # tiles can pass --start-fullscreen today. A compositor may.
 #
-# The cost is that this has less road under it than the Shell session. See
-# DECISIONS.md 2026-08-23 for what was verified and what was only reasoned
-# about — in particular the RemoteDesktop portal, which is what the phone
-# trackpad, /type into a launched app and gamepad pointer control all ride on.
+# The cost is that this has less road under it than the Shell session. The
+# part to test first here is not the launcher, it is the RemoteDesktop
+# portal: the phone trackpad, /type into a launched app and gamepad pointer
+# control all ride on it, and they fail together if it does not come up.
 Kiosk=true
 
 # As in salon.session, the components are not here: gnome-session 50 does not

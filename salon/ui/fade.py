@@ -25,7 +25,7 @@ class FadeIn:
     answering for a screen the user has already left: BACK would land on
     the settings screen that is halfway gone. Fading in has no such
     hazard, because the widget is visible and targetable from the first
-    frame and only its paint is late. See DECISIONS.md 2026-08-23.
+    frame and only its paint is late.
 
     This exists because GNOME Kiosk has almost no window animations of its
     own: its compositor fades a window in on map and does nothing at all on
