@@ -4,7 +4,7 @@
 // a bootstrap accepted at /connect and nowhere else, and what comes back is
 // the session token every later request carries.
 
-import { $, toast } from "./dom.js";
+import { $, settleViewport, toast } from "./dom.js";
 import { rememberKey, session } from "./session.js";
 import { setLive } from "./transport.js";
 import { startFeed, stopFeed } from "./feed.js";
@@ -22,6 +22,7 @@ function showRemote(visible) {
   $("chrome").hidden = !visible;
   $("body").hidden = !visible;
   $("tabs").hidden = !visible;
+  if (visible) settleViewport();
 }
 
 export async function connect(credential) {

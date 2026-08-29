@@ -129,6 +129,8 @@ export function measureStrips() {
 }
 
 let measuredViewport = 0;
+let viewportSettleFrame = 0;
+let viewportSettleUntil = 0;
 
 // iOS browsers can lay 100dvh out against a viewport origin left behind by
 // their collapsing toolbars. The result is symmetrical: the top of the app
@@ -146,4 +148,24 @@ export function measureViewport() {
   // This shell has its own scrollports. A restored document scroll only
   // moves the whole remote under the browser chrome and exposes its root.
   if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+}
+
+// A first navigation is not one layout event on mobile. The address bar,
+// manifest mode and safe-area geometry can settle after `pageshow`, and some
+// browsers do not emit another VisualViewport resize for the final value.
+// Sample only through that short startup window; the normal event listeners
+// take over afterwards, so an idle remote does not keep drawing frames.
+export function settleViewport() {
+  viewportSettleUntil = performance.now() + 1500;
+  if (viewportSettleFrame) return;
+
+  const tick = () => {
+    measureViewport();
+    if (performance.now() < viewportSettleUntil) {
+      viewportSettleFrame = requestAnimationFrame(tick);
+    } else {
+      viewportSettleFrame = 0;
+    }
+  };
+  tick();
 }

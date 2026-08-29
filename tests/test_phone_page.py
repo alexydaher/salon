@@ -118,12 +118,17 @@ def test_browser_remote_stays_inside_the_visible_viewport() -> None:
     controls = (UI / "controls.css").read_text()
     dom = (UI / "dom.js").read_text()
     main = (UI / "main.js").read_text()
+    connect = (UI / "connect.js").read_text()
     assert "height: var(--viewport-h)" in shell
     assert re.search(r"html, body\s*\{[^}]*overflow: hidden", shell, re.S)
     assert "justify-content: safe flex-end" in controls
     assert "window.visualViewport" in dom
     assert 'setProperty("--viewport-h"' in dom
     assert 'window.visualViewport?.addEventListener("resize", measureViewport)' in main
+    assert "performance.now() + 1500" in dom
+    assert "requestAnimationFrame(tick)" in dom
+    assert 'window.addEventListener("pageshow", settleViewport)' in main
+    assert re.search(r"showRemote\(visible\).*?if \(visible\) settleViewport\(\)", connect, re.S)
 
 
 def test_the_asset_name_pattern_refuses_anything_but_a_bare_filename() -> None:

@@ -6,7 +6,8 @@
 // here through `bus.js`.
 
 import {
-  $, buzz, measureHeader, measureSearchRow, measureStrips, measureViewport, toast,
+  $, buzz, measureHeader, measureSearchRow, measureStrips, measureViewport,
+  settleViewport, toast,
 } from "./dom.js";
 import { on } from "./bus.js";
 import { readLaunchOptions, session } from "./session.js";
@@ -71,7 +72,7 @@ window.addEventListener("resize", () => {
 });
 window.visualViewport?.addEventListener("resize", measureViewport);
 window.addEventListener("scroll", measureViewport, { passive: true });
-window.addEventListener("pageshow", measureViewport);
+window.addEventListener("pageshow", settleViewport);
 
 // Polling while the phone is in a pocket is a request a second for nothing.
 document.addEventListener("visibilitychange", () => {
@@ -85,7 +86,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-measureViewport();
+settleViewport();
 readLaunchOptions();
 showTab(session.tab);
 

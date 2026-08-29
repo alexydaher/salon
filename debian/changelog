@@ -1,3 +1,9 @@
+salon (0.3.7-1) unstable; urgency=medium
+
+  * Remeasure the phone viewport while its startup geometry settles.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 22:17:07 +0200
+
 salon (0.3.6-1) unstable; urgency=medium
 
   * Keep the phone remote inside the unobscured browser viewport.
