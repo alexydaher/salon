@@ -38,6 +38,15 @@
 #   a silent X11 fallback would start, look right, and then behave wrongly
 #   in ways a user could not diagnose. Refusing to run is the honest
 #   outcome, and adding the socket to quiet a linter would be a lie.
+#
+# finish-args-*-talk-name (login1, UPower, NetworkManager, bluez)
+#   Four narrow system-bus names, each carrying one feature: power actions,
+#   the battery glyph, the Wi-Fi glyph and joining a network, and pairing a
+#   pad over Bluetooth. Every one is strictly narrower than the host-spawn
+#   grant above, which can already reach all four by other means; see the
+#   note beside them. The exception request is easier here than usual
+#   because the alternative is not "less access", it is "the same access,
+#   undeclared".
 # ---------------------------------------------------------------------
 app-id: io.github.alexydaher.Salon
 runtime: org.gnome.Platform
@@ -65,6 +74,20 @@ finish-args:
   # which listens on the LAN while search is open.
   - --share=network
   - --share=ipc
+
+  # The host's icon themes, read-only. Without these the sandbox's icon
+  # theme holds Salon's own icons and almost nothing else, so
+  # `Gtk.IconTheme.has_icon` fails for every application on the machine and
+  # All apps draws two hundred generated gradient cards. It looked like a
+  # design choice rather than a missing mount, which is how it survived.
+  - --filesystem=/usr/share/icons:ro
+  - --filesystem=/var/lib/flatpak/exports/share/icons:ro
+  - --filesystem=xdg-data/flatpak/exports/share/icons:ro
+
+  # Tile artwork the user points at by path. `~/Pictures/netflix.png` is
+  # the obvious thing to type into the editor and it resolved to nothing
+  # inside the sandbox, silently, because `Path.is_file()` is false there.
+  - --filesystem=xdg-pictures:ro
 
   # Screensaver inhibition and gamepad pointer control use desktop portals,
   # which sandboxed apps can reach without explicit bus grants.
@@ -94,11 +117,37 @@ finish-args:
   # Flatpak gets the consent dialog, once, as it should. Nothing needs to
   # be configured for this; the absence of the line *is* the configuration.
 
-  # Deliberately absent: direct host dconf and logind access. Salon never
-  # changes GNOME's global lock preference; an administrator configures that
-  # for the dedicated account. A native session can still toggle the shell
-  # keyboard and expose suspend/restart/shutdown. The Flatpak disables those
-  # host-wide features instead of weakening the sandbox further.
+  # Four system-bus names, each the narrowest that makes one feature work.
+  #
+  # These were withheld until 2026-08-29 on the reasoning that a Flatpak
+  # should not hold host-wide power and configuration. That reasoning does
+  # not survive the line above it: a build holding
+  # `--talk-name=org.freedesktop.Flatpak` can already run `systemctl
+  # poweroff`, `nmcli`, `bluetoothctl` or anything else on the host through
+  # one of Salon's own command tiles. Naming these four buys the user four
+  # working features and costs an attacker nothing they did not already
+  # have. What it *does* buy is legibility — `flatpak info --show-permissions`
+  # now says what Salon actually touches instead of hiding it all behind one
+  # blanket grant.
+  #
+  # Every one of them is still refusable downstream. logind asks polkit per
+  # action, NetworkManager asks polkit to join a network, and BlueZ asks for
+  # an agent. Salon reports each refusal rather than swallowing it.
+  - --system-talk-name=org.freedesktop.login1        # suspend, restart, shut down, log out
+  - --system-talk-name=org.freedesktop.UPower        # the top bar's battery glyph
+  - --system-talk-name=org.freedesktop.NetworkManager  # the Wi-Fi glyph, and joining a network
+  - --system-talk-name=org.bluez                     # pairing a controller over Bluetooth
+
+  # Still absent, and still on purpose: host dconf. The GNOME shell keyboard
+  # is toggled by spawning `gsettings` on the host, which needs nothing new,
+  # rather than by mounting the user's dconf socket into the sandbox. Salon
+  # never changes GNOME's global lock preference in either build.
+  #
+  # Also still absent: any autostart grant. Writing the host's
+  # ~/.config/autostart by hand is what `--filesystem=xdg-config/autostart`
+  # would be for, and the honest route is org.freedesktop.portal.Background
+  # instead. Until that is built, Settings says so and the host desktop's
+  # own startup preferences are the answer.
 
   # Nothing for xdg-config/salon, xdg-data/salon or xdg-cache/salon. A
   # sandboxed app already owns its own XDG dirs, so those three grants only

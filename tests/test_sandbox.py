@@ -32,11 +32,20 @@ def test_in_flatpak_is_decided_by_the_marker_file(tmp_path: Path) -> None:
     assert sandbox.in_flatpak(marker) is True
 
 
-def test_host_integration_is_disabled_only_inside_flatpak() -> None:
+def test_host_integration_survives_the_sandbox() -> None:
+    """Power and the shell keyboard work in both builds.
+
+    They were withheld from the Flatpak until 2026-08-29 on the reasoning
+    that a sandboxed app should not hold them — which does not survive the
+    grant sitting above it. `--talk-name=org.freedesktop.Flatpak` can spawn
+    `systemctl poweroff` on the host through one of Salon's own command
+    tiles, so refusing it `login1` cost the user four features and cost an
+    attacker nothing.
+    """
     assert sandbox.host_settings_available(sandboxed=False) is True
-    assert sandbox.host_settings_available(sandboxed=True) is False
+    assert sandbox.host_settings_available(sandboxed=True) is True
     assert sandbox.host_power_available(sandboxed=False) is True
-    assert sandbox.host_power_available(sandboxed=True) is False
+    assert sandbox.host_power_available(sandboxed=True) is True
 
 
 def test_command_launch_goes_through_the_host() -> None:

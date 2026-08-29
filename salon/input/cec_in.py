@@ -18,7 +18,6 @@ the CEC 1.4 user-control-code list, which is what cec-client reports.
 from __future__ import annotations
 
 import re
-import shutil
 from collections.abc import Callable
 
 import gi
@@ -70,7 +69,12 @@ _CODE_TO_ACTION = {
 
 
 def available(*, sandboxed: bool | None = None) -> bool:
-    return sandbox.capabilities(sandboxed).cec and shutil.which(_CLIENT) is not None
+    """Whether the TV remote can drive Salon on this machine.
+
+    `host_which` rather than `shutil.which`: inside Flatpak the client runs
+    on the host, so the sandbox's PATH is the wrong one to ask.
+    """
+    return sandbox.capabilities(sandboxed).cec and sandbox.host_which(_CLIENT, sandboxed)
 
 
 def action_for_code(code: int, bindings: Bindings | None = None) -> Action | None:
@@ -135,7 +139,7 @@ class CecSource:
             return False
         try:
             process = Gio.Subprocess.new(
-                [_CLIENT, "-m", "-d", "8", "-o", "Salon"],
+                [*sandbox.host_prefix(), _CLIENT, "-m", "-d", "8", "-o", "Salon"],
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE,
             )
         except GLib.Error:

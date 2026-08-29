@@ -160,60 +160,14 @@ def keysym_for(character: str) -> int | None:
     return keyval or None
 
 
-_A11Y_SCHEMA = "org.gnome.desktop.a11y.applications"
-_OSK_KEY = "screen-keyboard-enabled"
-
-
-def _a11y_settings() -> Gio.Settings | None:
-    """GNOME's accessibility settings, or None where they aren't installed.
-
-    Worth the detour, because `Gio.Settings.new` on a schema that is not
-    there does not raise — it is a `g_error`, which aborts the process. So
-    on a desktop without gsettings-desktop-schemas, Salon died on the first
-    press of Y in pointer mode instead of doing nothing. Host settings
-    guards its own host key the same way, for the same reason.
-    """
-    source = Gio.SettingsSchemaSource.get_default()
-    if source is None or source.lookup(_A11Y_SCHEMA, True) is None:
-        return None
-    return Gio.Settings.new(_A11Y_SCHEMA)
-
-
-def set_onscreen_keyboard_enabled(enabled: bool) -> None:
-    """Toggle GNOME's built-in accessibility on-screen keyboard.
-
-    We deliberately don't render our own OSK overlay: Salon can't force
-    itself above another app's Wayland window, so a custom overlay
-    wouldn't reliably show up over Chrome/Netflix/etc. GNOME's a11y
-    keyboard is a shell-level surface and isn't bound by that limit — the
-    gamepad-driven cursor from PointerInjector can then click its keys
-    like a real mouse.
-
-    Native Salon sessions use the host key. The Flatpak deliberately omits
-    direct dconf access and offers phone typing instead.
-    """
-    if not sandbox.host_settings_available():
-        print("[pointer] Host on-screen keyboard control is disabled in the Flatpak.")
-        return
-    settings = _a11y_settings()
-    if settings is None:
-        print("[pointer] No GNOME a11y schema here; leaving the on-screen keyboard alone.")
-        return
-    settings.set_boolean(_OSK_KEY, enabled)
-
-
-def onscreen_keyboard_enabled() -> bool:
-    if not sandbox.host_settings_available():
-        return False
-    settings = _a11y_settings()
-    return bool(settings.get_boolean(_OSK_KEY)) if settings is not None else False
-
-
-def onscreen_keyboard_available(sandboxed: bool | None = None) -> bool:
-    """Whether the Y-button shortcut can control GNOME's shell keyboard."""
-    if not sandbox.host_settings_available(sandboxed):
-        return False
-    return _a11y_settings() is not None
-
+# The on-screen-keyboard half lives next door: it is a desktop
+# preference rather than input injection, and the two only ever shared
+# this file because Y in pointer mode touches both. Re-exported here so
+# the import sites that predate the split keep working.
+from salon.services.onscreen_keyboard import (  # noqa: E402
+    onscreen_keyboard_available,
+    onscreen_keyboard_enabled,
+    set_onscreen_keyboard_enabled,
+)
 
 __all__ = [name for name in globals() if not name.startswith("__")]

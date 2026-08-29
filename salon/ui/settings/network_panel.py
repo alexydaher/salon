@@ -8,7 +8,6 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio  # noqa: E402
 
-from salon.core import sandbox  # noqa: E402
 from salon.services import netinfo, wifi  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
@@ -28,11 +27,6 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     would loop.
     """
     status: list[netinfo.NetworkStatus] = []
-    caps = sandbox.capabilities()
-    unavailable = "Unavailable in Flatpak; configure networking on the host desktop."
-
-    def network_row(row: SettingsRow) -> SettingsRow:
-        return row if caps.network_configuration else row.make_unavailable(unavailable)
 
     def on_status(found: netinfo.NetworkStatus) -> None:
         if status and status[0] == found:
@@ -41,47 +35,32 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         context.rebuild()
 
     def build() -> list[SettingsRow]:
-        if caps.network_configuration:
-            netinfo.status_async(on_status)
+        netinfo.status_async(on_status)
         current = status[0] if status else None
         return [
-            (
-                InfoRow(
-                    "Connection",
-                    current.summary if current else "Checking…",
-                    detail=current.connectivity if current else "",
-                    # The same glyph the top bar is showing, so the row and the
-                    # bar can never disagree about what the connection is.
-                    icon_name=(current.icon_name if current else "") or "network-wireless-symbolic",
-                )
-                if caps.network_configuration
-                else InfoRow(
-                    "Connection",
-                    "Unavailable",
-                    detail="Host network status is not exposed to this Flatpak.",
-                )
+            InfoRow(
+                "Connection",
+                current.summary if current else "Checking…",
+                detail=current.connectivity if current else "",
+                # The same glyph the top bar is showing, so the row and the
+                # bar can never disagree about what the connection is.
+                icon_name=(current.icon_name if current else "") or "network-wireless-symbolic",
             ),
-            network_row(
-                ActionRow(
-                    "Choose a network",
-                    lambda: context.push(_wifi_panel(context)),
-                    detail="Every network in range, and its password if it needs one",
-                    value="›",
-                )
+            ActionRow(
+                "Choose a network",
+                lambda: context.push(_wifi_panel(context)),
+                detail="Every network in range, and its password if it needs one",
+                value="›",
             ),
-            network_row(
-                ActionRow(
-                    "Wi-Fi, in detail",
-                    lambda: context.open_control_center("wifi"),
-                    detail="Enterprise logins, hidden networks and static addresses",
-                )
+            ActionRow(
+                "Wi-Fi, in detail",
+                lambda: context.open_control_center("wifi"),
+                detail="Enterprise logins, hidden networks and static addresses",
             ),
-            network_row(
-                ActionRow(
-                    "Wired and VPN",
-                    lambda: context.open_control_center("network"),
-                    detail="Ethernet, VPN and proxy settings",
-                )
+            ActionRow(
+                "Wired and VPN",
+                lambda: context.open_control_center("network"),
+                detail="Ethernet, VPN and proxy settings",
             ),
         ]
 

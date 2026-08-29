@@ -22,6 +22,7 @@ python_sources = [
   'launcher_execution.py',
   'launcher_lifecycle.py',
   'launcher_shared.py',
+  'onscreen_keyboard.py',
   'pointer_injector.py',
   'pointer_events.py',
   'pointer_mutter.py',

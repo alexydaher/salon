@@ -26,56 +26,41 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     from salon.services import power
 
     caps = sandbox.capabilities()
-    flatpak_reason = "Unavailable in the Flatpak build; use the desktop's Settings app."
 
-    def host_row(row: SettingsRow) -> SettingsRow:
-        return row if caps.control_center else row.make_unavailable(flatpak_reason)
 
     def build() -> list[SettingsRow]:
         rows: list[SettingsRow] = [
-            host_row(
-                ActionRow(
-                    "Display and resolution",
-                    lambda: context.open_control_center("display"),
-                    detail="Resolution, refresh rate and scaling",
-                )
+            ActionRow(
+                "Display and resolution",
+                lambda: context.open_control_center("display"),
+                detail="Resolution, refresh rate and scaling",
             ),
-            host_row(
-                ActionRow(
-                    "Date and time",
-                    lambda: context.open_control_center("datetime"),
-                    detail="What the clock in the top bar shows",
-                )
+            ActionRow(
+                "Date and time",
+                lambda: context.open_control_center("datetime"),
+                detail="What the clock in the top bar shows",
             ),
-            host_row(
-                ActionRow(
-                    "Region and language",
-                    lambda: context.open_control_center("region"),
-                )
+            ActionRow(
+                "Region and language",
+                lambda: context.open_control_center("region"),
             ),
-            host_row(
-                ActionRow(
-                    "Accessibility",
-                    lambda: context.open_control_center("a11y"),
-                    detail="Larger text, high contrast, screen reader",
-                )
+            ActionRow(
+                "Accessibility",
+                lambda: context.open_control_center("a11y"),
+                detail="Larger text, high contrast, screen reader",
             ),
-            host_row(
-                ActionRow(
-                    "Power and screen blanking",
-                    lambda: context.open_control_center("power"),
-                )
+            ActionRow(
+                "Power and screen blanking",
+                lambda: context.open_control_center("power"),
             ),
-            host_row(
-                ActionRow(
-                    "Software updates",
-                    lambda: _open_updates(context),
-                    detail=(
-                        "Opens GNOME Software"
-                        if shutil.which("gnome-software")
-                        else "GNOME Software isn't installed"
-                    ),
-                )
+            ActionRow(
+                "Software updates",
+                lambda: _open_updates(context),
+                detail=(
+                    "Opens GNOME Software"
+                    if shutil.which("gnome-software")
+                    else "GNOME Software isn't installed"
+                ),
             ),
             (
                 ToggleRow(

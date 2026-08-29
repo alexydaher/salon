@@ -188,13 +188,17 @@ class SettingsActionController(ServiceComponent):
 
     def _open_control_center(self, panel: str) -> None:
         """§1: Salon is not a settings panel — system configuration
-        delegates to gnome-control-center."""
-        if not sandbox.capabilities().control_center:
-            self._owner._context.toast("GNOME Settings is unavailable in the Flatpak build.")
-            return
+        delegates to gnome-control-center.
+
+        Inside Flatpak this goes through `flatpak-spawn --host`, the same
+        prefix every launched application gets. gnome-control-center is a
+        host application like any other, and there was never a reason for
+        the one Salon opens itself to take a different route than the one
+        the user pins to a tile.
+        """
         try:
             Gio.Subprocess.new(
-                ["gnome-control-center", panel],
+                [*sandbox.host_prefix(), "gnome-control-center", panel],
                 Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE,
             )
         except GLib.Error:

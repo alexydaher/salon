@@ -19,7 +19,6 @@ The command strings are the documented ones; treat the wiring as untested.
 
 from __future__ import annotations
 
-import shutil
 from collections.abc import Callable
 
 import gi
@@ -27,6 +26,8 @@ import gi
 gi.require_version("Gio", "2.0")
 
 from gi.repository import Gio, GLib  # noqa: E402
+
+from salon.core import sandbox  # noqa: E402
 
 _CLIENT = "cec-client"
 # -s: read commands from stdin and exit. -d 1: errors only, so a working run
@@ -39,8 +40,10 @@ _ACTIVE_SOURCE = "as"
 _STANDBY_TV = "standby 0"
 
 
-def available() -> bool:
-    return shutil.which(_CLIENT) is not None
+def available(sandboxed: bool | None = None) -> bool:
+    """`host_which`, not `shutil.which`: inside Flatpak cec-client runs
+    on the host and is never on the sandbox's own PATH."""
+    return sandbox.host_which(_CLIENT, sandboxed)
 
 
 def _send(commands: str, on_done: Callable[[bool], None] | None = None) -> None:
@@ -50,7 +53,7 @@ def _send(commands: str, on_done: Callable[[bool], None] | None = None) -> None:
         return
     try:
         process = Gio.Subprocess.new(
-            [_CLIENT, *_ARGS],
+            [*sandbox.host_prefix(), _CLIENT, *_ARGS],
             Gio.SubprocessFlags.STDIN_PIPE
             | Gio.SubprocessFlags.STDOUT_SILENCE
             | Gio.SubprocessFlags.STDERR_SILENCE,
