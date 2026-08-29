@@ -81,6 +81,23 @@ def test_the_page_and_its_assets_stay_small() -> None:
     assert not oversized, "remote page source limit exceeded:\n" + "\n".join(oversized)
 
 
+def test_phone_navigation_stays_small_and_typing_is_contextual() -> None:
+    """Typing belongs to Pointer rather than permanently taxing navigation."""
+    page = PAGE.read_text()
+    assert re.findall(r'data-tab="([a-z]+)"', page) == ["apps", "remote", "pad"]
+    assert 'id="pane-type"' not in page
+    assert 'id="type-drawer"' in page
+    session = (UI / "session.js").read_text()
+    assert 'stored === "type" ? "pad"' in session
+
+
+def test_pairing_and_player_have_complete_visual_states() -> None:
+    page = PAGE.read_text()
+    assert page.count("<span></span>") == 4
+    assert 'id="connect-go" class="primary" disabled' in page
+    assert 'id="np-fallback"' in page
+
+
 def test_the_asset_name_pattern_refuses_anything_but_a_bare_filename() -> None:
     """The one guard between `/ui/<name>` and the resource path built from
     it. A name with a slash or a dot-dot in it never reaches the join."""
@@ -99,3 +116,64 @@ def test_the_asset_name_pattern_refuses_anything_but_a_bare_filename() -> None:
         ".js",
     ):
         assert not _UI_ASSET_NAME.fullmatch(name), name
+
+
+def test_no_card_grid_track_can_be_widened_by_its_contents() -> None:
+    """A bare `1fr` is `minmax(auto, 1fr)`, whose floor is the item's
+    min-content width — and a card's subtitle is `white-space: nowrap`. An
+    installed application's subtitle is its `Comment=` line, so the A-Z list
+    drew one 312px card, one 89px card and one of exactly zero width across
+    a 390px phone. Every track here has to have a floor of zero.
+    """
+    catalog = (UI / "catalog.css").read_text()
+    templates = re.findall(
+        r"\.row-tiles\.[a-z]+\s*\{[^}]*grid-template-columns:([^;]+);", catalog
+    )
+    assert len(templates) >= 3, "the card grid stopped declaring its own columns"
+    for template in templates:
+        assert "minmax(0" in template, (
+            f"{template.strip()} lets a card widen the column it is in"
+        )
+
+
+def test_the_browse_surfaces_clear_the_sticky_search_row() -> None:
+    """Both the A-Z rail and the mirrored cursor scroll things into view in
+    a scrollport whose first 60px are covered by the search field. Without a
+    scroll margin, jumping to M hid the M heading and the whole first row of
+    it behind that field."""
+    catalog = (UI / "catalog.css").read_text()
+    allapps = (UI / "allapps.css").read_text()
+    assert "--search-h" in (UI / "dom.js").read_text(), "nothing measures the search row"
+    for name, rule in (("catalog.css", catalog), ("allapps.css", allapps)):
+        assert "scroll-margin-top" in rule, f"{name} has no scroll margin"
+    # And the offset the headings stick at is the measured one, not a guess.
+    assert "top: var(--search-h" in catalog
+
+
+def test_the_header_can_give_the_player_a_line_of_its_own() -> None:
+    """An application in front and something playing put four controls in a
+    390px row — the identity, "Close Netflix", the track and the volume —
+    and every one of them came out as two clipped characters. The player
+    takes the second line instead, which needs three things: a header that
+    wraps at all, a rule that sends the player down, and `order` on the keys
+    that must stay up, because a full-width flex item takes everything after
+    it down with it."""
+    header = (UI / "base.css").read_text()
+    player = (UI / "strips.css").read_text()
+    assert "flex-wrap: wrap" in header, "the header cannot wrap any more"
+    assert "flex: 1 0 100%" in player, "nothing gives the player its own line"
+    assert "#hdr-volume, body.in-app.playing #hdr-menu { order: 0" in player, (
+        "the volume key can be carried down with the player"
+    )
+    # And the state the rule keys on is actually published.
+    assert 'classList.toggle("playing"' in (UI / "render.js").read_text()
+
+
+def test_the_volume_popover_hangs_off_a_measured_header() -> None:
+    """It is `position: fixed`, so it is placed against the viewport rather
+    than against the header it belongs to. The header is no longer one fixed
+    row — the player takes a second one — so the 3.5rem it used to assume put
+    the popover straight over the track title."""
+    assert "--header-h" in (UI / "dom.js").read_text(), "nothing measures the header"
+    assert "measureHeader" in (UI / "render.js").read_text(), "it is measured but never"
+    assert "top: calc(var(--header-h" in (UI / "overlays.css").read_text()

@@ -4,7 +4,7 @@
 // a bootstrap accepted at /connect and nowhere else, and what comes back is
 // the session token every later request carries.
 
-import { $ } from "./dom.js";
+import { $, toast } from "./dom.js";
 import { rememberKey, session } from "./session.js";
 import { setLive } from "./transport.js";
 import { startFeed, stopFeed } from "./feed.js";
@@ -14,6 +14,8 @@ import { closeSheet } from "./sheet.js";
 import { clearSearch } from "./search.js";
 import { closeBrowsing, forgetAllApps } from "./allapps.js";
 import { closeNowPlaying } from "./nowplaying.js";
+import { closeVolume } from "./volume.js";
+import { closeTypeDrawer } from "./typing.js";
 
 function showRemote(visible) {
   $("connect").style.display = visible ? "none" : "";
@@ -33,10 +35,12 @@ export async function connect(credential) {
     });
   } catch (error) {
     $("connect-status").textContent = "Could not reach Salon. Same Wi-Fi?";
+    updateCode();
     return false;
   }
   if (!response.ok) {
     $("connect-status").textContent = await response.text();
+    updateCode();
     return false;
   }
   const data = await response.json();
@@ -47,6 +51,7 @@ export async function connect(credential) {
   setLive(true);
   startFeed();
   keepAwake();
+  toast("Connected to Salon");
   return true;
 }
 
@@ -61,11 +66,26 @@ export function dropSession(message) {
   closeBrowsing();
   forgetAllApps();
   closeNowPlaying();
-  $("playing").classList.remove("on");
-  $("volume").classList.remove("on");
+  closeVolume();
+  closeTypeDrawer();
+  $("hdr-playing").hidden = true;
+  $("hdr-volume").hidden = true;
   document.body.classList.remove("in-app");
+  document.body.classList.remove("playing");
   $("connect-status").textContent = message || "";
   $("code").value = "";
+  updateCode();
+  $("code").focus();
+}
+
+function updateCode() {
+  const value = $("code").value.replace(/\D/g, "").slice(0, 4);
+  if ($("code").value !== value) $("code").value = value;
+  for (const [index, cell] of [...$("code-cells").children].entries()) {
+    cell.textContent = value[index] || "";
+    cell.classList.toggle("filled", Boolean(value[index]));
+  }
+  $("connect-go").disabled = value.length !== 4;
 }
 
 export function bindConnect() {
@@ -75,14 +95,21 @@ export function bindConnect() {
       $("connect-status").textContent = "Four digits, as shown on the television.";
       return;
     }
+    $("connect-status").textContent = "Connecting…";
+    $("connect-go").disabled = true;
     connect(code);
   });
   // Four digits is the whole form; making someone reach for a button after
   // the last one is a step that exists for no reason.
   $("code").addEventListener("input", () => {
+    updateCode();
     if (/^[0-9]{4}$/.test($("code").value.trim())) $("connect-go").click();
   });
   $("code").addEventListener("keydown", (event) => {
     if (event.key === "Enter") $("connect-go").click();
   });
+  updateCode();
+  setTimeout(() => {
+    if ($("connect").style.display !== "none") $("code").focus();
+  }, 0);
 }

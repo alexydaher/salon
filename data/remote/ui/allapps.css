@@ -1,0 +1,95 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+
+   The A-Z list of every installed application and the index rail beside it.
+   Split out of catalog.css, which is the card kit the three list surfaces
+   share; this is the one surface that also has a scrubber. */
+
+/* 200 installed applications is 40 rows of D-pad on the television. On the
+   phone it is a scrollbar and an index, which is the one browsing job a
+   touchscreen is plainly better at, so this is where the whole list lives.
+   The right padding is the rail's room. */
+#allapps { position: relative; padding-right: 1.9rem; }
+
+/* Each letter is its own section so its heading is *bounded* by it. As one
+   flat list every heading stuck at the same offset and stayed stuck for the
+   whole page — twenty-seven of them piled on one line, saved from looking
+   like it only by being opaque. Contained, each pushes the last off the way
+   a contacts list does.
+
+   It is also what the rail scrolls to, never the heading inside it: a
+   sticky element reports the position it is stuck at rather than the one it
+   sits at in flow, so `scrollIntoView` on a heading already pinned to the
+   top moves by roughly nothing and on one about to be pinned overshoots by
+   the offset. Tapping F used to land seventy pixels into F. */
+.az-group {
+  display: block;
+  scroll-margin-top: calc(var(--search-h, 3.6rem) + 0.4rem);
+}
+.az-group .row-tiles { margin-bottom: 0.2rem; }
+
+#rail {
+  position: fixed;
+  /* `top` and `max-height` are set from the pane's own box in allapps.js:
+     this is fixed to the viewport, and a rail measured against the viewport
+     ran under the header and over the tab strip in landscape. */
+  right: max(0.15rem, env(safe-area-inset-right, 0px));
+  z-index: 6;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 1.45rem;
+  padding: 0.45rem 0;
+  border-radius: 0.75rem;
+  /* A plate, not bare letters over the artwork. Without it the index was a
+     column of grey characters floating on top of the cards, which reads as
+     a rendering fault rather than as a control. */
+  background: rgba(31, 38, 48, 0.94);
+  box-shadow: 0 0 0 1px rgba(242, 237, 228, 0.07);
+  touch-action: none;
+}
+/* Only over the list it indexes. It is fixed to the viewport rather than to
+   the pane, so without the tab test it stayed on screen over the D-pad. */
+body.browsing[data-tab="apps"] #rail { display: flex; }
+/* A natural pitch that gives way when there are more letters than room.
+   Stretching seventeen marks across six hundred pixels — which is what
+   `flex: 1 1 0` did — reads as a column of unrelated characters rather than
+   as an index. */
+#rail span {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0.26rem 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--dim);
+}
+#rail span.on { color: var(--accent); }
+
+/* The letter under the thumb, drawn where the thumb is not. A rail this
+   narrow is covered by the hand using it, so the feedback has to be
+   somewhere else on the screen. */
+#rail-bubble {
+  position: fixed;
+  right: 2.6rem;
+  z-index: 7;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.5rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+body.browsing[data-tab="apps"] #rail-bubble.on { display: flex; }
+
+@media (orientation: landscape) and (max-height: 560px) {
+  #rail-bubble { width: 2.6rem; height: 2.6rem; font-size: 1.15rem; }
+}

@@ -15,7 +15,7 @@ import { store } from "./dom.js";
 const KEY_STORE = "salon.key";
 const TAB_STORE = "salon.tab";
 
-export const TABS = ["apps", "remote", "pad", "type"];
+export const TABS = ["apps", "remote", "pad"];
 
 export const session = {
   key: "",
@@ -45,7 +45,9 @@ export function readLaunchOptions() {
   // The remembered tab, because whoever uses this as a trackpad uses it as
   // a trackpad every time and should not have to say so again; overridable
   // from the fragment so a home-screen shortcut can point straight at one.
-  const wanted = params.get("tab") || store.get(TAB_STORE) || "apps";
+  const stored = params.get("tab") || store.get(TAB_STORE) || "apps";
+  // Old home-screen shortcuts used `type`; typing now opens inside Pointer.
+  const wanted = stored === "type" ? "pad" : stored;
   session.tab = TABS.includes(wanted) ? wanted : "apps";
   // Off the address bar immediately: the credential should not survive in
   // history, in a screenshot of the phone, or in whatever the browser

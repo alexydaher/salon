@@ -23,6 +23,7 @@
   --pad: 4vw;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
+  --touch: 2.75rem;
   /* How much room the strips below `main` are taking. Kept as a variable so
      the toast can sit above whatever is actually there instead of above a
      hardcoded guess at the tab bar's height. */
@@ -67,6 +68,12 @@ html, body {
 body { height: 100dvh; display: flex; flex-direction: column; }
 
 button { font: inherit; color: inherit; border: 0; background: none; }
+button, summary { cursor: pointer; }
+input { user-select: text; -webkit-user-select: text; }
+button:focus-visible, summary:focus-visible, input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* One sprite, referenced with <use>. The tab strip used to be four
    typographic characters — U+2328 renders as a colour emoji on iOS and as
@@ -88,19 +95,28 @@ svg.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 }
 #connect h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
 #connect p { margin: 0; color: var(--dim); }
+#code-entry { position: relative; }
 #code {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  padding: 1rem;
-  font-size: 2rem;
-  text-align: center;
-  letter-spacing: 0.5em;
-  text-indent: 0.5em;
+  opacity: 0;
+  z-index: 1;
+}
+#code-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.65rem; }
+#code-cells span {
+  height: 4rem;
   border-radius: 14px;
   border: 2px solid var(--s2);
   background: var(--s1);
-  color: var(--fg);
+  display: grid;
+  place-items: center;
+  font-size: 1.8rem;
+  font-weight: 700;
 }
-#code:focus { outline: none; border-color: var(--accent); }
+#code-entry:focus-within #code-cells span { border-color: color-mix(in srgb, var(--accent) 45%, var(--s2)); }
+#code-entry:focus-within #code-cells span:not(.filled):first-of-type,
+#code-entry:focus-within #code-cells span.filled + span:not(.filled) { border-color: var(--accent); }
 #connect-status { min-height: 1.4rem; color: var(--danger); }
 .primary {
   padding: 1rem;
@@ -113,20 +129,41 @@ svg.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 /* --- header ----------------------------------------------------------- */
 
-/* The header used to be a dot and the word "Home", which is the emptiest
-   strip on a phone. It now carries the two controls that mean the same
-   thing on every pane — MENU, which is the one button whose meaning never
-   changes, and Power — plus the way out of a launched application, which
-   was previously duplicated into two panes and absent from the other two.
-   Browse to Apps with Netflix up and the escape hatch used to vanish. */
+/* The header carries the controls whose meaning survives a pane change.
+   Volume and Now Playing are launchers here, not full rows below the page:
+   the scarce dimension on a phone remote is height. */
 header {
   display: flex;
+  /* It wraps because the crowded case — an application in front and
+     something playing — is four controls in one row on a 390px phone.
+     Which line the player takes is decided in `strips.css`. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  row-gap: 0.4rem;
   padding: calc(0.6rem + var(--safe-t)) var(--pad) 0.6rem;
   font-size: 0.85rem;
   color: var(--dim);
 }
+#connection {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+/* With an application in front the second line said "Spotify" two
+   centimetres from a button saying "Close Spotify", and the pair of them is
+   what squeezed the player down to a clipped glyph. The name and the dot
+   stay: they are what says the television is still answering.
+
+   Shrinking it also stopped it filling the row, which left Close and the
+   volume key floating in the middle of the header with the whole right
+   half of the phone empty beside them. The auto margin takes that space
+   back for the identity, so the two controls sit against the right edge
+   where the thumb is, as they do on every other pane. */
+body.in-app #connection { flex: 0 1 auto; margin-inline-end: auto; }
+body.in-app .connection-copy small { display: none; }
 #dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--accent);
@@ -134,11 +171,20 @@ header {
   flex: none;
 }
 #dot.stale { background: var(--danger); }
-#screen { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connection-copy { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.connection-copy b { color: var(--fg); font-size: 0.82rem; }
+/* Ellipsis on both lines, not only on the screen name: "Salon" had nothing
+   to clip it, so a squeezed header cut the word through the middle of a
+   letter and left it touching the button beside it. */
+.connection-copy b, .connection-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 header .icon {
   flex: none;
-  width: 2.3rem;
-  height: 2.3rem;
+  width: var(--touch);
+  height: var(--touch);
   border-radius: 50%;
   background: var(--s1);
   display: flex;
@@ -147,13 +193,22 @@ header .icon {
   color: var(--fg);
 }
 header .icon.pressed { background: var(--accent); color: var(--on-accent); }
-header #hdr-power.pressed { background: var(--danger); color: var(--fg); }
+#hdr-volume.open { background: var(--accent); color: var(--on-accent); }
+#hdr-volume.muted { color: var(--danger); }
+#hdr-volume.open.muted { color: var(--on-accent); }
 #close-app {
-  flex: none;
+  /* The named escape hatch gives way before the fixed-size header icons on
+     narrow phones; its text is already clipped, so refusing to shrink only
+     pushes Power off screen. The cap is what the rest of the line needs
+     rather than a fraction of it: the header wraps now, and an item whose
+     natural width does not fit takes the *volume key* down a line with it
+     — a long enough application name would have rearranged the header. */
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  max-width: 62%;
+  max-width: calc(100% - 9rem);
   padding: 0.5rem 0.8rem;
   border-radius: 12px;
   background: var(--accent);
@@ -164,6 +219,11 @@ header #hdr-power.pressed { background: var(--danger); color: var(--fg); }
   overflow: hidden;
 }
 #close-app.pressed { opacity: 0.6; }
+#close-app .app-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* "Could not reach Salon" used to be a red dot and a toast, which is the
    same signal for "your phone was asleep" and "the television is off".
@@ -213,6 +273,10 @@ button:disabled { opacity: 0.3; }
 }
 body.in-app .why { display: block; }
 .subtle { color: var(--dim); font-size: 0.85rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
 
 #toast {
   position: fixed;

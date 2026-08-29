@@ -8,7 +8,7 @@
 #search-row {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem 0 0.4rem;
@@ -33,12 +33,15 @@
   display: none;
   flex: none;
   align-items: center;
-  padding: 0 0.85rem;
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0 0.7rem;
   border-radius: 14px;
   background: var(--s1);
   color: var(--dim);
   font-size: 0.8rem;
 }
+#all-apps { gap: 0.3rem; }
 #q-clear { color: var(--dim); }
 body.searching #q-clear { display: flex; }
 body:not(.searching) #all-apps { display: flex; }
@@ -46,7 +49,10 @@ body:not(.searching) #all-apps { display: flex; }
 
 .row-title {
   position: sticky;
-  top: 3.2rem;
+  /* Measured, not guessed. `--search-h` is the search row's real height,
+     published by `dom.js`; the 3.2rem that used to be here was about half a
+     rem short of it, so every heading stuck *under* the field. */
+  top: var(--search-h, 3.6rem);
   z-index: 1;
   margin: 0.8rem 0 0.4rem;
   padding: 0.2rem 0;
@@ -59,42 +65,108 @@ body:not(.searching) #all-apps { display: flex; }
      card scrolling beneath it show through the letters. */
   background: var(--bg);
   box-shadow: 0 0.4rem 0.4rem -0.4rem var(--bg);
+  /* What the A-Z rail and the cursor mirror scroll *to*. Without it
+     `scrollIntoView` aligns the heading with the top of the scrollport,
+     which is behind the sticky search row — so jumping to M hid the M and
+     the whole first row of it. */
+  scroll-margin-top: calc(var(--search-h, 3.6rem) + 0.5rem);
 }
 /* Counted at breakpoints rather than fitted with `auto-fill`. Fitting was
    tried and is wrong here: the minimum that keeps two 16:9 cards on a
    390px phone is small enough to put six of them on a tablet, and a card
-   is a piece of artwork with a size worth reading rather than a cell. */
+   is a piece of artwork with a size worth reading rather than a cell.
+
+   `minmax(0, 1fr)`, never a bare `1fr`: a bare one is `minmax(auto, 1fr)`,
+   whose floor is the item's min-content width — and a card's subtitle is
+   `white-space: nowrap`, so a track was as wide as the longest sentence in
+   it. An installed application's subtitle is its `Comment=` line, which is
+   how the A-Z list ended up drawing one 312px card, one 89px card and one
+   of exactly zero width across a 390px phone. */
 .row-tiles { display: grid; gap: 0.6rem; }
-.row-tiles.wide   { grid-template-columns: repeat(2, 1fr); }
-.row-tiles.square { grid-template-columns: repeat(3, 1fr); }
-.row-tiles.poster { grid-template-columns: repeat(3, 1fr); }
+.row-tiles.wide   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.row-tiles.square { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.row-tiles.poster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (min-width: 560px) {
-  .row-tiles.wide   { grid-template-columns: repeat(3, 1fr); }
-  .row-tiles.square { grid-template-columns: repeat(5, 1fr); }
-  .row-tiles.poster { grid-template-columns: repeat(5, 1fr); }
+  .row-tiles.wide   { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .row-tiles.square { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .row-tiles.poster { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @media (min-width: 900px) {
-  .row-tiles.wide   { grid-template-columns: repeat(4, 1fr); }
-  .row-tiles.square { grid-template-columns: repeat(7, 1fr); }
-  .row-tiles.poster { grid-template-columns: repeat(7, 1fr); }
+  .row-tiles.wide   { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .row-tiles.square { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .row-tiles.poster { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+/* A phone on its side has about 260px of list under the header and the tab
+   strip — two and a half rows of the portrait card. Narrower cards buy back
+   a row, and the search field gives up the height it does not need. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #search-row { padding: 0.35rem 0 0.3rem; }
+  #q { padding: 0.5rem 0.9rem; }
+  .row-title { margin: 0.5rem 0 0.3rem; }
+  .row-tiles.square { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .row-tiles.poster { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .row-tiles.wide   { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tile .caption { padding: 0.3rem 0.4rem 0.4rem; }
+  /* Seven columns across 844px is the same hundred-pixel card three columns
+     across 390px is, so the subtitle is no more readable here — and this is
+     the orientation with two hundred pixels of list in it. */
+  .row-tiles.square .tile .sub { display: none; }
 }
 
 .tile {
+  width: 100%;
+  /* The track can no longer be widened by the card, so the card must be
+     allowed to be narrower than its own contents. */
+  min-width: 0;
+  border-radius: 12px;
+  background: var(--s1);
+  position: relative;
+  /* The television's cursor is mirrored here with `scrollIntoView`, and it
+     lands under the sticky search row for the same reason a heading did. */
+  scroll-margin-top: calc(var(--search-h, 3.6rem) + 0.5rem);
+  scroll-margin-bottom: 0.5rem;
+}
+.tile-main {
   display: block;
   width: 100%;
+  min-width: 0;
   padding: 0;
-  border-radius: 12px;
+  border-radius: inherit;
   overflow: hidden;
-  background: var(--s1);
+  background: transparent;
   text-align: left;
-  position: relative;
   transition: transform 90ms ease-out;
 }
-.tile:active { transform: scale(0.96); }
+.tile-main:active, .tile-main.pressed { transform: scale(0.96); }
 /* The cursor on the television, mirrored here — the point of showing the
    catalogue on the phone is to stop having to look up to know where you
    are. */
 .tile.focused { box-shadow: 0 0 0 2px var(--accent); }
+/* The box stays a full touch target; only the disc inside it shrank. At
+   three columns an app icon is about ninety pixels across, and a 32px black
+   circle over the corner of it was reading as part of the artwork. */
+.tile-more {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch);
+  height: var(--touch);
+  border-radius: 50%;
+  color: var(--fg);
+  opacity: 0.85;
+}
+.tile-more .i {
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0.15rem;
+  border-radius: 50%;
+  background: rgba(14, 17, 22, 0.72);
+}
+.tile-more:active .i { background: var(--accent); color: var(--on-accent); }
 .tile .art {
   display: block;
   width: 100%;
@@ -121,14 +193,19 @@ body:not(.searching) #all-apps { display: flex; }
   justify-content: center;
   font-size: 1.6rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
 }
-.tile .caption { padding: 0.45rem 0.55rem 0.6rem; }
+.tile .caption { padding: 0.45rem 0.55rem 0.6rem; min-width: 0; }
+/* Two lines, not one clipped one. At three columns a card is about a
+   hundred pixels wide, which turned "Advanced Network Configuration" into
+   "Advanced …" — every entry in a family of them reading identically. */
 .tile .name {
-  font-size: 0.85rem;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  line-height: 1.25;
 }
 .tile .sub {
   font-size: 0.72rem;
@@ -137,91 +214,29 @@ body:not(.searching) #all-apps { display: flex; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#apps-empty, #results-empty { color: var(--dim); padding: 2rem 0; text-align: center; }
+/* An installed application's subtitle is its `Comment=` — a whole sentence.
+   It earns its place on a two-up search result and on the television, where
+   it is often the only thing separating two near-identically named entries;
+   at three-up on a phone it is four words and an ellipsis, which separates
+   nothing and costs the row a fifth of its height. */
+@media (max-width: 559px) {
+  .row-tiles.square .tile .sub { display: none; }
+}
+#apps-empty, #results-empty, #allapps-empty {
+  color: var(--dim);
+  padding: 2rem 0;
+  text-align: center;
+}
 
 /* The catalogue stays in the DOM while a search or the A-Z list is showing
    rather than being rebuilt over: going back puts the rows straight back,
    images and all, instead of re-downloading every poster. */
-#results, #allapps { display: none; }
+#results, #allapps, #allapps-empty { display: none; }
 body.searching #apps, body.searching #apps-empty,
 body.browsing #apps, body.browsing #apps-empty { display: none; }
-body.searching #allapps, body.browsing #results { display: none; }
+body.searching #allapps, body.searching #allapps-empty,
+body.browsing #results { display: none; }
 body.searching #results, body.browsing #allapps { display: block; }
+body.browsing.empty-apps #allapps-empty { display: block; }
 #results .row-tiles { margin-bottom: 1rem; }
 
-/* --- the A-Z rail ------------------------------------------------------ */
-
-/* 200 installed applications is 40 rows of D-pad on the television. On the
-   phone it is a scrollbar and an index, which is the one browsing job a
-   touchscreen is plainly better at, so this is where the whole list lives. */
-#allapps { position: relative; padding-right: 1.6rem; }
-#rail {
-  position: fixed;
-  right: 0.15rem;
-  top: 30%;
-  bottom: calc(var(--strips) + var(--safe-b));
-  z-index: 3;
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0.2rem 0.35rem;
-  touch-action: none;
-}
-body.browsing #rail { display: flex; }
-#rail span {
-  font-size: 0.6rem;
-  line-height: 1.15;
-  color: var(--dim);
-  text-align: center;
-}
-#rail span.on { color: var(--accent); font-weight: 700; }
-
-/* --- the per-tile sheet ------------------------------------------------ */
-
-/* A long press on a tile. The television has had this behind
-   Action.OPTIONS since the reachability pass, and the phone — the one
-   surface that shows every tile at once — was the one that could not
-   change any of them. */
-#sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: none;
-  flex-direction: column;
-  justify-content: flex-end;
-  background: rgba(0, 0, 0, 0.55);
-}
-#sheet.on { display: flex; }
-#sheet-card {
-  background: var(--s1);
-  border-radius: 20px 20px 0 0;
-  padding: 0.8rem var(--pad) calc(0.8rem + var(--safe-b));
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-#sheet-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-#sheet-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  padding: 0.4rem 0.2rem 0.6rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#sheet-card button {
-  padding: 0.95rem 0.9rem;
-  border-radius: 14px;
-  background: var(--s2);
-  text-align: left;
-  font-size: 0.95rem;
-}
-#sheet-card button.danger { color: var(--danger); }
-#sheet-card button.cancel { background: none; text-align: center; color: var(--dim); }
-/* The confirmation is the sheet again with two rows, Cancel first, exactly
-   as the television orders its danger confirmations. It used to be
-   `window.confirm`, which on iOS prefixes the host name and looks like a
-   different application interrupting. */
-#sheet-confirm { display: none; flex-direction: column; gap: 0.4rem; }
-#sheet.confirming #sheet-actions { display: none; }
-#sheet.confirming #sheet-confirm { display: flex; }

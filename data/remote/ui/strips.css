@@ -1,31 +1,108 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
 
-   Everything below `main`: the now-playing card and its full screen, the
-   volume slider, the tab strip — plus the landscape layout, which is the
-   one shape the page had never been drawn in at all. */
+   The two compact surfaces opened from the header, the tab strip, and the
+   landscape layout. */
 
 /* --- now playing -------------------------------------------------------- */
 
-#playing {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0 var(--pad);
-  padding: 0.5rem 0.6rem;
-  border-radius: 14px;
+/* The card in the header, which is the only way in to the sheet below and,
+   since the play key landed on it, the fastest way to pause without opening
+   anything. It lives here rather than with the header's other controls
+   because it is the player: everything it shares a variable with is in this
+   file. */
+.media-pill {
+  flex: 0 1 11rem;
+  /* Wide enough for the cover, the key and a few letters between them. It
+     used to be one touch target, which is less than the cover and the key
+     add up to — so the pill shrank straight through its own play key and
+     clipped it against the volume button. */
+  min-width: 8.5rem;
+  height: var(--touch);
+  padding: 0.25rem;
+  border-radius: 1.4rem;
   background: var(--s1);
-  border: 1px solid var(--s2);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  overflow: hidden;
 }
-#playing.on { display: flex; }
-#playing .what { flex: 1; min-width: 0; text-align: left; }
-.np-cover {
+.media-art { width: 2.25rem; height: 2.25rem; border-radius: 50%; background: var(--s2); display: grid; place-items: center; flex: none; overflow: hidden; }
+.media-art img { width: 100%; height: 100%; object-fit: cover; }
+/* Two lines where there was one. The card had the width for the artist all
+   along — the title alone left the right half of a full-width pill empty —
+   and "who is singing" is the other half of the question the card answers.
+   The second line is dropped rather than blanked when the player publishes
+   no artist, so a card with only a title stays centred on the cover. */
+.media-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* The card is a <button>, and the user agent centres a button's text.
+     Both lines inherited that and sat centred over each other in the middle
+     of a full-width pill, away from the cover they belong to. They are one
+     block of copy beside an image: it starts where the image ends. */
+  text-align: start;
+  line-height: 1.2;
+  overflow: hidden;
+}
+#np-header-title, #np-header-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#np-header-title { color: var(--fg); font-size: 0.78rem; }
+#np-header-detail { color: var(--dim); font-size: 0.7rem; }
+#np-header-detail:empty { display: none; }
+/* The card is the way in to the full player and nothing more once it is
+   open: the screen below shows the same cover, title and artist at the size
+   they deserve, and a duplicate of the play key one thumb-width above the
+   real one is a mis-tap waiting to happen. It comes back when the screen
+   closes, which is the only state the header has to be right in. */
+body.np-open #hdr-playing { display: none; }
+.media-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0;
+}
+/* The pill gave up its chevron for this. Big enough to hit with a thumb and
+   far enough from the title that a tap meant for one is never the other;
+   what the chevron was saying, `aria-expanded` on the card says too. */
+.media-play {
   flex: none;
-  width: 2.6rem;
-  height: 2.6rem;
-  border-radius: 8px;
-  object-fit: cover;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
   background: var(--s2);
+  color: var(--fg);
+  display: grid;
+  place-items: center;
 }
+.media-play .i { width: 1.15rem; height: 1.15rem; }
+.media-play:active { background: var(--accent); color: var(--on-accent); }
+
+/* The player takes a whole line of its own rather than a quarter of one.
+   Four controls — the identity, "Close Netflix", the track and the volume —
+   across a 390px row left every one of them at two clipped characters, and
+   the track title is the one with something to say. Two conditions, because
+   they are two different crowds: an application in front puts a named Close
+   button in the row at any width, and a phone-width screen has no room for
+   the player beside anything. Everywhere else it stays where it was.
+
+   `order` is what keeps the volume and menu keys up on the first line: a
+   full-width item takes everything after it down with it, and a volume
+   button alone on a third line is worse than the problem it solves. */
+body.in-app.playing #hdr-playing { order: 1; flex: 1 0 100%; }
+body.in-app.playing #hdr-volume, body.in-app.playing #hdr-menu { order: 0; }
+@media (max-width: 460px) {
+  body.playing #hdr-playing { order: 1; flex: 1 0 100%; }
+  body.playing #hdr-volume, body.playing #hdr-menu { order: 0; }
+}
+
+
 .np-title {
   font-size: 0.9rem;
   white-space: nowrap;
@@ -52,12 +129,8 @@
 .np-key:disabled { opacity: 0.3; }
 .np-key.pressed { background: var(--accent); color: var(--on-accent); }
 
-/* The card is a summary; this is the thing itself. Artwork is the reason
-   it exists — a film's poster at 2.6rem beside two lines of text is a
-   listing, and at full width it is what is on the television. */
-/* A pane inside `main`, not an overlay over the whole page: the volume
-   slider and the tab strip stay where they are, so opening this is not a
-   mode you have to escape before you can turn the sound down. */
+/* A pane inside `main`, not an overlay over the whole page: the header and
+   tab strip remain available, including the volume button. */
 #np-full {
   position: absolute;
   inset: 0;
@@ -72,6 +145,17 @@
   gap: 0.8rem;
   padding: 0.4rem var(--pad) 0.8rem;
   background: var(--bg);
+  overflow: hidden;
+}
+#np-full::before {
+  content: "";
+  position: absolute;
+  inset: 18% 8%;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.12;
+  filter: blur(4rem);
 }
 #np-full.on { display: flex; }
 #np-full .grab { position: absolute; top: 0.4rem; left: var(--pad); }
@@ -92,72 +176,21 @@
   object-fit: cover;
   background: var(--s1);
 }
+#np-fallback {
+  width: min(70vw, 40vh);
+  aspect-ratio: 1;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 35%, var(--s1)));
+  color: var(--on-accent);
+}
+#np-fallback .i { width: 28%; height: 28%; }
 #np-full .np-title { font-size: 1.25rem; font-weight: 600; max-width: 100%; }
 #np-full .np-detail { font-size: 0.95rem; max-width: 100%; }
 #np-full .keys-row { display: flex; align-items: center; gap: 1.4rem; }
 #np-full .np-key { width: 3.4rem; height: 3.4rem; }
 #np-full .np-key.big { width: 4.4rem; height: 4.4rem; background: var(--accent); color: var(--on-accent); }
-
-/* --- volume ------------------------------------------------------------- */
-
-/* Above the tabs and on every pane, because volume is the one control
-   that is guaranteed to work whatever is on the television — it acts on
-   the system's audio, not on a window. It is also the control a
-   touchscreen is unambiguously better at than a physical remote, which
-   is why this is a slider and not two more repeat-buttons. */
-#volume {
-  display: none;
-  align-items: center;
-  gap: 0.7rem;
-  margin: 0.5rem var(--pad) 0;
-  padding: 0.35rem 0.7rem;
-  border-radius: 14px;
-  background: var(--s1);
-  border: 1px solid var(--s2);
-}
-#volume.on { display: flex; }
-#mute {
-  flex: none;
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--fg);
-}
-#mute.muted { color: var(--danger); }
-#vol {
-  flex: 1;
-  min-width: 0;
-  height: 2.2rem;
-  background: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
-#vol::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--s2);
-}
-#vol::-moz-range-track { height: 6px; border-radius: 3px; background: var(--s2); }
-#vol::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  margin-top: calc((6px - 1.5rem) / 2);
-  border-radius: 50%;
-  background: var(--accent);
-}
-#vol::-moz-range-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 0;
-  border-radius: 50%;
-  background: var(--accent);
-}
-#volume.off { opacity: 0.45; }
 
 /* --- tabs --------------------------------------------------------------- */
 
@@ -178,6 +211,7 @@ nav button {
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
+  min-height: 3.5rem;
 }
 nav button.on { color: var(--accent); background: var(--s1); }
 
@@ -191,6 +225,12 @@ nav button.on { color: var(--accent); background: var(--s1); }
 @media (orientation: landscape) and (max-height: 560px) {
   :root { --pad: 2vw; }
   header { padding-top: calc(0.3rem + var(--safe-t)); padding-bottom: 0.3rem; }
+  /* One row again. On its side a phone is 844px wide and 390 tall, so the
+     four controls fit across easily and the line the player would take is
+     one the D-pad cannot spare. Written at the specificity of the rule it
+     overrides, not just after it. */
+  body.playing #hdr-playing,
+  body.in-app.playing #hdr-playing { order: 0; flex: 0 1 11rem; }
 
   #pane-remote {
     flex-flow: row wrap;
@@ -215,13 +255,20 @@ nav button.on { color: var(--accent); background: var(--s1); }
   #pane-remote .bar button.wide { flex: 1; }
   .dpad-hint { display: none; }
 
-  #pane-pad { flex-flow: row wrap; align-content: stretch; gap: 0.45rem; }
-  #pad { flex: 1 1 62%; margin: 0.3rem 0; }
-  #pane-pad .pad-hint { order: 3; flex: 1 0 100%; }
-  #pane-pad .bar { flex: 1 1 30%; flex-direction: column; margin: 0.3rem 0; }
-
-  #pane-type { padding-top: 0.4rem; gap: 0.4rem; }
-  #type-pad { height: 4rem; }
+  .pane.on#pane-pad {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+    grid-template-rows: 1fr auto;
+    gap: 0.45rem;
+    padding-top: 0.3rem;
+  }
+  #pad { grid-column: 1; grid-row: 1; margin: 0; min-height: 0; }
+  .pad-meta { grid-column: 1; grid-row: 2; }
+  #pane-pad > .bar { grid-column: 2; flex-direction: column; margin: 0; }
+  #pane-pad > .pad-actions { grid-row: 1; }
+  #pane-pad > .bar:not(.pad-actions) { grid-row: 2; }
+  #type-drawer { max-height: 100%; overflow-y: auto; padding-top: 0.5rem; }
+  #type-drawer .subtle { display: none; }
 
   nav button { flex-direction: row; gap: 0.4rem; padding: 0.35rem; }
   #np-full { gap: 0.4rem; }

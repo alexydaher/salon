@@ -5,7 +5,9 @@
 // to the renderer, and the renderer asking the feed to poll again — meet
 // here through `bus.js`.
 
-import { $, buzz, toast } from "./dom.js";
+import {
+  $, buzz, measureHeader, measureSearchRow, measureStrips, toast,
+} from "./dom.js";
 import { on } from "./bus.js";
 import { readLaunchOptions, session } from "./session.js";
 import { post, resetBackoff } from "./transport.js";
@@ -19,8 +21,8 @@ import { bindKeys } from "./keys.js";
 import { bindDpad } from "./dpad.js";
 import { bindPad } from "./pad.js";
 import { bindTyping, focusTypeField } from "./typing.js";
-import { bindVolume } from "./volume.js";
-import { bindNowPlaying } from "./nowplaying.js";
+import { bindVolume, closeVolume } from "./volume.js";
+import { bindNowPlaying, closeNowPlaying } from "./nowplaying.js";
 import { bindTabs, showTab } from "./tabs.js";
 import { keepAwake, releaseAwake } from "./awake.js";
 import { bindConnect, connect, dropSession } from "./connect.js";
@@ -45,15 +47,24 @@ bindSheet((tile) => {
 bindKeys(pollSoon);
 bindDpad();
 bindPad($("pad"));
-bindPad($("type-pad"));
 bindTyping();
-bindVolume();
-bindNowPlaying();
+bindVolume(closeNowPlaying);
+bindNowPlaying(closeVolume);
 
 $("retry").addEventListener("click", () => {
   resetBackoff();
   $("offline-text").textContent = "Trying…";
   startFeed();
+});
+
+// The three measured heights are taken during a render, and a render only
+// happens when the television says something changed — so turning the phone
+// on its side re-laid the page out and left every one of them describing the
+// orientation before it.
+window.addEventListener("resize", () => {
+  measureStrips();
+  measureSearchRow();
+  measureHeader();
 });
 
 // Polling while the phone is in a pocket is a request a second for nothing.

@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+
+   The two things that open over the page and close again: the long-press
+   menu on a card, and the volume popover the header raises. The sheet was
+   split out of catalog.css beside the module it belongs to; the volume
+   popover joined it when the player grew a second header line and strips.css
+   reached the three hundred lines every file here is held to. */
+
+/* A long press on a tile. The television has had this behind
+   Action.OPTIONS since the reachability pass, and the phone — the one
+   surface that shows every tile at once — was the one that could not
+   change any of them. */
+#sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.55);
+}
+#sheet.on { display: flex; }
+#sheet-card {
+  background: var(--s1);
+  border-radius: 20px 20px 0 0;
+  padding: 0.8rem var(--pad) calc(0.8rem + var(--safe-b));
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+#sheet-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+#sheet-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.4rem 0.2rem 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sheet-card button {
+  padding: 0.95rem 0.9rem;
+  border-radius: 14px;
+  background: var(--s2);
+  text-align: left;
+  font-size: 0.95rem;
+}
+#sheet-card button.danger { color: var(--danger); }
+#sheet-card button.cancel { background: none; text-align: center; color: var(--dim); }
+/* The confirmation is the sheet again with two rows, Cancel first, exactly
+   as the television orders its danger confirmations. It used to be
+   `window.confirm`, which on iOS prefixes the host name and looks like a
+   different application interrupting. */
+#sheet-confirm { display: none; flex-direction: column; gap: 0.4rem; }
+#sheet.confirming #sheet-actions { display: none; }
+#sheet.confirming #sheet-confirm { display: flex; }
+
+/* --- volume ------------------------------------------------------------- */
+
+/* An anchored popover instead of a permanent strip. It is fixed so it
+   stays attached to the header while a long app catalogue scrolls below. */
+#volume {
+  display: none;
+  position: fixed;
+  z-index: 9;
+  /* Measured off the header, not guessed at: the header grows a second line
+     when the player takes one, and 3.5rem put the popover over the track. */
+  top: calc(var(--header-h, 3.5rem) + 0.3rem);
+  right: var(--pad);
+  width: min(18rem, calc(100vw - var(--pad) - var(--pad)));
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 14px;
+  background: var(--s1);
+  border: 1px solid var(--s2);
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.35);
+}
+#volume.on { display: flex; }
+#mute {
+  flex: none;
+  width: var(--touch);
+  height: var(--touch);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+#mute.muted { color: var(--danger); }
+#vol {
+  flex: 1;
+  min-width: 0;
+  height: var(--touch);
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+#vol::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--s2);
+}
+#vol::-moz-range-track { height: 6px; border-radius: 3px; background: var(--s2); }
+#vol::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: calc((6px - 1.5rem) / 2);
+  border-radius: 50%;
+  background: var(--accent);
+}
+#vol::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+#volume.off #vol { opacity: 0.45; }

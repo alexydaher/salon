@@ -14,6 +14,20 @@ import { pollSoon } from "./feed.js";
 // field whose Send would append a second copy of everything.
 let onScreen = "";
 let editing = false;
+let openedForRequest = false;
+
+export function openTypeDrawer({ focus = false } = {}) {
+  $("type-drawer").classList.add("on");
+  $("type-toggle").setAttribute("aria-expanded", "true");
+  if (focus) $("text").focus();
+}
+
+export function closeTypeDrawer() {
+  openedForRequest = false;
+  $("type-drawer").classList.remove("on");
+  $("type-toggle").setAttribute("aria-expanded", "false");
+  $("text").blur();
+}
 
 function sharedPrefix(before, after) {
   let index = 0;
@@ -54,14 +68,9 @@ async function send() {
 export function renderTyping(data) {
   const hint = $("type-hint");
   if (data.wantsText) {
-    hint.textContent = "The television is waiting for text.";
+    hint.textContent = "The television is waiting. Type below.";
   } else if (data.remoteInput) {
-    // Said exactly, because the failure it prevents is silent: the keys go
-    // to whatever the app has focused, and an app that has just opened has
-    // focused nothing. Typing then works perfectly and shows nothing.
-    hint.textContent =
-      "Typing goes to the app on the television. Tap its search box with "
-      + "the pad above first — the keys land wherever it is focused.";
+    hint.textContent = "Use the pointer to select a field, then type here.";
   } else {
     hint.textContent =
       "Nothing on the television is asking for text, and Salon isn't "
@@ -81,21 +90,27 @@ export function renderTyping(data) {
     if (!editing) $("text").value = text;
   }
   if (!data.wantsText) onScreen = "";
+  if (!data.wantsText && openedForRequest) closeTypeDrawer();
 
-  // The aim-then-type pad only exists when there is something to aim at.
-  $("type-pad").hidden = !data.remoteInput;
-  $("type-pad").textContent = "Aim here, tap the field, then type below";
 }
 
 export function focusTypeField(data) {
   // Only when the television is actually asking. Focusing unconditionally
   // raised the phone's keyboard the instant this tab opened, which covered
   // the aim pad the hint tells you to use first.
-  if (data && data.wantsText) $("text").focus();
+  if (data && data.wantsText) {
+    openedForRequest = true;
+    openTypeDrawer({ focus: true });
+  }
 }
 
 export function bindTyping() {
   const field = $("text");
+  $("type-toggle").addEventListener("click", () => {
+    if ($("type-drawer").classList.contains("on")) closeTypeDrawer();
+    else openTypeDrawer();
+  });
+  $("type-close").addEventListener("click", closeTypeDrawer);
   field.addEventListener("focus", () => { editing = true; });
   field.addEventListener("blur", () => { editing = false; });
   $("send").addEventListener("click", send);

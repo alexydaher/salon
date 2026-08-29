@@ -4,7 +4,9 @@
 // it lives in its own module; what is left here is the header, the two
 // one-shot transitions, and the order the rest happen in.
 
-import { $, applyAccent, measureStrips } from "./dom.js";
+import {
+  $, applyAccent, measureHeader, measureSearchRow, measureStrips,
+} from "./dom.js";
 import { session } from "./session.js";
 import { renderCatalog, renderFocus, renderMirror } from "./catalog.js";
 import { renderVolume } from "./volume.js";
@@ -34,14 +36,23 @@ function renderHeader(data) {
   const app = data.app || "";
   const inApp = Boolean(app);
   document.body.classList.toggle("in-app", inApp);
+  // The header's two crowding conditions, published as classes because it
+  // is CSS that has to lay four controls out in a 390px row — and with an
+  // application in front *and* something playing there is not room for
+  // them across. See the wrap rule in `strips.css`.
+  document.body.classList.toggle("playing", Boolean(data.playing));
   $("screen").textContent = inApp
     ? app
     : SCREEN_NAMES[data.screen] || data.screen;
+  $("connection").setAttribute(
+    "aria-label", `Connected to Salon. ${$("screen").textContent} on television`
+  );
   $("close-app").hidden = !inApp;
   // MENU *is* "close the app" while one is in front, so two buttons doing
   // the same thing would be two things to work out. The named one wins.
   $("hdr-menu").hidden = inApp;
   $("close-app").querySelector(".app-name").textContent = `Close ${app}`;
+  $("close-app").setAttribute("aria-label", `Close ${app}`);
   for (const node of document.querySelectorAll("[data-tv-only]")) node.disabled = inApp;
 
   // Move to the pointer *once*, on the transition, and only from a pane
@@ -56,7 +67,7 @@ function renderHeader(data) {
 
 function renderPad(data) {
   $("pad").textContent = data.remoteInput
-    ? "Drag to move the pointer · tap to click"
+    ? "Move · tap to click · two fingers to scroll"
     : "Salon isn't allowed to move the pointer. Settings → Input → "
       + "Gamepad cursor.";
   for (const node of document.querySelectorAll("#click-left, #click-right")) {
@@ -72,7 +83,7 @@ function renderPad(data) {
 function followTextField(data) {
   const wants = Boolean(data.wantsText);
   if (wants && !wantedText) {
-    showTab("type");
+    showTab("pad");
     focusTypeField(data);
   }
   wantedText = wants;
@@ -90,4 +101,6 @@ export function render(data) {
   renderPad(data);
   followTextField(data);
   measureStrips();
+  measureSearchRow();
+  measureHeader();
 }

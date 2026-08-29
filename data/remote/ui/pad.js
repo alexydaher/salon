@@ -17,7 +17,7 @@
 // so a phone is a mouse over a browser tile that was never built for a
 // remote — which is the whole reason the trackpad exists.
 
-import { buzz } from "./dom.js";
+import { $, buzz } from "./dom.js";
 import { post } from "./transport.js";
 
 const TAP_SLOP_PX = 12;        // a finger on glass always moves a little
@@ -58,6 +58,13 @@ export function bindPad(surface) {
   let holdTimer = null;
   let lastTapAt = 0;
   let scrolled = false;
+  let statusTimer = null;
+
+  const say = (message, settle = false) => {
+    $("pad-status").textContent = message;
+    clearTimeout(statusTimer);
+    if (settle) statusTimer = setTimeout(() => { $("pad-status").textContent = "Ready"; }, 900);
+  };
 
   // One post per animation frame. A touchmove stream is far faster than
   // the network, and posting every event turns a flick into a queue of
@@ -108,6 +115,7 @@ export function bindPad(surface) {
       // tell us this happened, so the first tap's timestamp is kept.
       if (Date.now() - lastTapAt < DOUBLE_TAP_MS) {
         holding = true;
+        say("Dragging");
         buzz(12);
         post("/pointer", { hold: "down", button: "left" });
       } else {
@@ -115,6 +123,7 @@ export function bindPad(surface) {
           holdTimer = null;
           if (travelled >= TAP_SLOP_PX || touches > 1) return;
           holding = true;
+          say("Dragging");
           buzz(18);
           post("/pointer", { hold: "down", button: "left" });
         }, HOLD_MS);
@@ -127,6 +136,9 @@ export function bindPad(surface) {
       holdTimer = null;
       releaseHold();
       surface.classList.add("scrolling");
+      say("Scrolling");
+    } else if (!holding) {
+      say("Moving pointer");
     }
   }, { passive: false });
 
@@ -177,12 +189,29 @@ export function bindPad(surface) {
       const button = touches >= 3 ? "middle" : touches === 2 ? "right" : "left";
       buzz(button === "left" ? 8 : 14);
       post("/pointer", { click: true, button: button });
+      say(button === "left" ? "Clicked" : button === "right" ? "Right-clicked" : "Middle-clicked", true);
       if (button === "left") lastTapAt = Date.now();
     }
-    if (scrolled) post("/pointer", { scrollEnd: true });
+    if (scrolled) {
+      post("/pointer", { scrollEnd: true });
+      say("Scrolled", true);
+    } else if (wasHolding) {
+      say("Drag finished", true);
+    } else if (!quick || !still) {
+      say("Ready");
+    }
     touches = 0;
   };
 
   surface.addEventListener("touchend", end, { passive: false });
   surface.addEventListener("touchcancel", end, { passive: false });
+
+  for (const [id, button] of [["click-left", "left"], ["click-right", "right"]]) {
+    $(id).addEventListener("click", () => {
+      if ($(id).disabled) return;
+      buzz(button === "left" ? 8 : 14);
+      post("/pointer", { click: true, button });
+      say(button === "left" ? "Clicked" : "Right-clicked", true);
+    });
+  }
 }

@@ -3,7 +3,7 @@
 // The mirrored catalogue, the cursor mirror on top of it, and the card on
 // the Buttons pane that says what the cursor is resting on.
 
-import { $, el } from "./dom.js";
+import { $, el, inkOn } from "./dom.js";
 import { session } from "./session.js";
 import { artNode, tileNode } from "./tiles.js";
 
@@ -86,6 +86,7 @@ export function renderMirror(data) {
   const app = data.app || "";
   const identity = app ? `app:${app}` : tile ? `tile:${tile.id}` : "";
   card.classList.toggle("on", Boolean(identity));
+  $("mirror-neighbours").classList.remove("on");
   if (identity === mirroredId) return;
   mirroredId = identity;
 
@@ -98,6 +99,9 @@ export function renderMirror(data) {
     $("mirror-label").textContent = "Playing on the television";
     $("mirror-title").textContent = app;
     $("mirror-sub").textContent = "Close it from the top to get Salon back.";
+    $("mirror-position").textContent = "Application open";
+    $("mirror-prev").textContent = "";
+    $("mirror-next").textContent = "";
     art.textContent = app.trim().charAt(0).toUpperCase();
     art.style.background = "var(--s2)";
     return;
@@ -106,11 +110,21 @@ export function renderMirror(data) {
   $("mirror-label").textContent = "On the television";
   $("mirror-title").textContent = tile.title;
   $("mirror-sub").textContent = tile.subtitle || "";
+  const [rowIndex, tileIndex] = data.focus;
+  const row = data.rows[rowIndex];
+  $("mirror-position").textContent =
+    `${row.title || "Home"} · ${tileIndex + 1} of ${row.tiles.length}`;
+  const previous = row.tiles[tileIndex - 1];
+  const next = row.tiles[tileIndex + 1];
+  $("mirror-neighbours").classList.toggle("on", Boolean(previous || next));
+  $("mirror-prev").textContent = previous ? `← ${previous.title}` : "";
+  $("mirror-next").textContent = next ? `${next.title} →` : "";
   if (tile.art) {
     art.append(artNode(tile, ""));
     return;
   }
   art.style.background =
     `linear-gradient(150deg, ${tile.accent}, ${tile.accent}55)`;
+  art.style.color = inkOn(tile.accent);
   art.textContent = (tile.title || "?").trim().charAt(0).toUpperCase();
 }

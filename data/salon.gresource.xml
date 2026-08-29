@@ -20,6 +20,8 @@
          a 404 the tests catch. -->
     <file compressed="true">remote/ui/base.css</file>
     <file compressed="true">remote/ui/catalog.css</file>
+    <file compressed="true">remote/ui/allapps.css</file>
+    <file compressed="true">remote/ui/overlays.css</file>
     <file compressed="true">remote/ui/controls.css</file>
     <file compressed="true">remote/ui/strips.css</file>
     <file compressed="true">remote/ui/allapps.js</file>

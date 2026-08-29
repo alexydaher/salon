@@ -4,7 +4,7 @@
 // A-Z list, so a result and a home-screen tile are the same object with the
 // same artwork, the same long press and the same launch path.
 
-import { buzz, el, toast } from "./dom.js";
+import { buzz, el, icon, inkOn, toast } from "./dom.js";
 import { session } from "./session.js";
 import { post } from "./transport.js";
 import { pollSoon } from "./feed.js";
@@ -26,6 +26,7 @@ export function blankArt(tile) {
   const blank = el("div", "art blank");
   blank.style.background =
     `linear-gradient(150deg, ${tile.accent}, ${tile.accent}55)`;
+  blank.style.color = inkOn(tile.accent);
   blank.textContent = (tile.title || "?").trim().charAt(0).toUpperCase();
   return blank;
 }
@@ -86,24 +87,36 @@ function bindLongPress(node, run) {
 }
 
 export function tileNode(tile, onLongPress) {
-  const node = el("button", "tile");
+  const node = el("div", "tile");
   node.dataset.id = tile.id;
-  node.append(artNode(tile, "art"));
+  const main = el("button", "tile-main");
+  main.setAttribute("aria-label", `Open ${tile.title}`);
+  main.append(artNode(tile, "art"));
 
   const caption = el("div", "caption");
   caption.append(el("div", "name", tile.title));
   if (tile.subtitle) caption.append(el("div", "sub", tile.subtitle));
-  node.append(caption);
+  main.append(caption);
+  node.append(main);
 
-  node.addEventListener("click", () => {
+  const more = el("button", "tile-more");
+  more.setAttribute("aria-label", `More actions for ${tile.title}`);
+  more.append(icon("i-more"));
+  more.addEventListener("click", () => {
+    buzz(8);
+    onLongPress(tile);
+  });
+  node.append(more);
+
+  main.addEventListener("click", () => {
     // A long press has already opened the sheet and cancelled itself; the
     // click the browser sends afterwards must not also launch the thing.
-    if (node.dataset.held === "1") {
-      delete node.dataset.held;
+    if (main.dataset.held === "1") {
+      delete main.dataset.held;
       return;
     }
-    launchTile(tile, node);
+    launchTile(tile, main);
   });
-  bindLongPress(node, () => onLongPress(tile));
+  bindLongPress(main, () => onLongPress(tile));
   return node;
 }

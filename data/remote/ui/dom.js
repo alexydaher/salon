@@ -12,6 +12,19 @@ export function el(tag, className, text) {
   return node;
 }
 
+// One glyph out of the page's sprite. `createElementNS`, not `innerHTML`:
+// an <svg> built with the HTML parser lands in the wrong namespace and
+// renders as nothing at all.
+export function icon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "i");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#${name}`);
+  svg.append(use);
+  return svg;
+}
+
 // localStorage throws outright in private mode on some browsers rather
 // than merely failing to persist, so every access is guarded. Losing the
 // remembered tab is not worth losing the page over.
@@ -75,14 +88,38 @@ export function applyAccent(colour) {
   root.setProperty("--on-accent", inkOn(accent));
 }
 
+let measuredSearch = 0;
+
+// How tall the sticky search row actually is. Every row heading sticks
+// under it and every `scrollIntoView` on the Browse pane has to clear it,
+// and the 3.2rem those two used to assume was short by about half a rem —
+// which is why jumping to a letter hid that letter and the row below it.
+export function measureSearchRow() {
+  const height = $("search-row").offsetHeight;
+  if (!height || height === measuredSearch) return;
+  measuredSearch = height;
+  document.documentElement.style.setProperty("--search-h", `${height}px`);
+}
+
+let measuredHeader = 0;
+
+// How tall the header actually is. The volume popover hangs off the bottom
+// of it, and the header is no longer one fixed row: the now-playing pill
+// takes a second line on a narrow screen, and the 3.5rem the popover used
+// to assume put it over the track title it had just pushed down there.
+export function measureHeader() {
+  const height = $("chrome").offsetHeight;
+  if (!height || height === measuredHeader) return;
+  measuredHeader = height;
+  document.documentElement.style.setProperty("--header-h", `${height}px`);
+}
+
 let measuredStrips = "";
 
-// How much room the fixed strips below `main` are taking, published as a
-// variable. The toast used to sit at a hardcoded 5.5rem — the tab strip's
-// height — and landed squarely on the volume slider whenever the
-// now-playing card was up as well.
+// How much room the tab strip below `main` is taking, published as a
+// variable so the toast stays immediately above it in either orientation.
 export function measureStrips() {
-  const signature = ["playing", "volume", "tabs"]
+  const signature = ["tabs"]
     .map((id) => ($(id).offsetParent === null ? 0 : $(id).offsetHeight))
     .join(":");
   if (signature === measuredStrips) return;
