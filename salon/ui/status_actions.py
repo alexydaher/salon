@@ -133,10 +133,11 @@ class StatusBar(Gtk.Box):
         return button
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.safe_margin_px
+        safe_margin = scale.safe_margin_px
+        top_margin = max(0, safe_margin - scale.px(24.0))
         self.set_spacing(scale.px(12.0))
-        self.set_margin_top(margin)
-        self.set_margin_end(margin)
+        self.set_margin_top(top_margin)
+        self.set_margin_end(safe_margin)
         size = scale.px(54.0)
         self._button_height = size
         for button in self._buttons:

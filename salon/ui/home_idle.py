@@ -96,3 +96,15 @@ class HomeIdleController(ServiceComponent):
             detail,
             playing=player.status == nowplaying.PLAYING,
         )
+        self._owner._now_playing_status.set_artwork(
+            self._owner._artwork.texture_for_uri(player.art_url)
+        )
+
+    def _on_artwork_fetched(self) -> None:
+        """Refresh both consumers of Salon's shared artwork cache."""
+        self._owner._rebuild_row_widgets()
+        player = self._owner._current_player
+        if player is not None:
+            self._owner._now_playing_status.set_artwork(
+                self._owner._artwork.texture_for_uri(player.art_url)
+            )

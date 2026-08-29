@@ -101,6 +101,15 @@ def main() -> int:
                 for key in (Gdk.KEY_m, Gdk.KEY_o, Gdk.KEY_v, Gdk.KEY_i, Gdk.KEY_e):
                     home._search.handle_keyval(key, Gdk.ModifierType(0))
 
+            def show_now_playing() -> None:
+                home._phone_pairing.close()
+                home._now_playing_status.set_track(
+                    "Blue Monday", "New Order", playing=True
+                )
+                home._now_playing_status.set_artwork(
+                    Gdk.Texture.new_from_filename(str(ROOT / "tests/fixtures/movie-night.svg"))
+                )
+
             steps = [
                 ("onboarding", lambda: home._onboarding.start(), 350),
                 ("system-menu", lambda: (home._onboarding.finish(), home._show_system_menu()), 350),
@@ -135,12 +144,7 @@ def main() -> int:
                 ("phone-stop-confirm", lambda: home._phone_pairing._request_stop(), 350),
                 (
                     "now-playing-detail",
-                    lambda: (
-                        home._phone_pairing.close(),
-                        home._now_playing_status.set_track(
-                            "Blue Monday", "New Order", playing=True
-                        ),
-                    ),
+                    show_now_playing,
                     1800,
                 ),
             ]

@@ -70,19 +70,25 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._menu_focus_owned = False
         self._owner._menu_origin_nav_focused = False
         self._owner._overlay.add_overlay(self._owner._status_bar)
-        # One row, not two overlay children. Both want the bottom of the
-        # screen and one of them has to ellipsize when they meet; as
-        # independent overlay children each was given its natural size and
-        # the description simply ran under the legend.
+        # Playback is global state rather than detail about the selected
+        # tile, so give it the otherwise quiet centre of the top bar.  It is
+        # an independent overlay child: putting it in the bottom row made it
+        # compete with both the selection description and the button legend.
+        self._owner._now_playing_status = NowPlayingStatus(
+            self._owner._scale, on_activate=self._owner._toggle_playback
+        )
+        self._owner._overlay.add_overlay(self._owner._now_playing_status)
+        # One row, not two overlay children. Both remaining widgets want the
+        # bottom of the screen and one of them has to ellipsize when they
+        # meet; as independent overlay children each was given its natural
+        # size and the description simply ran under the legend.
         self._owner._detail_bar = DetailBar(self._owner._scale)
-        self._owner._now_playing_status = NowPlayingStatus(self._owner._scale)
         self._owner._legend = Legend(self._owner._scale)
         self._owner._bottom_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self._owner._bottom_bar.set_valign(Gtk.Align.END)
         self._owner._bottom_bar.set_halign(Gtk.Align.FILL)
         self._owner._bottom_bar.set_can_target(False)
         self._owner._bottom_bar.append(self._owner._detail_bar)
-        self._owner._bottom_bar.append(self._owner._now_playing_status)
         self._owner._bottom_bar.append(self._owner._legend)
         self._owner._overlay.add_overlay(self._owner._bottom_bar)
         # Which kind of device sent the last press, so the legend can name
@@ -95,9 +101,6 @@ class HomeSurfaceSetup(ServiceComponent):
             self._owner._scale, self._owner._pairing, on_open=self._owner._open_phone_pairing
         )
         self._owner._overlay.add_overlay(self._owner._remote_hint)
-        self._owner._now_playing = NowPlayingWatcher(self._owner._on_now_playing)
-        if not os.environ.get("SALON_CAPTURE_MODE"):
-            self._owner._now_playing.start()
         self._owner._launching_overlay = LaunchingOverlay(self._owner._scale)
         self._owner._overlay.add_overlay(self._owner._launching_overlay)
         self._owner._screensaver = ScreenSaver(self._owner._scale)
@@ -109,14 +112,17 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._overlay.add_overlay(self._owner._osd)
         self._owner._artwork = ArtworkResolver(
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()),
-            on_fetched=self._owner._rebuild_row_widgets,
+            on_fetched=self._owner._on_artwork_fetched,
         )
+        self._owner._current_player: nowplaying.Player | None = None
+        self._owner._now_playing = NowPlayingWatcher(self._owner._on_now_playing)
+        if not os.environ.get("SALON_CAPTURE_MODE"):
+            self._owner._now_playing.start()
         self._owner._remote_rows: tuple[RemoteRow, ...] = ()
         self._owner._phone_apps: list[Tile] = []
         self._owner._phone_apps_scanned = False
         self._owner._phone_volume = -1.0
         self._owner._phone_muted = False
-        self._owner._current_player: nowplaying.Player | None = None
         self._owner._search = SearchOverlay(
             self._owner._scale,
             self._owner._artwork,

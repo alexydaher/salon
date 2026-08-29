@@ -74,7 +74,12 @@ class HomeFocusController(ServiceComponent):
         player = self._owner._current_player
         playing: RemoteNowPlaying | None = None
         if player is not None:
-            title, detail = nowplaying.describe(player)
+            # No status word: both of the phone's surfaces draw the
+            # play/pause glyph beside this line, so "Playing · " spent the
+            # front of a one-line card repeating the key next to it. The
+            # detail is the artist and the application, and the header card
+            # now shows it under the title.
+            title, detail = nowplaying.describe(player, include_status=False)
             # An `https://` cover goes to the phone as it stands, because
             # the phone has the network and proxying someone else's CDN
             # through the television buys nothing. A `file://` one becomes

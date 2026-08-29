@@ -103,10 +103,11 @@ class StatusInfo(Gtk.Box):
         image.set_visible(True)
 
     def set_scale(self, scale: Scale) -> None:
-        margin = scale.safe_margin_px
+        safe_margin = scale.safe_margin_px
+        top_margin = max(0, safe_margin - scale.px(24.0))
         self.set_spacing(scale.px(24.0))
-        self.set_margin_top(margin)
-        self.set_margin_start(margin)
+        self.set_margin_top(top_margin)
+        self.set_margin_start(safe_margin)
         self._glyph_box.set_spacing(scale.px(10.0))
         for glyph in (self._network_glyph, self._battery_glyph):
             glyph.set_pixel_size(scale.px(30.0))

@@ -10,15 +10,16 @@ class HomeScrollController(ServiceComponent):
     def _top_inset(self) -> float:
         """How much of the top of the screen the rows may not use.
 
-        Measured off the two status widgets rather than taken from
+        Measured off the three top-bar widgets rather than taken from
         STATUS_BAR_HEIGHT_DU, for the same reason `_bottom_inset` is
-        measured: both carry their own safe-area top margin and both scale
+        measured: all carry their own safe-area top margin and all scale
         with the du pipeline, and the token is a design figure rather than
-        what the widgets actually ask for. The larger of the two, because
-        they are side by side — the buttons are taller than the clock.
+        what the widgets actually ask for. The largest wins because the
+        status, playback card, and buttons share one horizontal band.
         """
         natural = max(
             self._owner._status_info.get_preferred_size()[1].height,
+            self._owner._now_playing_status.get_preferred_size()[1].height,
             self._owner._status_bar.get_preferred_size()[1].height,
         )
         if natural > 0:

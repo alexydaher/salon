@@ -149,7 +149,19 @@ class ArtworkNetworkLoader:
 
     def maybe_fetch(self, tile: Tile) -> None:
         url = tile.artwork
-        if not url or not url.startswith(("http://", "https://")):
+        if not url:
+            return
+        self.maybe_fetch_url(url)
+
+    def maybe_fetch_url(self, url: str) -> None:
+        """Cache an arbitrary artwork URL through the same bounded path.
+
+        MPRIS cover art is not attached to a catalogue ``Tile``, but it has
+        exactly the same trust boundary as a tile's explicit remote artwork:
+        bytes from a player-provided URL still need a timeout, a size limit,
+        image validation and the shared cache ceiling.
+        """
+        if not url.startswith(("http://", "https://")):
             return
         if url in self._in_flight or cached_remote_path(url).is_file():
             return

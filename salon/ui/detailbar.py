@@ -44,8 +44,8 @@ nothing is drawn behind the strip for a scrim to separate it from, and a
 bordered box floating in the corner reads as a dialog that failed to close.
 
 The strip reserves its own height in `HomeView`'s bottom inset, so the rows
-never scroll underneath it. Now-playing status has a compact sibling in the
-same bottom band; music therefore never erases the tile under the cursor.
+never scroll underneath it. Now-playing status lives independently at the
+top centre, leaving this band to describe the cursor and its controls.
 """
 
 from __future__ import annotations

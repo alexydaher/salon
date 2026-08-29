@@ -5,7 +5,7 @@ from pathlib import Path
 
 from gi.repository import GLib
 
-from salon.services import artwork_io, artwork_paths
+from salon.services import artwork_io, artwork_network, artwork_paths
 
 
 class SizeProbeLoader:
@@ -88,3 +88,24 @@ def test_decode_contains_decompression_failure(monkeypatch) -> None:
 
     monkeypatch.setattr(artwork_io.GdkPixbuf, "PixbufLoader", BombLoader)
     assert artwork_io.decode_image(b"bomb") is None
+
+
+def test_player_remote_art_uses_the_bounded_artwork_fetch(tmp_path: Path, monkeypatch) -> None:
+    requested: list[tuple[object, int]] = []
+    session = object()
+    loader = artwork_network.ArtworkNetworkLoader(
+        settings=object(),  # type: ignore[arg-type]
+        session_for=lambda: session,  # type: ignore[arg-type,return-value]
+        in_flight=set(),
+        on_fetched=None,
+    )
+    monkeypatch.setattr(artwork_network, "cached_remote_path", lambda _url: tmp_path / "art.png")
+    monkeypatch.setattr(
+        artwork_network,
+        "fetch_bytes",
+        lambda owner, _message, limit, _callback: requested.append((owner, limit)),
+    )
+
+    loader.maybe_fetch_url("https://example.invalid/cover.jpg")
+
+    assert requested == [(session, artwork_network._IMAGE_DOWNLOAD_BYTES)]  # noqa: SLF001

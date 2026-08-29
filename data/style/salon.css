@@ -433,6 +433,15 @@ toast > label {
   color: @text-secondary;
 }
 
+/* The readout takes a click, so it has to look like it takes one — a
+   mouse is a first-class input here and the cursor change alone is only
+   visible once the pointer is already on it. Hover only: there is no
+   keyboard or controller route in, by design. */
+.salon-now-playing-active:hover {
+  background-color: alpha(@surface-1, 0.92);
+  border-color: alpha(@text-primary, 0.18);
+}
+
 .salon-now-playing-title {
   color: @text-primary;
   font-size: var(--font-tile-subtitle);

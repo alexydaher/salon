@@ -19,7 +19,11 @@ from salon.services.artwork_colors import dominant_color, hashed_accent, parse_h
 from salon.services.artwork_io import is_symbolic  # noqa: E402
 from salon.services.artwork_models import Artwork  # noqa: E402
 from salon.services.artwork_network import ArtworkNetworkLoader  # noqa: E402
-from salon.services.artwork_paths import local_artwork_path, prune_artwork_cache  # noqa: E402
+from salon.services.artwork_paths import (  # noqa: E402
+    cached_remote_path,
+    local_artwork_path,
+    prune_artwork_cache,
+)
 
 _FETCH_TIMEOUT_SECONDS = 15
 
@@ -108,6 +112,32 @@ class ArtworkResolver:
         icon_file = icon.get_file()
         name = icon_file.get_path() if icon_file is not None else None
         return Path(name) if name else None
+
+    def texture_for_uri(self, uri: str) -> Gdk.Texture | None:
+        """Resolve player-published cover art without blocking GTK.
+
+        Local MPRIS covers are files and can be decoded immediately. Remote
+        covers take the same bounded, cached route as explicit tile artwork;
+        the resolver's ``on_fetched`` callback asks the UI to try again once
+        the download has completed.
+        """
+        path: Path | None = None
+        if uri.startswith("file://"):
+            try:
+                filename, host = GLib.filename_from_uri(uri)
+            except GLib.Error:
+                return None
+            if host not in (None, "", "localhost"):
+                return None
+            path = Path(filename)
+        elif uri.startswith(("http://", "https://")):
+            path = cached_remote_path(uri)
+            if not path.is_file():
+                self._network.maybe_fetch_url(uri)
+                return None
+        if path is None or not path.is_file():
+            return None
+        return self._texture_for(path)
 
     # --- internals -------------------------------------------------------
 
