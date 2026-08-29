@@ -16,6 +16,7 @@ found through search is not a second-class kind of thing.
 from __future__ import annotations
 
 import threading
+import unicodedata
 from collections.abc import Callable, Iterable
 
 import gi
@@ -32,6 +33,23 @@ from salon.services import host_appinfo  # noqa: E402
 # Namespaced so an installed app can never collide with a user's tile id —
 # they share an id space once both are in a search result list.
 ID_PREFIX = "app:"
+
+
+def sort_key(title: str) -> str:
+    """Where a title belongs in an A-Z list.
+
+    `casefold()` alone puts every accented name after "Z", because that is
+    where the code points are: "Éditeur de texte" sorted after "Zoom" and
+    landed under the phone's "#" heading, several screens from the E it
+    reads as. Folding the combining marks off first files it under E, which
+    is both where somebody looks for it and where the index rail says it is.
+    """
+    stripped = "".join(
+        part
+        for part in unicodedata.normalize("NFD", title)
+        if not unicodedata.combining(part)
+    )
+    return stripped.casefold()
 
 
 def tile_for(app_info: Gio.AppInfo) -> Tile:
@@ -77,14 +95,14 @@ def _scan_local() -> list[Tile]:
         # entries out of the results.
         if app_info.should_show()
     ]
-    tiles.sort(key=lambda tile: tile.title.casefold())
+    tiles.sort(key=lambda tile: sort_key(tile.title))
     return tiles
 
 
 def _scan_host() -> list[Tile]:
     records = host_appinfo.scan()
     tiles = [_tile_for_host_record(record) for record in records]
-    tiles.sort(key=lambda tile: tile.title.casefold())
+    tiles.sort(key=lambda tile: sort_key(tile.title))
     return tiles
 
 

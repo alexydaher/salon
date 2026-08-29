@@ -57,7 +57,7 @@ class HomePhoneCatalogController(ServiceComponent):
         `_scan_apps_for_phone` took when the remote started — this runs
         inside the HTTP handler, on the thread that draws the interface.
         """
-        apps = sorted(self._owner._phone_apps, key=lambda tile: tile.title.casefold())
+        apps = sorted(self._owner._phone_apps, key=lambda tile: appinfo.sort_key(tile.title))
         return [self._owner._remote_tile(tile) for tile in apps]
 
     def _now_playing_art_for_phone(self) -> Path | None:

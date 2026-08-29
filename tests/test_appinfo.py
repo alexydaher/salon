@@ -73,3 +73,23 @@ def test_native_scan_does_not_spawn_a_host_helper(monkeypatch) -> None:
     )
 
     assert appinfo._scan() is sentinel
+
+
+def test_an_accented_name_files_under_its_own_letter() -> None:
+    """`casefold()` alone sorts every accented title after "Z", because that
+    is where the code points are — so the phone's A-Z list filed "Éditeur de
+    texte" under "#", several screens from the E anybody looks for it at,
+    and gave that "#" section the same heading id as the digits at the top.
+    """
+    titles = ["Zoom", "Éditeur de texte", "Ardour", "Übersicht", "0 A.D."]
+    assert sorted(titles, key=appinfo.sort_key) == [
+        "0 A.D.",
+        "Ardour",
+        "Éditeur de texte",
+        "Übersicht",
+        "Zoom",
+    ]
+
+
+def test_the_sort_key_still_ignores_case() -> None:
+    assert appinfo.sort_key("VLC") == appinfo.sort_key("vlc")
