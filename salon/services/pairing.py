@@ -85,6 +85,10 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         self._talked_at = 0.0
         self._wrong_attempts = 0
         self._locked = False
+        # The lockout's own timer. A burned session unburns itself with a
+        # fresh code — see LOCKOUT_SECONDS — because the state it happens in
+        # is the state nobody can reach the television's controls from.
+        self._unlock_id: int | None = None
         # What the phone draws. Published from the home screen; serialised
         # only when a poll actually asks for a version it hasn't seen.
         self._feed = StateFeed()

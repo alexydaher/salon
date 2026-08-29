@@ -125,6 +125,7 @@ from salon.services.phone_remote_limits import (  # noqa: E402
     _UI_ASSET_NAME,
     _UI_TYPES,
     DEFAULT_PORT,
+    LOCKOUT_SECONDS,
     MAX_ATTEMPTS,
     MAX_BROWSE_RESULTS,
     MAX_SEARCH_RESULTS,

@@ -7,9 +7,11 @@ possibilities, which anything on the same network exhausts in seconds — so
 it is accepted at `/connect` and nowhere else, and that one endpoint counts
 wrong guesses and burns the session. The session token is 128 bits, is what
 every other endpoint takes, and is what the QR code on the television
-carries; wrong tokens deliberately do *not* count toward the lockout,
-because counting them would turn "cannot be guessed" into "can be locked out
-by anyone who can reach the port".
+carries; wrong tokens deliberately do *not* count toward the lockout — at
+`/connect` any more than anywhere else — because counting them would turn
+"cannot be guessed" into "can be locked out by anyone who can reach the
+port", and because the page posts a remembered token on every load. The
+lockout itself expires: see the test that says why it has to.
 
 Driven over real HTTP against the real `Soup.Server` rather than by poking
 at counters, because the thing being asserted is what a request from the
@@ -48,6 +50,16 @@ from salon.services.pairing import (  # noqa: E402
     SESSION_TIMEOUT_SECONDS,
     PairingServer,
 )
+
+
+def _expire_the_lockout(server: PairingServer) -> None:
+    """Fire the unlock timer now rather than in five minutes. Reaching for
+    the source id rather than sleeping: the deadline is the product decision
+    and the behaviour at the deadline is what is under test."""
+    server._lifecycle._unlock()  # noqa: SLF001
+    if server._unlock_id is not None:  # noqa: SLF001
+        GLib.source_remove(server._unlock_id)  # noqa: SLF001
+        server._unlock_id = None  # noqa: SLF001
 
 
 @pytest.fixture()
@@ -94,9 +106,23 @@ def test_the_token_alone_reconnects(server: PairingServer) -> None:
     assert _run(server, lambda: _connect(port, server.token)) == (200, server.token)
 
 
-def test_a_stale_token_is_refused(server: PairingServer) -> None:
+def test_a_stale_token_is_refused_without_spending_a_guess(server: PairingServer) -> None:
+    """The commonest request this server gets that is not from a paired
+    phone, and for a while the most expensive: the page posts whatever token
+    it remembered on every load, so a phone that had been paired before a
+    restart burned one of the five allowed guesses each time it was opened —
+    five reloads and the household was locked out of its own television with
+    the corner pairing card gone from the screen.
+
+    401 rather than 403, because this is "your session is over" and the page
+    turns it into the code screen.
+    """
     port = server._port  # noqa: SLF001
-    assert _run(server, lambda: _connect(port, "not-the-token-from-last-time"))[0] == 403
+    stale = "not-the-token-from-last-time"
+    statuses = _run(server, lambda: [_connect(port, stale)[0] for _ in range(MAX_ATTEMPTS + 3)])
+    assert statuses == [401] * (MAX_ATTEMPTS + 3)
+    assert not server.locked
+    assert _run(server, lambda: _connect(port, server.code))[0] == 200
 
 
 def test_a_wrong_code_is_refused_without_locking_immediately(server: PairingServer) -> None:
@@ -164,7 +190,71 @@ def test_restarting_mints_a_new_code_and_token_and_clears_the_lock(
     # not a permanent state of the machine — and the old token is dead.
     port = server._port  # noqa: SLF001
     assert _run(server, lambda: _connect(port, server.code))[0] == 200
-    assert _run(server, lambda: _connect(port, old_token))[0] == 403
+    assert _run(server, lambda: _connect(port, old_token))[0] == 401
+
+
+def test_the_lockout_ends_by_itself_with_a_new_code(server: PairingServer) -> None:
+    """A burned session has to unburn itself, because the state it happens
+    in is the state nobody can reach the television's controls from: the
+    corner pairing card holds the server up for as long as there is no
+    remote, and it hides itself while the server is locked. The way out used
+    to be stopping the server, which only the missing remote could ask for.
+
+    The code changes on the way out — waiting five minutes must not hand
+    back the four digits that were being guessed at — and the token does
+    not, because a phone that was paired before the lockout had no part in
+    it.
+    """
+    port = server._port  # noqa: SLF001
+    burned_code = server.code
+    token = server.token
+    wrong = f"{(int(burned_code) + 1) % 10000:04d}"
+    _run(server, lambda: [_connect(port, wrong)[0] for _ in range(MAX_ATTEMPTS)])
+    assert server.locked
+
+    _expire_the_lockout(server)
+
+    assert not server.locked
+    assert server.token == token
+    assert len(server.code) == 4
+    assert _run(server, lambda: _connect(port, burned_code))[0] == 403
+    assert _run(server, lambda: _connect(port, server.code))[0] == 200
+
+
+def test_a_lockout_that_outlives_its_server_stays_dead(server: PairingServer) -> None:
+    """The unlock is a timer on the main loop, and `stop()` may have run
+    before it fires. Unlocking a stopped server would leave `locked` False
+    over a session with no code in it, which the corner card reads as a
+    reason to draw a QR."""
+    port = server._port  # noqa: SLF001
+    wrong = f"{(int(server.code) + 1) % 10000:04d}"
+    _run(server, lambda: [_connect(port, wrong)[0] for _ in range(MAX_ATTEMPTS)])
+    server.stop()
+    _expire_the_lockout(server)
+    assert server.code == ""
+    assert server.pair_url is None
+
+
+def test_a_server_that_could_not_listen_offers_no_credentials() -> None:
+    """A failed bind used to leave the code and the token minted. Only
+    `pair_url` gates the corner pairing card, so the television drew a QR
+    for a port this process does not hold — and scanning it reached
+    whatever *does* hold it. The holder is not recorded either, so the next
+    poll tries again rather than believing the remote is already up."""
+    port = _free_port()
+    holder = PairingServer(port=port)
+    if not holder.start():
+        pytest.skip("could not bind a local port for the pairing server")
+    try:
+        blocked = PairingServer(port=port)
+        assert not blocked.acquire("hint")
+        assert not blocked.holds("hint")
+        assert not blocked.running
+        assert blocked.code == ""
+        assert blocked.token == ""
+        assert blocked.pair_url is None
+    finally:
+        holder.stop()
 
 
 def test_the_pairing_url_carries_the_token_in_the_fragment(server: PairingServer) -> None:

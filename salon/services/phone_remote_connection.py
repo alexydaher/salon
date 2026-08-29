@@ -46,7 +46,7 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
             self._owner._refuse(
                 message,
                 _STATUS_TOO_MANY_REQUESTS,
-                "Too many wrong codes. Turn the phone remote off and on again on the TV.",
+                "Too many wrong codes. The television shows a new code in a few minutes.",
             )
             return
 
@@ -55,12 +55,23 @@ class PhoneRemoteConnection(PhoneRemoteComponent):
             self._owner._json(message, json.dumps({"key": self._owner._token}).encode())
             return
 
+        if "code" not in fields:
+            # A token was offered and it is not ours: this is a phone coming
+            # back with what it remembered from a previous session, which is
+            # every reload of a page that has been kept. It is not a guess at
+            # the code and must not spend one of the five — the page posts a
+            # stale key on load, so counting it made an ordinary reload burn
+            # an attempt and five of them lock a household out of its own
+            # television. 401 is what the page turns into the code screen.
+            self._owner._refuse(message, Soup.Status.UNAUTHORIZED, "Not connected any more.")
+            return
+
         # compare_digest, not ==: the code is short enough that a timing
         # oracle is a real (if unglamorous) way to guess it.
         if not secrets.compare_digest(str(fields.get("code", "")), self._owner._code):
             self._owner._wrong_attempts += 1
             if self._owner._wrong_attempts >= MAX_ATTEMPTS:
-                self._owner._locked = True
+                self._owner._lock()
                 if self._owner._on_locked is not None:
                     GLib.idle_add(_notify, self._owner._on_locked)
             self._owner._refuse(message, Soup.Status.FORBIDDEN, "Wrong code.")

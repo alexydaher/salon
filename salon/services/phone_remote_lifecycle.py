@@ -8,6 +8,7 @@ from salon.services.phone_remote_shared import (
     _AWAKE_CLIPS,
     _IDLE_CHECK_SECONDS,
     _TOKEN_BYTES,
+    LOCKOUT_SECONDS,
     SESSION_TIMEOUT_SECONDS,
     GLib,
     PhoneRemoteComponent,
@@ -49,6 +50,13 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
         try:
             server.listen_all(self._owner._port, Soup.ServerListenOptions(0))
         except GLib.Error:
+            # Nothing is listening, so nothing may look as though it is. The
+            # credentials were minted above and the corner pairing card asks
+            # only for `pair_url` — left set, it draws a QR for a port this
+            # process does not hold, which is worse than drawing nothing:
+            # scanning it reaches whatever *does* hold the port.
+            self._owner._code = ""
+            self._owner._token = ""
             return False
         self._owner._server = server
         self._owner._last_seen = time.monotonic()
@@ -58,6 +66,7 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
 
     def stop(self) -> None:
         self._owner._close_streams()
+        self._cancel_unlock()
         self._owner._offered.clear()
         if self._owner._idle_id is not None:
             GLib.source_remove(self._owner._idle_id)
@@ -83,6 +92,35 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
         self._owner._idle_id = None
         self.stop()
         return GLib.SOURCE_REMOVE
+
+    def lock(self) -> None:
+        """Burn the session, and schedule its end.
+
+        Called from `/connect` once the attempts are spent. The unlock mints
+        a new code rather than restoring the old one: waiting out a lockout
+        must not hand back the four digits that were being guessed at.
+        """
+        self._owner._locked = True
+        self._cancel_unlock()
+        self._owner._unlock_id = GLib.timeout_add_seconds(LOCKOUT_SECONDS, self._unlock)
+
+    def _unlock(self) -> bool:
+        self._owner._unlock_id = None
+        if self._owner._server is None:
+            return GLib.SOURCE_REMOVE
+        self._owner._locked = False
+        self._owner._wrong_attempts = 0
+        self._owner._code = f"{secrets.randbelow(10000):04d}"
+        # The token is deliberately *not* re-minted: a phone that was paired
+        # before the lockout has been refused for five minutes and has no
+        # part in what caused it. The code is the credential that was under
+        # attack, and it is the one that changes.
+        return GLib.SOURCE_REMOVE
+
+    def _cancel_unlock(self) -> None:
+        if self._owner._unlock_id is not None:
+            GLib.source_remove(self._owner._unlock_id)
+            self._owner._unlock_id = None
 
     def _touch(self) -> None:
         """Push the idle deadline out. Called for every accepted request."""

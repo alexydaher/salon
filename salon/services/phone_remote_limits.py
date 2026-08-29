@@ -41,6 +41,17 @@ _CONNECTED_SECONDS = 4.0
 # on a phone keyboard a few times.
 MAX_ATTEMPTS = 5
 
+# How long a burned session stays burned. The lockout used to last until the
+# server was stopped, which sounds stricter and is in fact unreachable: the
+# corner pairing card holds the server up for exactly as long as nobody has a
+# remote, so the one state the lockout can happen in is the one state nothing
+# can end it from — and the card hides itself while locked, so the television
+# stops saying anything at all. A new code is minted on the way out, which is
+# what makes waiting cheap for the household and useless for a guesser: five
+# tries per five minutes against a code that is not the one they were
+# working on.
+LOCKOUT_SECONDS = 300
+
 # 128 bits. `token_urlsafe(16)` is 22 characters, which keeps the pairing
 # URL inside QR version 4 at error-correction level M — comfortably within
 # what core/qr.py encodes and what a camera reads off a television.

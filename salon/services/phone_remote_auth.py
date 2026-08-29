@@ -89,7 +89,7 @@ class PhoneRemoteAuthorization(PhoneRemoteComponent):
             self._refuse(
                 message,
                 _STATUS_TOO_MANY_REQUESTS,
-                "Too many wrong codes. Turn the phone remote off and on again on the TV.",
+                "Too many wrong codes. The television shows a new code in a few minutes.",
             )
             return None
         if not self._has_token(fields.get("key")):

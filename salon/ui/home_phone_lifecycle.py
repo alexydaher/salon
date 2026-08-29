@@ -19,7 +19,7 @@ class HomePhoneLifecycleController(ServiceComponent):
                 return "Off — but running while the corner pairing code is showing"
             return "Off"
         if self._owner._pairing.locked:
-            return "Locked — too many wrong codes. Restart the phone remote."
+            return "Locked — too many wrong codes. A new code in a few minutes."
         if self._owner._pairing.connected:
             return "A phone is connected. MENU → Phone remote shows the code again."
         url = self._owner._pairing.url or "this machine"

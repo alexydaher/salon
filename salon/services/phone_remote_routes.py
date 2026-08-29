@@ -20,6 +20,9 @@ class PhoneRemoteRoutes:
     def _touch(self) -> None:
         self._lifecycle._touch()  # noqa: SLF001
 
+    def _lock(self) -> None:
+        self._lifecycle.lock()
+
     def _check_idle(self) -> bool:
         return self._lifecycle._check_idle()  # noqa: SLF001
 

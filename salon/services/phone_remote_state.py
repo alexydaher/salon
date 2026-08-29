@@ -17,9 +17,19 @@ from salon.services.phone_remote_shared import (
 class PhoneRemoteState(PhoneRemoteComponent):
     def acquire(self, holder: str) -> bool:
         """Start the server on behalf of `holder`, or note that it already
-        wants it. Returns False only if starting actually failed."""
+        wants it. Returns False only if starting actually failed.
+
+        A failed start records nothing. The holder used to be added first,
+        which left `holds()` answering True over a server that was never
+        listening — and `holds()` is what every caller uses to decide
+        whether to try again, so a port that was busy for a second (a
+        previous Salon still shutting down, a second instance) was a phone
+        remote that stayed down for the life of the process.
+        """
+        if not self._owner.start():
+            return False
         self._owner._holders.add(holder)
-        return self._owner.start()
+        return True
 
     def release(self, holder: str) -> None:
         self._owner._holders.discard(holder)
