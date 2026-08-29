@@ -36,6 +36,13 @@ done
 # Exercise the installed bundle, not the source tree. The assertions run
 # inside the sandbox and cover the host-prefixed capabilities that cannot be
 # truthfully inferred from a host-side unit test.
+#
+# Until 2026-08-29 every assertion below was the opposite: this script
+# asserted the sandbox withheld power, Wi-Fi, Bluetooth, CEC and GNOME
+# Settings, and it kept asserting it after the manifest gave them back,
+# which is what failed the first v0.3.0 release run. Two things stay
+# withheld and they are the whole list — `mutter_injection` and
+# `autostart` — so those are what this checks for, in both directions.
 XDG_RUNTIME_DIR="$runtime_dir" WAYLAND_DISPLAY=salon-flatpak-wayland \
   flatpak run --env=PYTHONPATH=/app/share/salon --env=GSETTINGS_BACKEND=memory --command=python3 \
   io.github.alexydaher.Salon -c '
@@ -49,8 +56,10 @@ from salon.ui.settings.network_panel import network_panel
 from salon.ui.settings.system_panel import system_panel
 caps = sandbox.capabilities()
 assert caps.sandboxed and caps.host_spawn
-assert not caps.control_center and not caps.network_configuration
-assert not caps.bluetooth_pairing and not caps.cec and not caps.host_power
+assert caps.control_center and caps.network_configuration
+assert caps.bluetooth_pairing and caps.cec and caps.host_power
+assert caps.shell_keyboard
+assert not caps.autostart and not caps.mutter_injection
 assert wpctl_argv("status")[:2] == ["flatpak-spawn", "--host"]
 assert detect_browser() == ("flatpak", "run", "com.google.Chrome")
 Gtk.init()
@@ -67,15 +76,18 @@ class Context:
 context = Context()
 settings = Gio.Settings.new(config.APP_ID)
 network_rows = network_panel(context, settings).build()
-assert not next(row for row in network_rows if row.label_text == "Choose a network").selectable
+assert next(row for row in network_rows if row.label_text == "Choose a network").selectable
 advanced_input_rows = _advanced_input_panel(context, settings).build()
-assert not next(
+assert next(
     row for row in advanced_input_rows if row.label_text == "HDMI-CEC input"
 ).selectable
+# Still portal-only: mutter injection is one of the two things withheld,
+# so the compositor choice must not appear inside the sandbox.
 injection = next(row for row in advanced_input_rows if row.label_text == "Input injection")
 assert injection.choices == [("portal", "Ask the desktop")]
 system_rows = system_panel(context, settings).build()
-assert not next(row for row in system_rows if row.label_text == "Display and resolution").selectable
+assert next(row for row in system_rows if row.label_text == "Display and resolution").selectable
+# The other withheld one: the host desktop owns the autostart entry.
 assert not next(row for row in system_rows if row.label_text == "Start Salon at login").selectable
 '
 
