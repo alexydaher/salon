@@ -42,9 +42,10 @@
     </p>
     <p>
       The Flatpak runs Salon as a fullscreen application. Flatpak cannot add
-      a Salon or Salon Kiosk choice to the login screen, and this build does
-      not change host GNOME settings or expose host power actions. Install
-      Salon as a native system package for the dedicated television session.
+      a Salon or Salon Kiosk choice to the login screen, so install Salon as
+      a native system package for the dedicated television session. Two
+      things the sandbox withholds are unprompted input injection and the
+      autostart entry; both fall back to something that works.
     </p>
   </description>
 
@@ -98,32 +99,41 @@
     <color type="primary" scheme_preference="dark">#E8A33D</color>
   </branding>
 
-  <!-- Pinned to the v0.2.11 tag rather than to main: a software centre
+  <!-- Pinned to the v0.3.0 tag rather than to main: a software centre
        showing this release should show the screenshots that release shipped
        with, and a moving branch would let them drift. Bump these with the
        version. -->
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.11/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.0/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.11/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.0/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.11/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.0/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.2.11/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.0/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.3.0" date="2026-08-29">
+      <description>
+        <p>Tiles are now proportional objects: the tile-size preference scales their type, padding, glow and row headings together, so a smaller card stays readable and the shipped default fits several more rows on screen than the design size did.</p>
+        <p>Home carries one cursor column across every row, tints the focus ring with the artwork it surrounds, moves now playing into the top bar with its cover art and a click to pause, adds play/pause to game controllers, and falls back to an application's own desktop-entry icon before drawing a generated card.</p>
+        <p>The phone remote is rebuilt around a persistent header and three panes, with a measured volume popover, typing folded into the pointer pane, a corrected A-Z index rail, and accented application names filed under their own letter.</p>
+        <p>Scrolling no longer renders full-screen offscreen images every frame, an absent controller no longer wakes the main loop sixty times a second, and the Flatpak regains power, network, Bluetooth, HDMI-CEC, GNOME Settings and on-screen keyboard support.</p>
+        <p>The phone remote can no longer lock a household out of its own television: stale credentials are rejected without spending an attempt, lockouts expire, and a server that cannot bind leaves nothing behind.</p>
+      </description>
+    </release>
     <release version="0.2.11" date="2026-08-26">
       <description>
         <p>Home now presents device-aware button legends, independent row positions, clearer edge fades, calmer detail chrome, and a compact nested power menu.</p>

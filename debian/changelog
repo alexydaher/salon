@@ -1,3 +1,15 @@
+salon (0.3.0-1) unstable; urgency=medium
+
+  * Scale tile type, padding and row headings with the tile-size preference.
+  * Carry one cursor column across rows and tint focus with tile artwork.
+  * Move now playing to the top bar and give controllers a play/pause.
+  * Rebuild the phone remote around a header, three panes and a fixed A-Z rail.
+  * Stop full-screen offscreen rendering and idle controller polling.
+  * Restore power, network, Bluetooth, CEC and keyboard support in the Flatpak.
+  * Prevent phone remote lockouts from stranding a household without a remote.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 10:05:33 +0200
+
 salon (0.2.11-1) unstable; urgency=medium
 
   * Clarify Home navigation with device-aware controls and a nested power menu.

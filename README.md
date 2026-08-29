@@ -24,16 +24,16 @@ Then launch **Salon** from your applications screen, or
 `flatpak run io.github.alexydaher.Salon`.
 
 **Debian package — adds the login-screen sessions.** Download
-`salon_0.2.11-1_all.deb` from the [latest release][latest-release] and let APT
+`salon_0.3.0-1_all.deb` from the [latest release][latest-release] and let APT
 resolve the dependencies:
 
 ```sh
-sudo apt install ~/Downloads/salon_0.2.11-1_all.deb
+sudo apt install ~/Downloads/salon_0.3.0-1_all.deb
 ```
 
 It is `Architecture: all` and works on both AMD64 and ARM64.
 
-**Offline Flatpak bundle.** `Salon-v0.2.11-x86_64.flatpak` or
+**Offline Flatpak bundle.** `Salon-v0.3.0-x86_64.flatpak` or
 `-aarch64.flatpak` from the [latest release][latest-release] — run `uname -m`
 if you are unsure which:
 
@@ -51,6 +51,13 @@ meson setup build
 
 `sudo meson install -C build` installs it; use `--prefix=/usr` if you want the
 login-screen sessions, since GDM's search paths are compiled in and absolute.
+
+This route is the only one that asks anything of you: GNOME on Wayland, with
+Python 3.12+, GTK 4.16.0+, libadwaita 1.5.0+, GLib 2.80.0+, GdkPixbuf 2.42.0+,
+libsoup 3.0.0+, PyGObject and libmanette 0.2.0+. The authoritative values live
+in `build-aux/minimum-versions.ini`, which Meson reads directly, so a missing
+one is named at `meson setup` rather than at startup. The other three routes
+carry or resolve their own dependencies.
 
 [latest-release]: https://github.com/alexydaher/salon/releases/latest
 
