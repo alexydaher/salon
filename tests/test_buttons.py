@@ -13,6 +13,9 @@ BTN_SOUTH = 0x130
 BTN_EAST = 0x131
 BTN_NORTH = 0x133
 BTN_WEST = 0x134
+BTN_SELECT = 0x13A
+BTN_THUMBL = 0x13D
+BTN_THUMBR = 0x13E
 
 
 def test_the_dualsense_this_was_tested_against_is_recognised() -> None:
@@ -43,6 +46,26 @@ def test_every_face_button_salon_binds_has_a_name_in_every_family() -> None:
         action = BUTTON_ACTIONS[code]
         for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.NINTENDO):
             assert buttons.label(action, GAMEPAD, family=family), (action, family)
+
+
+def test_select_is_play_pause_and_is_printed_differently_by_every_vendor() -> None:
+    """A controller had no play/pause until BTN_SELECT was bound to it, and
+    that is the button whose printed name the three families agree on least
+    — which is the whole reason this table exists rather than one caption."""
+    assert BUTTON_ACTIONS[BTN_SELECT] is Action.PLAY_PAUSE
+    captions = {
+        family: buttons.label(Action.PLAY_PAUSE, GAMEPAD, family=family)
+        for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.NINTENDO)
+    }
+    assert all(captions.values()), captions
+    assert len(set(captions.values())) == 3, captions
+
+
+def test_the_sticks_are_not_bound_to_anything() -> None:
+    """L3 and R3 are pressed by accident while the stick that drives
+    navigation is being pushed, so a film would pause on the way past."""
+    for code in (BTN_THUMBL, BTN_THUMBR):
+        assert code not in BUTTON_ACTIONS
 
 
 def test_menu_is_named_on_every_source() -> None:

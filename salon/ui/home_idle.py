@@ -3,6 +3,7 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
+from salon.ui.home_playback_policy import should_launch_focused
 from salon.ui.home_shared import GLib, nowplaying, time
 
 
@@ -59,6 +60,28 @@ class HomeIdleController(ServiceComponent):
         self._owner._last_input = time.monotonic()
         if self._owner._screensaver.showing:
             self._owner._screensaver.hide()
+
+    def _play_pause(self, *, may_launch: bool = False) -> None:
+        """Toggle the player, and decide what "nothing is playing" means.
+
+        `may_launch` is the home screen's fallback, and whether it applies
+        is `home_playback_policy.should_launch_focused` — the one rule here
+        that is worth a test of its own.
+        """
+        if self._owner._now_playing.play_pause():
+            return
+        if should_launch_focused(
+            may_launch=may_launch, source=self._owner._input_source
+        ):
+            self._owner._launch_focused()
+            return
+        self._owner._toast("Nothing is playing.")
+
+    def _toggle_playback(self) -> None:
+        """The click on the now-playing readout. Never launches: the widget
+        is only on screen while a player exists."""
+        self.wake()
+        self._play_pause()
 
     def _on_now_playing(self, player: nowplaying.Player | None) -> None:
         """Update the compact player status without erasing tile context."""

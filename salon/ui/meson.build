@@ -25,6 +25,7 @@ python_sources = [
   'home_launching.py',
   'home_legend.py',
   'home_legend_policy.py',
+  'home_playback_policy.py',
   'home_layout_build.py',
   'home_navigation.py',
   'home_overlays.py',

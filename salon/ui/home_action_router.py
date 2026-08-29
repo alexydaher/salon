@@ -173,10 +173,9 @@ class HomeActionRouter(ServiceComponent):
         # Salon's own window would appear underneath Netflix") is this one.
         if self._owner._pointer_mode or self._owner._child_active:
             if action is Action.PLAY_PAUSE:
-                # The transport half only. The launch fallback below makes
-                # sense on an idle home screen and nowhere else.
-                if not self._owner._now_playing.play_pause():
-                    self._owner._toast("Nothing is playing.")
+                # The transport half only: there is no focused tile to fall
+                # back to behind an application.
+                self._owner._play_pause()
                 return
             if self._owner._pointer_mode:
                 if action is Action.SEARCH:
@@ -208,11 +207,7 @@ class HomeActionRouter(ServiceComponent):
             self._owner._open_search()
             return
         if action is Action.PLAY_PAUSE:
-            # Falls through to launching the focused tile when nothing is
-            # playing: on a remote whose only large button is play, the
-            # useless outcome is the one that does nothing at all.
-            if not self._owner._now_playing.play_pause():
-                self._owner._launch_focused()
+            self._owner._play_pause(may_launch=True)
             return
         if action is Action.BACK:
             if self._owner._launcher.is_launching:

@@ -44,6 +44,7 @@ _KEYBOARD: dict[Action, str] = {
     Action.MENU: "Menu",
     Action.OPTIONS: "O",
     Action.SEARCH: "/",
+    Action.PLAY_PAUSE: "Play",
     Action.UP: "Up",
     Action.DOWN: "Down",
     Action.LEFT: "Left",
@@ -59,6 +60,7 @@ _REMOTE: dict[Action, str] = {
     Action.MENU: "Menu",
     Action.OPTIONS: "Options",
     Action.SEARCH: "Search",
+    Action.PLAY_PAUSE: "Play",
     Action.UP: "Up",
     Action.DOWN: "Down",
     Action.LEFT: "Left",
@@ -79,6 +81,7 @@ _GAMEPAD_FAMILIES: dict[str, dict[Action, str]] = {
         Action.MENU: "Start",
         Action.OPTIONS: "X",
         Action.SEARCH: "Y",
+        Action.PLAY_PAUSE: "View",
         **_GAMEPAD_DIRECTIONS,
     },
     PLAYSTATION: {
@@ -87,6 +90,7 @@ _GAMEPAD_FAMILIES: dict[str, dict[Action, str]] = {
         Action.MENU: "Options",
         Action.OPTIONS: "Square",
         Action.SEARCH: "Triangle",
+        Action.PLAY_PAUSE: "Create",
         **_GAMEPAD_DIRECTIONS,
     },
     NINTENDO: {
@@ -97,6 +101,7 @@ _GAMEPAD_FAMILIES: dict[str, dict[Action, str]] = {
         Action.MENU: "Plus",
         Action.OPTIONS: "Y",
         Action.SEARCH: "X",
+        Action.PLAY_PAUSE: "Minus",
         **_GAMEPAD_DIRECTIONS,
     },
 }
