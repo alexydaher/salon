@@ -14,7 +14,7 @@ gi.require_version("Soup", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Soup  # noqa: E402
 
 from salon import config as app_config  # noqa: E402
-from salon.core.model import Tile  # noqa: E402
+from salon.core.model import LaunchKind, Tile  # noqa: E402
 from salon.services.artwork_colors import dominant_color, hashed_accent, parse_hex  # noqa: E402
 from salon.services.artwork_io import is_symbolic  # noqa: E402
 from salon.services.artwork_models import Artwork  # noqa: E402
@@ -46,6 +46,7 @@ class ArtworkResolver:
         self._settings = Gio.Settings.new(app_config.APP_ID)
         self._texture_cache: dict[tuple[str, float], Gdk.Texture] = {}
         self._color_cache: dict[tuple[str, float], Gdk.RGBA | None] = {}
+        self._entry_icon_cache: dict[str, Gio.Icon | None] = {}
         self._session: Soup.Session | None = None
         self._in_flight: set[str] = set()
         self._network = ArtworkNetworkLoader(
@@ -169,15 +170,65 @@ class ArtworkResolver:
 
     def _icon_for(self, tile: Tile, size: int) -> Gtk.IconPaintable | None:
         name = tile.icon_name
-        if not name or not self._icon_theme.has_icon(name):
-            # has_icon() is what keeps a missing icon from becoming a
-            # "broken image" glyph on the tile: lookup_icon() would happily
-            # hand back image-missing, which reads as a bug rather than as
-            # the deliberate generated card level 4 gives us.
+        if name and self._icon_theme.has_icon(name):
+            return self._icon_theme.lookup_icon(
+                name, None, size, 1, Gtk.TextDirection.NONE, Gtk.IconLookupFlags.PRELOAD
+            )
+        # has_icon() is what keeps a missing icon from becoming a "broken
+        # image" glyph on the tile: lookup_icon() would happily hand back
+        # image-missing, which reads as a bug rather than as the deliberate
+        # generated card level 4 gives us.
+        #
+        # A tile's icon_name is frequently the application id, and an
+        # application id is not an icon name: Chrome's desktop entry is
+        # `com.google.Chrome.desktop` while the icon the deb installs is
+        # `google-chrome`, so the tile drew a hashed card with a big "C" on
+        # it next to a Chrome that was installed and launching fine. The
+        # desktop entry is the authority on what an application's icon is
+        # called, so ask it before giving up.
+        return self._desktop_entry_icon(tile, size)
+
+    def _desktop_entry_icon(self, tile: Tile, size: int) -> Gtk.IconPaintable | None:
+        gicon = self._desktop_entry_gicon(tile)
+        if gicon is None:
             return None
-        return self._icon_theme.lookup_icon(
-            name, None, size, 1, Gtk.TextDirection.NONE, Gtk.IconLookupFlags.PRELOAD
+        return self._icon_theme.lookup_by_gicon(
+            gicon, size, 1, Gtk.TextDirection.NONE, Gtk.IconLookupFlags.PRELOAD
         )
+
+    def _desktop_entry_gicon(self, tile: Tile) -> Gio.Icon | None:
+        """The `Icon=` of the entry this tile launches, if it names one we
+        can actually draw.
+
+        Cached by desktop id: the catalogue is rebuilt on every launch and
+        every config save, and this reads a file off disk.
+        """
+        if tile.launch.kind not in (LaunchKind.DESKTOP, LaunchKind.FLATPAK):
+            return None
+        target = tile.launch.target
+        if not target:
+            return None
+        if target in self._entry_icon_cache:
+            return self._entry_icon_cache[target]
+        gicon = self._lookup_entry_gicon(target)
+        self._entry_icon_cache[target] = gicon
+        return gicon
+
+    def _lookup_entry_gicon(self, target: str) -> Gio.Icon | None:
+        desktop_id = target if target.endswith(".desktop") else f"{target}.desktop"
+        app_info = Gio.DesktopAppInfo.new(desktop_id)
+        if app_info is None:
+            return None
+        gicon = app_info.get_icon()
+        if isinstance(gicon, Gio.ThemedIcon):
+            # Same reasoning as has_icon() above: lookup_by_gicon() falls
+            # back to image-missing for a themed name nothing provides.
+            names = gicon.get_names() or []
+            return gicon if any(self._icon_theme.has_icon(one) for one in names) else None
+        if isinstance(gicon, Gio.FileIcon):
+            path = gicon.get_file().get_path()
+            return gicon if path and Path(path).exists() else None
+        return None
 
     # --- site icons ------------------------------------------------------
 
