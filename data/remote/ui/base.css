@@ -23,6 +23,7 @@
   --pad: 4vw;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
+  --viewport-h: 100dvh;
   --touch: 2.75rem;
   /* How much room the strips below `main` are taking. Kept as a variable so
      the toast can sit above whatever is actually there instead of above a
@@ -58,14 +59,15 @@ html, body {
   color: var(--fg);
   font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   overscroll-behavior: none;
+  overflow: hidden;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* dvh, not vh: on a phone the address bar collapses as you scroll and a
-   tab strip pinned with vh spends the first gesture sliding off-screen. */
-body { height: 100dvh; display: flex; flex-direction: column; }
+/* dvh is the no-script fallback. JS replaces it with the unobscured visual
+   viewport, which stays trustworthy around mobile browser toolbars. */
+body { height: var(--viewport-h); display: flex; flex-direction: column; }
 
 button { font: inherit; color: inherit; border: 0; background: none; }
 button, summary { cursor: pointer; }

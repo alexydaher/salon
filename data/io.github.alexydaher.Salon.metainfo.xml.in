@@ -99,32 +99,38 @@
     <color type="primary" scheme_preference="dark">#E8A33D</color>
   </branding>
 
-  <!-- Pinned to the v0.3.5 tag rather than to main: a software centre
+  <!-- Pinned to the v0.3.6 tag rather than to main: a software centre
        showing this release should show the screenshots that release shipped
        with, and a moving branch would let them drift. Bump these with the
        version. -->
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.5/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.6/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.5/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.6/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.5/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.6/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.5/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.3.6/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.3.6" date="2026-08-29">
+      <description>
+        <p>The phone remote now measures the browser's unobscured visual viewport as mobile toolbars expand and collapse, keeping the shell flush with the visible screen instead of exposing empty document space.</p>
+        <p>An oversized bottom-aligned Remote pane now falls back to a reachable start alignment, so its upper controls cannot overflow above the scroll origin on shorter phone views.</p>
+      </description>
+    </release>
     <release version="0.3.5" date="2026-08-29">
       <description>
         <p>The installed phone remote now requests the whole physical screen instead of opening with standalone app chrome around it.</p>

@@ -127,3 +127,23 @@ export function measureStrips() {
   const total = signature.split(":").reduce((sum, part) => sum + Number(part), 0);
   document.documentElement.style.setProperty("--strips", `${total}px`);
 }
+
+let measuredViewport = 0;
+
+// iOS browsers can lay 100dvh out against a viewport origin left behind by
+// their collapsing toolbars. The result is symmetrical: the top of the app
+// is unreachable and the same amount of empty document shows at the bottom.
+// VisualViewport is the browser's actual unobscured rectangle. Do not follow
+// it while pinch-zoomed, since that would counteract an accessibility zoom.
+export function measureViewport() {
+  const viewport = window.visualViewport;
+  if (viewport && Math.abs(viewport.scale - 1) > 0.01) return;
+  const height = Math.round(viewport ? viewport.height : window.innerHeight);
+  if (height && height !== measuredViewport) {
+    measuredViewport = height;
+    document.documentElement.style.setProperty("--viewport-h", `${height}px`);
+  }
+  // This shell has its own scrollports. A restored document scroll only
+  // moves the whole remote under the browser chrome and exposes its root.
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+}

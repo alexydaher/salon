@@ -5,7 +5,12 @@
 /* Bottom-aligned, not centred: a phone held one-handed has its thumb at
    the bottom of the screen, and the D-pad is what the hand looks for
    without looking. */
-#pane-remote { justify-content: flex-end; gap: 0.5rem; padding-bottom: 0.6rem; }
+#pane-remote {
+  justify-content: flex-end;
+  justify-content: safe flex-end;
+  gap: 0.5rem;
+  padding-bottom: 0.6rem;
+}
 
 /* --- what the cursor is on --------------------------------------------- */
 

@@ -6,7 +6,7 @@
 // here through `bus.js`.
 
 import {
-  $, buzz, measureHeader, measureSearchRow, measureStrips, toast,
+  $, buzz, measureHeader, measureSearchRow, measureStrips, measureViewport, toast,
 } from "./dom.js";
 import { on } from "./bus.js";
 import { readLaunchOptions, session } from "./session.js";
@@ -59,15 +59,19 @@ $("retry").addEventListener("click", () => {
   startFeed();
 });
 
-// The three measured heights are taken during a render, and a render only
+// The content measurements are taken during a render, and a render only
 // happens when the television says something changed — so turning the phone
 // on its side re-laid the page out and left every one of them describing the
 // orientation before it.
 window.addEventListener("resize", () => {
+  measureViewport();
   measureStrips();
   measureSearchRow();
   measureHeader();
 });
+window.visualViewport?.addEventListener("resize", measureViewport);
+window.addEventListener("scroll", measureViewport, { passive: true });
+window.addEventListener("pageshow", measureViewport);
 
 // Polling while the phone is in a pocket is a request a second for nothing.
 document.addEventListener("visibilitychange", () => {
@@ -81,6 +85,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+measureViewport();
 readLaunchOptions();
 showTab(session.tab);
 

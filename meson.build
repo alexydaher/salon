@@ -1,6 +1,6 @@
 project(
   'salon',
-  version: '0.3.5',
+  version: '0.3.6',
   meson_version: '>= 1.3.0',
 )
 

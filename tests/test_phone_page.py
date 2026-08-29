@@ -111,6 +111,21 @@ def test_installed_remote_uses_the_whole_phone_screen() -> None:
     assert manifest["orientation"] == "any"
 
 
+def test_browser_remote_stays_inside_the_visible_viewport() -> None:
+    """Browser chrome must not displace the shell or make its top overflow
+    unreachable when the Remote pane is taller than the remaining space."""
+    shell = (UI / "base.css").read_text()
+    controls = (UI / "controls.css").read_text()
+    dom = (UI / "dom.js").read_text()
+    main = (UI / "main.js").read_text()
+    assert "height: var(--viewport-h)" in shell
+    assert re.search(r"html, body\s*\{[^}]*overflow: hidden", shell, re.S)
+    assert "justify-content: safe flex-end" in controls
+    assert "window.visualViewport" in dom
+    assert 'setProperty("--viewport-h"' in dom
+    assert 'window.visualViewport?.addEventListener("resize", measureViewport)' in main
+
+
 def test_the_asset_name_pattern_refuses_anything_but_a_bare_filename() -> None:
     """The one guard between `/ui/<name>` and the resource path built from
     it. A name with a slash or a dot-dot in it never reaches the join."""

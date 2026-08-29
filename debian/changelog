@@ -1,3 +1,10 @@
+salon (0.3.6-1) unstable; urgency=medium
+
+  * Keep the phone remote inside the unobscured browser viewport.
+  * Prevent tall remote controls from overflowing above the scroll origin.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sat, 29 Aug 2026 21:07:12 +0200
+
 salon (0.3.5-1) unstable; urgency=medium
 
   * Open the installed phone remote in true fullscreen mode.
