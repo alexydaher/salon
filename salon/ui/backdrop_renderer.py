@@ -43,8 +43,21 @@ def same_color(a: Gdk.RGBA, b: Gdk.RGBA) -> bool:
 
 class BackdropRenderer:
     def snapshot(self, snapshot: Gtk.Snapshot) -> None:
-        width = float(self.get_width())
-        height = float(self.get_height())
+        self.snapshot_layers(snapshot, float(self.get_width()), float(self.get_height()))
+
+    def snapshot_layers(self, snapshot: Gtk.Snapshot, width: float, height: float) -> None:
+        """Paint the ambient layers into a box of the given size.
+
+        Sized by the caller rather than by `get_width()`/`get_height()`
+        because `Backdrop` renders this into a reduced-resolution texture
+        and blits that instead of painting it live: this is five or six
+        full-screen passes — a fill, a cover-fitted photo, both halves of a
+        `COLOR` blend, the dim and the glow — and on a 5K display that alone
+        was costing about fifteen milliseconds of every frame while the rows
+        were moving underneath it. Nothing here reads the widget's own size,
+        so the same code draws the cheap small copy and the full-size
+        fallback.
+        """
         if width <= 0 or height <= 0:
             return
 

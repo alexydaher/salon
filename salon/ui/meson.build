@@ -52,6 +52,7 @@ python_sources = [
   'tile_text_renderer.py',
   'backdrop.py',
   'backdrop_renderer.py',
+  'backdrop_wallpaper.py',
   'screensaver.py',
   'statusbar.py',
   'status_actions.py',

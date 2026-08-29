@@ -11,11 +11,31 @@ from salon.ui.home_shared import (
 )
 
 
-def _edge_mask(
-    snapshot: Gtk.Snapshot, width: float, height: float, near: float, far: float, *, vertical: bool
+def _white(alpha: float) -> Gdk.RGBA:
+    color = Gdk.RGBA()
+    color.red = color.green = color.blue = 1.0
+    color.alpha = alpha
+    return color
+
+
+def _rect(x: float, y: float, width: float, height: float) -> Graphene.Rect:
+    bounds = Graphene.Rect()
+    bounds.init(x, y, width, height)
+    return bounds
+
+
+def _snapshot_faded(
+    container: Gtk.Fixed,
+    snapshot: Gtk.Snapshot,
+    width: float,
+    height: float,
+    near: float,
+    far: float,
+    *,
+    vertical: bool,
 ) -> None:
-    """Push an alpha mask that ramps content in over `near` at the start of
-    one axis and out over `far` at its end.
+    """Draw `container`'s children, ramping them in over `near` at the start
+    of one axis and out over `far` at its end.
 
     Shared by the band (vertical) and by every row (horizontal), because a
     row sliced off by a hard clip edge reads as a rendering fault whichever
@@ -24,31 +44,51 @@ def _edge_mask(
     the screen edge, at whatever position a television's overscan happened
     to put it.
 
-    The caller pops twice: once for the mask, once for the content.
+    **The mask is pushed over the ramps alone, not over the whole band**,
+    and that is a performance decision rather than a visual one. A
+    `Gsk.MaskMode.ALPHA` node makes GSK render both of its children into
+    offscreen images the size of the masked area; masking the whole widget
+    therefore bought two full-size offscreens per row per frame, nine of
+    them together with the band, and on a 5K display that was eleven
+    milliseconds of every frame — the home screen scrolled at 36fps with
+    them and at a locked 60 without. The picture is identical: the middle
+    of the band is opaque under a full-width mask, so drawing it under a
+    plain clip instead changes nothing except how much offscreen the GPU
+    allocates. The children are snapshotted once per part, which costs
+    nothing extra — GTK caches each child's render node and reuses it when
+    the child is not itself dirty.
     """
-    bounds = Graphene.Rect()
-    bounds.init(0.0, 0.0, width, height)
     span = height if vertical else width
+    if span <= 0:
+        return
+    near = max(0.0, min(near, span / 2.0))
+    far = max(0.0, min(far, span - near))
 
-    snapshot.push_mask(Gsk.MaskMode.ALPHA)
-    opaque = Gdk.RGBA()
-    opaque.red = opaque.green = opaque.blue = opaque.alpha = 1.0
-    clear = Gdk.RGBA()
-    clear.red = clear.green = clear.blue = clear.alpha = 0.0
-    stops = []
-    for offset, color in (
-        (0.0, clear),
-        (near / span, opaque),
-        (1.0 - far / span, opaque),
-        (1.0, clear),
-    ):
-        stop = Gsk.ColorStop()
-        stop.offset = max(0.0, min(1.0, offset))
-        stop.color = color
-        stops.append(stop)
-    end = _point(0.0, span) if vertical else _point(span, 0.0)
-    snapshot.append_linear_gradient(bounds, _point(0.0, 0.0), end, stops)
-    snapshot.pop()
+    def part(start: float, length: float, ramp: tuple[float, float] | None) -> None:
+        if length <= 0:
+            return
+        clip = _rect(0.0, start, width, length) if vertical else _rect(start, 0.0, length, height)
+        snapshot.push_clip(clip)
+        if ramp is not None:
+            snapshot.push_mask(Gsk.MaskMode.ALPHA)
+            stops = []
+            for offset, alpha in ((0.0, ramp[0]), (1.0, ramp[1])):
+                stop = Gsk.ColorStop()
+                stop.offset = offset
+                stop.color = _white(alpha)
+                stops.append(stop)
+            begin = _point(0.0, start) if vertical else _point(start, 0.0)
+            end = _point(0.0, start + length) if vertical else _point(start + length, 0.0)
+            snapshot.append_linear_gradient(clip, begin, end, stops)
+            snapshot.pop()
+        Gtk.Fixed.do_snapshot(container, snapshot)
+        if ramp is not None:
+            snapshot.pop()
+        snapshot.pop()
+
+    part(0.0, near, (0.0, 1.0))
+    part(near, span - near - far, None)
+    part(span - far, far, (1.0, 0.0))
 
 
 class _RowViewport(Gtk.Fixed):
@@ -97,9 +137,9 @@ class _RowViewport(Gtk.Fixed):
         if span <= 0 or height <= 0 or (self._left_fade <= 0 and self._right_fade <= 0):
             Gtk.Fixed.do_snapshot(self, snapshot)
             return
-        _edge_mask(snapshot, span, height, self._left_fade, self._right_fade, vertical=False)
-        Gtk.Fixed.do_snapshot(self, snapshot)
-        snapshot.pop()
+        _snapshot_faded(
+            self, snapshot, span, height, self._left_fade, self._right_fade, vertical=False
+        )
 
 
 class _LayoutViewport(Gtk.Fixed):
@@ -133,6 +173,12 @@ class _LayoutViewport(Gtk.Fixed):
         self._bottom_fade = 0.0
 
     def set_fades(self, top: float, bottom: float) -> None:
+        """Short-circuited like the row's twin: this is called from the row
+        anchor's animation tick, so an unconditional `queue_draw` here was
+        re-snapshotting the whole band on every frame of every scroll for
+        values that had usually not moved."""
+        if (top, bottom) == (self._top_fade, self._bottom_fade):
+            return
         self._top_fade = top
         self._bottom_fade = bottom
         self.queue_draw()
@@ -144,9 +190,9 @@ class _LayoutViewport(Gtk.Fixed):
             Gtk.Fixed.do_snapshot(self, snapshot)
             return
 
-        _edge_mask(snapshot, width, height, self._top_fade, self._bottom_fade, vertical=True)
-        Gtk.Fixed.do_snapshot(self, snapshot)
-        snapshot.pop()
+        _snapshot_faded(
+            self, snapshot, width, height, self._top_fade, self._bottom_fade, vertical=True
+        )
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]
