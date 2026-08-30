@@ -80,6 +80,14 @@ class _AxisSpring:
 
     def jump_to(self, value: float) -> None:
         self._resting = value
+        if value == self._value:
+            # Nothing to apply, and this is not just a saving: setting a
+            # child transform queues an allocation on the Gtk.Fixed, and
+            # `_layout_rows` puts every row back on its own column from
+            # *inside* an allocation. Without this the steady state would
+            # ask for a fresh layout on every frame for as long as the
+            # screen was on. `animate_to` has the same guard.
+            return
         self._on_tick(value)
 
     def bump(self, distance: float) -> None:

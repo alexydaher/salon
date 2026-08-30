@@ -45,15 +45,13 @@ class HomeFocusController(ServiceComponent):
                 self._owner._backdrop.set_focus(focused_widget.artwork_accent)
                 self._publish_active_descendant(focused_widget)
         self._update_backdrop_position()
-        # Every row follows the one column the cursor carries, so the grid
-        # stays aligned and moving down lands on the tile that was already
-        # under the cursor rather than sliding sideways on arrival. A row
-        # already at its target is a no-op inside the spring, so this costs
-        # nothing for the rows the press did not move.
-        for index in range(len(self._owner._rows)):
-            self._update_row_scroll(
-                index, self._owner._focus.column_for(index), animate=animate
-            )
+        # Only the row the cursor is in. Every row used to be scrolled to
+        # the one column the focus model carried, which kept the grid
+        # aligned at the price of dragging a row nobody was in sideways
+        # across the screen — see `home_row_landing` for the measurement and
+        # for what lands the cursor now. The other rows are re-applied from
+        # their own `column` in `_layout_rows`.
+        self._update_row_scroll(self._owner._focus.row, self._owner._focus.col, animate=animate)
         self._owner._update_row_anchor(animate=animate)
         self._publish_remote_state()
 
@@ -246,5 +244,6 @@ class HomeFocusController(ServiceComponent):
         if not (0 <= row_index < len(self._owner._rows)):
             return
         row = self._owner._rows[row_index]
-        target = self._row_scroll_x(row, col)
+        row.column = max(0, min(col, len(row.tiles) - 1)) if row.tiles else 0
+        target = self._row_scroll_x(row, row.column)
         row.scroller.animate_to(target) if animate else row.scroller.jump_to(target)

@@ -152,6 +152,14 @@ class HomeLayoutBuilder(ServiceComponent):
             # The window's width just changed, and the row's fades are a
             # function of it as well as of the scroll offset.
             row.visible_width = float(width)
+            # Each row back onto its own column, because the clamp that
+            # holds the end of a row against the right edge is a function
+            # of that width: a row parked at its end and then given a wider
+            # window would otherwise stay where it was, stranding empty
+            # space beside its last tile. Never animated — this runs from
+            # inside an allocation, and a row is not travelling here, it is
+            # being told where it already is.
+            self._owner._update_row_scroll(index, row.column, animate=False)
             row.update_fades()
         self._owner._rows_content.set_size_request(
             width, max(1, round(self._owner._content_height()))

@@ -46,7 +46,13 @@ class FocusModel:
 
     def __init__(self, row_lengths: Sequence[int], start: tuple[int, int] = (0, 0)) -> None:
         self._row_lengths: list[int] = list(row_lengths)
-        # One column for the whole grid, not one per row: see column_for().
+        # The column a vertical move aims for, carried across rows rather
+        # than remembered per row, so passing through a row too short to
+        # hold it and coming back out restores it. It is only ever an aim:
+        # the home screen overrides the landing column with the tile that
+        # is physically under the cursor (`ui/home_row_landing.py`), while
+        # the uniform grids — search results, all applications — have
+        # nothing to disagree with it and take it as it stands.
         self._desired_col = 0
         self._row = 0
         self._col = 0
@@ -64,20 +70,6 @@ class FocusModel:
     @property
     def position(self) -> tuple[int, int]:
         return (self._row, self._col)
-
-    def column_for(self, row: int) -> int:
-        """The column this row rests at — the same one for every row.
-
-        Rows used to remember a column each, so moving down landed on
-        whatever that row had been left at rather than on the tile already
-        under the cursor, and two rows on screen sat at different offsets.
-        The cursor carries one column instead: vertical movement keeps it,
-        and a row too short to hold it is clamped for display only, so
-        passing through a short row and coming back out restores it.
-        """
-        if not (0 <= row < len(self._row_lengths)):
-            return 0
-        return _clamp_col(self._desired_col, self._row_lengths[row])
 
     def handle(self, action: Action) -> FocusChange:
         """Only the four directions move focus; anything else is a no-op

@@ -131,31 +131,6 @@ def test_ok_and_back_are_noops_for_focus_position() -> None:
     assert model.position == before
 
 
-def test_column_for_is_the_same_column_in_every_row() -> None:
-    model = FocusModel([4, 4, 4])
-    for _ in range(3):
-        model.handle(Action.RIGHT)
-    assert model.column_for(0) == 3
-
-    model.handle(Action.DOWN)
-    assert model.column_for(0) == 3
-    assert model.column_for(1) == 3
-    assert model.column_for(2) == 3
-
-
-def test_column_for_clamps_to_a_shorter_row() -> None:
-    model = FocusModel([5, 2])
-    for _ in range(4):
-        model.handle(Action.RIGHT)
-    assert model.column_for(0) == 4
-    assert model.column_for(1) == 1
-
-
-def test_column_for_out_of_range_row_is_zero() -> None:
-    model = FocusModel([3])
-    assert model.column_for(7) == 0
-
-
 def test_empty_row_does_not_trap_focus() -> None:
     """A row with no tiles must stay passable in both vertical directions.
 

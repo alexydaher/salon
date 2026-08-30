@@ -9,6 +9,7 @@ from salon.ui.home_bindings import HomeBindingController
 from salon.ui.home_catalog import HomeCatalogController
 from salon.ui.home_focus import HomeFocusController
 from salon.ui.home_idle import HomeIdleController
+from salon.ui.home_landing import HomeLandingController
 from salon.ui.home_launching import HomeLaunchController
 from salon.ui.home_layout_build import HomeLayoutBuilder
 from salon.ui.home_legend import HomeLegendController
@@ -42,6 +43,7 @@ class HomeView(
     HomeCatalogController,
     HomeLayoutBuilder,
     HomeFocusController,
+    HomeLandingController,
     HomeScrollController,
     HomeReloadAndPointerController,
     HomeBindingController,

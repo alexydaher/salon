@@ -6,7 +6,6 @@ from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     _DIRECTIONS,
     Action,
-    Bump,
     audio,
     onscreen_keyboard_available,
     onscreen_keyboard_enabled,
@@ -230,15 +229,6 @@ class HomeActionRouter(ServiceComponent):
             return
 
         if action in _DIRECTIONS:
-            change = self._owner._focus.handle(action)
-            if change.moved:
-                self._owner._update_focus()
-            elif change.bump is Bump.UP:
-                # The top of the tiles is not a wall: it's the top bar. This
-                # is the whole reason Search/Settings/Power are reachable at
-                # all without knowing that MENU exists.
-                self._owner._set_nav_focused(True)
-            elif change.bump is not Bump.NONE:
-                self._owner._rubber_band(change.bump)
+            self._owner._move_focus(action)
         elif action is Action.OK:
             self._owner._launch_focused()
