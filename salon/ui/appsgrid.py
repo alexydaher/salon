@@ -24,7 +24,6 @@ from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.tile import TileWidget  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
-_ASPECT = "square"
 
 
 class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):

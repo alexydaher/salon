@@ -16,6 +16,15 @@ from salon.ui.tile_geometry import _TRANSPARENT, _point, _stops, _with_alpha  # 
 
 class TileTextRenderer:
     def snapshot_labels(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
+        """Title and subtitle centred on the card's own axis, the same axis
+        the mark above them is centred on — one line of symmetry per card.
+
+        Centring is done by Pango rather than by measuring: every layout is
+        set to the full width between the paddings and asked to centre
+        inside it, so an ellipsized title stays centred on the card instead
+        of drifting as its measured width changes character by character
+        while a search filters.
+        """
         padding = self._metrics.padding
         available = rect.get_width() - 2 * padding
 
@@ -50,6 +59,7 @@ class TileTextRenderer:
         layout = self.create_pango_layout(text)
         layout.set_font_description(font)
         layout.set_width(int(width * Pango.SCALE))
+        layout.set_alignment(Pango.Alignment.CENTER)
         layout.set_ellipsize(Pango.EllipsizeMode.END)
         layout.set_single_paragraph_mode(True)
         return layout

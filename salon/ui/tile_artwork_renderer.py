@@ -125,9 +125,19 @@ class TileArtworkRenderer:
             self.snapshot_initial(snapshot, icon_box)
 
     def _icon_box(self, rect: Graphene.Rect) -> Graphene.Rect:
-        """Centred in the space above the title band, not in the tile — an
-        icon centred on the tile itself reads as sitting too low once the
-        title is drawn under it."""
+        """Centred on the card horizontally, and centred in the space above
+        the title band vertically.
+
+        The whole card is a centred composition — mark over name, both on
+        the card's own axis — so there is one line of symmetry rather than a
+        mark and a title each doing their own thing. `snapshot_labels`
+        centres the text against the same axis; the two have to agree or
+        neither reads as deliberate.
+
+        Vertical is centred in the space *above* the title band rather than
+        in the tile: an icon centred on the tile itself reads as sitting too
+        low once the title is drawn under it.
+        """
         title_band = self._metrics.title_size * 1.9
         available_height = rect.get_height() - title_band
         size = min(available_height * 0.68, rect.get_width() * 0.34)
@@ -154,6 +164,10 @@ class TileArtworkRenderer:
         scale = min(box.get_width() / width, box.get_height() / height)
         drawn_width = width * scale
         drawn_height = height * scale
+        # Centred in the box on both axes: the box is square and a
+        # contain-fit leaves a tall, narrow mark short of it, so anything
+        # but centring here would put that one tile's logo off the card's
+        # axis while every neighbour sits on it.
         snapshot.append_scaled_texture(
             texture,
             Gsk.ScalingFilter.TRILINEAR,
@@ -192,6 +206,10 @@ class TileArtworkRenderer:
         layout.set_font_description(font_description(DISPLAY_FAMILY, box.get_height() * 0.95, 700))
         width, height = layout.get_pixel_size()
         snapshot.save()
+        # Centred on the glyph's own width, not the box's: a single letter
+        # is much narrower than a box sized for the widest one ("I" against
+        # a box sized for "W"), so using the box alone would leave the
+        # initial off the axis the mark and the title share.
         snapshot.translate(
             _point(
                 box.get_x() + (box.get_width() - width) / 2.0,

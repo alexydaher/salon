@@ -8,7 +8,16 @@ from salon.ui.tile_geometry import TileMetrics, metrics_for
 
 
 def grid_metrics(scale: Scale, tile_scale: float) -> TileMetrics:
-    return metrics_for(scale, "square", size_scale=tile_scale)
+    """Wide cards, the same 16:9 shape the home screen uses.
+
+    Square was chosen when the grid was thought of as an application
+    launcher and the card as a big icon. But it is the same `TileWidget`
+    drawing the same generated artwork, one screen away from the home rows,
+    and the shape was the only thing making the two read as different
+    surfaces. A wide card is also the better one for a name: it is the axis
+    a title runs along, so fewer of them truncate at the same card area.
+    """
+    return metrics_for(scale, "wide", size_scale=tile_scale)
 
 
 def horizontal_origin(safe_margin: float, metrics: TileMetrics) -> float:
