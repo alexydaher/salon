@@ -52,6 +52,12 @@ class PhoneRemoteResources(PhoneRemoteComponent):
                 "Salon could not find the remote's page. This copy may be installed wrong.",
             )
             return
+        # These URLs stay the same across Salon upgrades. Reusing an older
+        # page, stylesheet or module on the first QR navigation makes fixes
+        # appear only after a manual refresh, so the phone shell must never
+        # be satisfied from a previous installed version.
+        if name == "index.html" or name.startswith("ui/"):
+            message.get_response_headers().append("Cache-Control", "no-store")
         message.set_status(Soup.Status.OK, None)
         message.set_response(content_type, Soup.MemoryUse.COPY, data)
 

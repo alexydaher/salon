@@ -111,6 +111,26 @@ def test_installed_remote_uses_the_whole_phone_screen() -> None:
     assert manifest["orientation"] == "any"
 
 
+def test_the_shell_takes_its_height_from_the_browser_and_not_from_script() -> None:
+    """A sampled height is stale for the life of the page the moment a phone
+    settles its toolbars without emitting the resize that earned it, and a
+    shell shorter than the screen is the empty strip along the bottom that a
+    reload appears to cure. Only the origin, which CSS cannot express, is
+    allowed to come from JavaScript."""
+    shell = (UI / "base.css").read_text()
+    dom = (UI / "dom.js").read_text()
+    page = PAGE.read_text()
+    assert "min(100dvh, calc(100lvh - var(--viewport-y" in shell
+    assert "translateY(var(--viewport-y" in shell
+    assert "--viewport-h" not in shell and "--viewport-h" not in dom
+    assert "--viewport-w" not in shell and "--viewport-w" not in dom
+    assert 'setProperty("--viewport-y"' in dom
+    assert "viewport.offsetTop" in dom
+    # The keyboard is the one case a live `dvh` does not shrink for on its
+    # own, and it is the pane the phone types into.
+    assert "interactive-widget=resizes-content" in page
+
+
 def test_browser_remote_stays_inside_the_visible_viewport() -> None:
     """Browser chrome must not displace the shell or make its top overflow
     unreachable when the Remote pane is taller than the remaining space."""
@@ -119,12 +139,15 @@ def test_browser_remote_stays_inside_the_visible_viewport() -> None:
     dom = (UI / "dom.js").read_text()
     main = (UI / "main.js").read_text()
     connect = (UI / "connect.js").read_text()
-    assert "height: var(--viewport-h)" in shell
     assert re.search(r"html, body\s*\{[^}]*overflow: hidden", shell, re.S)
     assert "justify-content: safe flex-end" in controls
     assert "window.visualViewport" in dom
-    assert 'setProperty("--viewport-h"' in dom
+    # A translated shell must never be pushed further than the layout
+    # viewport is taller than the visual one.
+    assert "document.documentElement.clientHeight" in dom
     assert 'window.visualViewport?.addEventListener("resize", measureViewport)' in main
+    assert 'window.visualViewport?.addEventListener("scroll", measureViewport)' in main
+    assert 'window.visualViewport?.addEventListener("scrollend", measureViewport)' in main
     assert "performance.now() + 1500" in dom
     assert "requestAnimationFrame(tick)" in dom
     assert 'window.addEventListener("pageshow", settleViewport)' in main

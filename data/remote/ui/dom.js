@@ -128,22 +128,32 @@ export function measureStrips() {
   document.documentElement.style.setProperty("--strips", `${total}px`);
 }
 
-let measuredViewport = 0;
+let measuredViewport = "";
 let viewportSettleFrame = 0;
 let viewportSettleUntil = 0;
 
-// iOS browsers can lay 100dvh out against a viewport origin left behind by
-// their collapsing toolbars. The result is symmetrical: the top of the app
-// is unreachable and the same amount of empty document shows at the bottom.
-// VisualViewport is the browser's actual unobscured rectangle. Do not follow
-// it while pinch-zoomed, since that would counteract an accessibility zoom.
+// Only the origin, and deliberately so. A browser opened by a QR scan lays
+// the page out while its toolbars are still moving, and the visual viewport
+// can sit *below* the layout viewport's origin for that first moment — a
+// fixed shell is positioned against the layout viewport, so the top of the
+// remote goes out of reach and the same amount of empty document shows
+// along the bottom. The height is `100dvh` in the stylesheet instead: a
+// height sampled here is stale forever the moment a phone settles its
+// chrome without emitting the resize that earned it, which is what a first
+// navigation does and a reload does not. Do not follow the viewport while
+// pinch-zoomed, since that would counteract an accessibility zoom.
 export function measureViewport() {
   const viewport = window.visualViewport;
-  if (viewport && Math.abs(viewport.scale - 1) > 0.01) return;
-  const height = Math.round(viewport ? viewport.height : window.innerHeight);
-  if (height && height !== measuredViewport) {
-    measuredViewport = height;
-    document.documentElement.style.setProperty("--viewport-h", `${height}px`);
+  if (!viewport || Math.abs(viewport.scale - 1) > 0.01) return;
+  // The visual viewport cannot be pushed down further than the layout
+  // viewport is taller than it. That difference is the honest bound on a
+  // number the page is about to translate its entire shell by.
+  const slack = Math.max(0, document.documentElement.clientHeight - viewport.height);
+  const offset = Math.min(Math.max(viewport.offsetTop, 0), slack);
+  const top = Number.isFinite(offset) ? Math.round(offset * 100) / 100 : 0;
+  if (`${top}` !== measuredViewport) {
+    measuredViewport = `${top}`;
+    document.documentElement.style.setProperty("--viewport-y", `${top}px`);
   }
   // This shell has its own scrollports. A restored document scroll only
   // moves the whole remote under the browser chrome and exposes its root.

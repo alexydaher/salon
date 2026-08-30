@@ -23,7 +23,6 @@
   --pad: 4vw;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
-  --viewport-h: 100dvh;
   --touch: 2.75rem;
   /* How much room the strips below `main` are taking. Kept as a variable so
      the toast can sit above whatever is actually there instead of above a
@@ -38,36 +37,38 @@
    the chrome of a connected remote shows through the code screen. */
 [hidden] { display: none !important; }
 
-/* Deliberately not `display: none`, `visibility: hidden` or `opacity: 0`
-   — all three are ways of telling the browser the video does not need to
-   be played, which is the one thing being asked of it. */
+/* Deliberately not `display: none`, `visibility: hidden` or `opacity: 0`: all
+   three tell the browser the video need not play, the one thing asked of it. */
 #awake {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  opacity: 0.01;
-  pointer-events: none;
-  z-index: -1;
+  position: fixed; bottom: 0; left: 0; width: 1px; height: 1px;
+  opacity: 0.01; pointer-events: none; z-index: -1;
 }
 
 html, body {
-  margin: 0;
-  height: 100%;
-  background: var(--bg);
-  color: var(--fg);
+  margin: 0; height: 100%;
+  background: var(--bg); color: var(--fg);
   font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-  overscroll-behavior: none;
-  overflow: hidden;
-  touch-action: manipulation;
-  user-select: none;
-  -webkit-user-select: none;
+  overscroll-behavior: none; overflow: hidden; touch-action: manipulation;
+  user-select: none; -webkit-user-select: none;
 }
 
-/* dvh is the no-script fallback. JS replaces it with the unobscured visual
-   viewport, which stays trustworthy around mobile browser toolbars. */
-body { height: var(--viewport-h); display: flex; flex-direction: column; }
+/* Safari parks the visual viewport at the *bottom* of a layout viewport its
+   expanded toolbars left taller, so a shell laid out at the layout origin is
+   that much too high: the top of the remote is unreachable and the same
+   amount of empty document shows below the tab strip — 119px, on an iPhone.
+   The page cannot scroll out of it and a reload only appears to. JS supplies
+   that one offset and nothing else, because a *height* it sampled is stale
+   for the life of the page the moment a phone settles its chrome without
+   saying so. Both bounds below are the browser's own and both are true: no
+   taller than the dynamic viewport, and no lower than the bottom of the
+   layout viewport it has just been pushed down inside. The transform is also
+   what carries the fixed popovers and the toast along with it. */
+body {
+  position: fixed; inset: 0 0 auto 0;
+  height: min(100dvh, calc(100lvh - var(--viewport-y, 0px)));
+  transform: translateY(var(--viewport-y, 0px));
+  display: flex; flex-direction: column;
+}
 
 button { font: inherit; color: inherit; border: 0; background: none; }
 button, summary { cursor: pointer; }

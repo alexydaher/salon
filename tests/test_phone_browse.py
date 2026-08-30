@@ -92,6 +92,21 @@ def _headers(port: int, path: str) -> str:
         return str(response.headers.get("Content-Type", ""))
 
 
+def _cache_control(port: int, path: str) -> str:
+    import urllib.request
+
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as response:
+        return str(response.headers.get("Cache-Control", ""))
+
+
+@pytest.mark.parametrize("path", ["/", "/ui/base.css", "/ui/main.js"])
+def test_the_phone_shell_is_not_reused_across_upgrades(browsing, path: str) -> None:
+    """A cold QR load must not resurrect viewport code from an older Salon."""
+    server, _state, _cover = browsing
+    port = server._port  # noqa: SLF001
+    assert _run(server, lambda: _cache_control(port, path)) == "no-store"
+
+
 @pytest.mark.parametrize(
     ("path", "refusal"),
     [

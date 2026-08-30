@@ -18,10 +18,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<!-- No `user-scalable=no`: it is the standard accessibility anti-pattern,
-     iOS has ignored it for years anyway, and `touch-action: manipulation`
-     already does the double-tap-zoom suppression it was added for. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- No `user-scalable=no`: an accessibility anti-pattern iOS ignores anyway, and
+     `touch-action: manipulation` already kills the double-tap zoom it was added for.
+     `interactive-widget` shrinks the viewport the shell is sized from, not hides it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#0E1116">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">

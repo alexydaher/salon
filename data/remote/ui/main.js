@@ -71,6 +71,8 @@ window.addEventListener("resize", () => {
   measureHeader();
 });
 window.visualViewport?.addEventListener("resize", measureViewport);
+window.visualViewport?.addEventListener("scroll", measureViewport);
+window.visualViewport?.addEventListener("scrollend", measureViewport);
 window.addEventListener("scroll", measureViewport, { passive: true });
 window.addEventListener("pageshow", settleViewport);
 
