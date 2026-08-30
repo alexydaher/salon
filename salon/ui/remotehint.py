@@ -56,7 +56,7 @@ class RemoteHint(Gtk.Box):
         # The corner and nothing else. An overlay child fills the overlay
         # unless it is told otherwise, and a transparent box across the
         # whole screen swallows every click meant for a tile.
-        self.set_halign(Gtk.Align.END)
+        self.set_halign(Gtk.Align.START)
         self.set_valign(Gtk.Align.END)
         self.set_visible(False)
 
@@ -68,21 +68,25 @@ class RemoteHint(Gtk.Box):
 
         self._title = Gtk.Label(label="No remote connected")
         self._title.add_css_class("salon-remote-hint-title")
-        self._title.set_halign(Gtk.Align.CENTER)
+        self._title.set_halign(Gtk.Align.START)
         self._title.set_ellipsize(Pango.EllipsizeMode.END)
         self.append(self._title)
 
+        self._row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.append(self._row)
+
         self._qr = QrCode()
-        self._qr.set_halign(Gtk.Align.CENTER)
-        self.append(self._qr)
+        self._qr.set_halign(Gtk.Align.START)
+        self._row.append(self._qr)
 
         self._detail = Gtk.Label()
         self._detail.add_css_class("salon-remote-hint-detail")
-        self._detail.set_halign(Gtk.Align.CENTER)
-        self._detail.set_justify(Gtk.Justification.CENTER)
+        self._detail.set_halign(Gtk.Align.START)
+        self._detail.set_justify(Gtk.Justification.LEFT)
+        self._detail.set_valign(Gtk.Align.CENTER)
         self._detail.set_wrap(True)
         self._detail.set_max_width_chars(24)
-        self.append(self._detail)
+        self._row.append(self._detail)
 
         click = Gtk.GestureClick()
         click.connect("released", lambda *_: on_open())
@@ -96,22 +100,12 @@ class RemoteHint(Gtk.Box):
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        self.set_spacing(scale.px(10.0))
-        safe_margin = scale.safe_margin_px
-        self.set_margin_end(safe_margin)
-        # The detail strip has a bounded, ellipsized width on the left, so
-        # the two can share the bottom band without text reaching this card.
-        # The button legend is the one thing directly underneath: it holds
-        # the same corner, so this stands one legend-height clear of it
-        # rather than measuring a sibling it has no reference to.
-        self.set_margin_bottom(
-            scale.px(tokens.BOTTOM_CHROME_MARGIN_DU + tokens.LEGEND_HEIGHT_DU)
-        )
-        # A third of the pairing screen's 320du. Big enough for a phone held
-        # at arm's length in front of the television — which is where anyone
-        # scanning this is standing — and small enough that it is a corner
-        # of the screen rather than a dialog.
-        self._qr.set_size(scale.px(150.0))
+        self.set_spacing(scale.px(12.0))
+        self._row.set_spacing(scale.px(16.0))
+        self.set_margin_start(scale.px(30.0))
+        self.set_margin_bottom(scale.px(34.0))
+        self.set_size_request(scale.px(tokens.CONSOLE_WIDTH_DU - 60.0), -1)
+        self._qr.set_size(scale.px(102.0))
 
     def refresh(self) -> bool:
         """Re-read the server. Returns False when there is nothing true to

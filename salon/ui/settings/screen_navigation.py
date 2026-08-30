@@ -89,6 +89,8 @@ class SettingsNavigationController(ServiceComponent):
         self._owner._title.set_label(
             "Settings" if sections else _panel_name(self._owner._stack[-1])
         )
+        panel = self._owner._stack[-1]
+        self._owner._summary.set_label(panel.subtitle)
         # The section list is orientation, and three levels into the tile
         # editor it is orienting you to somewhere you left: it kept saying
         # "Tiles" while the panel beside it was one tile's artwork. Past

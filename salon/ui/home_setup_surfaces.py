@@ -10,6 +10,7 @@ from salon.ui.home_shared import (
     CEC,
     AppsGrid,
     ArtworkResolver,
+    ConsoleSidebar,
     DetailBar,
     Gdk,
     Gtk,
@@ -60,13 +61,13 @@ class HomeSurfaceSetup(ServiceComponent):
             tune_write=self._owner._tune_write_for_phone,
         )
         self._owner._status_info = StatusInfo(self._owner._scale)
-        self._owner._overlay.add_overlay(self._owner._status_info)
         self._owner._status_bar = StatusBar(
             self._owner._scale,
             on_search=self._owner._open_search,
             on_apps=self._owner._open_apps,
             on_phone=self._owner._open_phone_pairing,
-            on_more=self._owner._show_system_menu,
+            on_settings=self._owner._open_settings,
+            on_power=self._owner._show_power_menu,
         )
         self._owner._nav_focused = False
         self._owner._menu_focus_owned = False
@@ -79,7 +80,18 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._now_playing_status = NowPlayingStatus(
             self._owner._scale, on_activate=self._owner._toggle_playback
         )
-        self._owner._overlay.add_overlay(self._owner._now_playing_status)
+        self._owner._console_sidebar = ConsoleSidebar(
+            self._owner._scale,
+            self._owner._status_info,
+            self._owner._now_playing_status,
+        )
+        self._owner._overlay.add_overlay(self._owner._console_sidebar)
+        self._owner._home_title = Gtk.Label(label="Home")
+        self._owner._home_title.add_css_class("salon-home-title")
+        self._owner._home_title.set_halign(Gtk.Align.START)
+        self._owner._home_title.set_valign(Gtk.Align.START)
+        self._owner._home_title.set_can_target(False)
+        self._owner._overlay.add_overlay(self._owner._home_title)
         # One row, not two overlay children. Both remaining widgets want the
         # bottom of the screen and one of them has to ellipsize when they
         # meet; as independent overlay children each was given its natural
@@ -87,6 +99,7 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._detail_bar = DetailBar(self._owner._scale)
         self._owner._legend = Legend(self._owner._scale)
         self._owner._bottom_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._owner._bottom_bar.add_css_class("salon-bottom-bar")
         self._owner._bottom_bar.set_valign(Gtk.Align.END)
         self._owner._bottom_bar.set_halign(Gtk.Align.FILL)
         self._owner._bottom_bar.set_can_target(False)
@@ -102,7 +115,6 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._remote_hint = RemoteHint(
             self._owner._scale, self._owner._pairing, on_open=self._owner._open_phone_pairing
         )
-        self._owner._overlay.add_overlay(self._owner._remote_hint)
         self._owner._launching_overlay = LaunchingOverlay(self._owner._scale)
         self._owner._overlay.add_overlay(self._owner._launching_overlay)
         self._owner._screensaver = ScreenSaver(self._owner._scale)
@@ -131,7 +143,7 @@ class HomeSurfaceSetup(ServiceComponent):
             self._owner._pairing,
             on_launch=self._owner._launch_tile,
             on_options=lambda tile: self._owner._open_tile_menu(tile, from_grid=True),
-            on_close=self._owner.grab_focus,
+            on_close=self._owner._on_global_surface_closed,
         )
         self._owner._overlay.add_overlay(self._owner._search)
         self._owner._apps_grid = AppsGrid(
@@ -139,7 +151,8 @@ class HomeSurfaceSetup(ServiceComponent):
             self._owner._artwork,
             tile_scale=self._owner._settings.get_double("tile-scale"),
             on_launch=self._owner._launch_tile,
-            on_close=self._owner.grab_focus,
+            on_close=self._owner._on_global_surface_closed,
+            on_count=self._owner._status_info.set_application_count,
         )
         self._owner._overlay.add_overlay(self._owner._apps_grid)
         self._owner._rows: list[_RowWidgets] = []

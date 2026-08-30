@@ -67,7 +67,10 @@ class HomePreferences(ServiceComponent):
             # is about to use, so the grant is worth asking for.
             self._owner._start_pointer_session()
         visible = (
-            wanted and not self._owner._pairing.connected and self._owner._remote_hint.refresh()
+            wanted
+            and not self._owner._pairing.connected
+            and self._owner._remote_hint_unobscured()
+            and self._owner._remote_hint.refresh()
         )
         self._owner._remote_hint.set_visible(visible)
 
@@ -90,10 +93,6 @@ class HomePreferences(ServiceComponent):
 
     def _apply_metrics(self) -> None:
         owner, scale = self._owner, self._owner._scale
-        # Read here rather than cached at startup (§6.8 Appearance), so a
-        # change lands as soon as the rows are rebuilt. The heading follows
-        # the tile size: 60du of fixed overhead per row, over a third of a
-        # five-row pitch, so at full size it costs a whole step of scale.
         tile_scale = owner._tile_scale = owner._settings.get_double("tile-scale")
         heading_du = tokens.scaled_type_size_du("row-heading", tile_scale)
         owner._metrics = metrics_for(scale, size_scale=tile_scale)
@@ -180,6 +179,7 @@ class HomePreferences(ServiceComponent):
         self._owner._text_entry.set_scale(scale)
         self._owner._phone_pairing.set_scale(scale)
         self._owner._onboarding.set_scale(scale)
+        self._owner._apply_shell_scale(scale)
 
     def _on_viewport_resized(self, width: int, height: int) -> None:
         self._owner._viewport_width = width

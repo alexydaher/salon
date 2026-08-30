@@ -107,6 +107,7 @@ class HomeCatalogController(ServiceComponent):
             self._owner._settings_screen.open_at(panel_id)
         else:
             self._owner._settings_screen.open()
+        self._owner._sync_shell_chrome()
 
     def _clear_for_settings(self) -> None:
         self._owner._clear_global_surfaces("settings")
@@ -118,6 +119,7 @@ class HomeCatalogController(ServiceComponent):
     def _settings_screen_open_tile(self, row_id: str, tile_id: str) -> None:
         self._clear_for_settings()
         self._owner._settings_screen.open_tile(row_id, tile_id)
+        self._owner._sync_shell_chrome()
 
     def _locate_in_config(self, tile_id: str) -> tuple[str, str] | None:
         """Where a tile lives in tiles.json, if it lives there at all.

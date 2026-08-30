@@ -74,6 +74,7 @@ class SettingsScreen(
         self._owner = self
         self._init_fade()
         self.add_css_class("salon-search")  # same full-bleed dark field
+        self.add_css_class("salon-settings-screen")
         self.set_visible(False)
         self.set_hexpand(True)
         self.set_vexpand(True)
@@ -81,8 +82,6 @@ class SettingsScreen(
         self._scale = scale
         self._settings = settings
         self._on_close = on_close
-        # Told when the home screen is the thing being looked at, so it can
-        # take its own bottom bar out of the way of the strip.
         self._preview_chrome = preview_chrome
         self._host_save = save_config
         self._provider_registry = provider_registry
@@ -90,8 +89,6 @@ class SettingsScreen(
         self._reload_catalog = reload_catalog
         self._pane = Pane.SECTIONS
         self._stack: list[Panel] = []
-        # Which panel the row list currently holds, so a rebuild can tell
-        # itself apart from a navigation. See `_rebuild_panel`.
         self._built_panel: Panel | None = None
         self._pointer_active = False
 
@@ -117,10 +114,6 @@ class SettingsScreen(
             cancel_capture=cancel_capture,
             rebind=rebind,
             reset_bindings=reset_bindings,
-            # The tile editor draws the tile it is editing, so it resolves
-            # artwork exactly as the home screen does — same cache, same
-            # fallbacks, same result. A bound method rather than the
-            # resolver itself: the editor needs one call, not a service.
             resolve_artwork=artwork.resolve,
             scale=lambda: self._scale,
             version=version,
@@ -130,16 +123,30 @@ class SettingsScreen(
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.append(self._content)
 
+        self._header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._content.append(self._header)
+        heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        heading.set_hexpand(True)
+        self._header.append(heading)
+        eyebrow = Gtk.Label(label="SETTINGS")
+        eyebrow.add_css_class("salon-settings-eyebrow")
+        eyebrow.set_halign(Gtk.Align.START)
+        heading.append(eyebrow)
         self._title = Gtk.Label(label="Settings")
         self._title.add_css_class("salon-search-query")
         self._title.set_halign(Gtk.Align.START)
         self._title.set_ellipsize(Pango.EllipsizeMode.END)
-        self._content.append(self._title)
+        heading.append(self._title)
 
         self._breadcrumb = Gtk.Label(label="")
         self._breadcrumb.add_css_class("salon-search-hint")
         self._breadcrumb.set_halign(Gtk.Align.START)
-        self._content.append(self._breadcrumb)
+        heading.append(self._breadcrumb)
+        self._summary = Gtk.Label()
+        self._summary.add_css_class("salon-settings-summary")
+        self._summary.set_halign(Gtk.Align.END)
+        self._summary.set_valign(Gtk.Align.END)
+        self._header.append(self._summary)
 
         body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         body.set_vexpand(True)
@@ -158,6 +165,8 @@ class SettingsScreen(
             self._sections, self._sections.on_resize, propagate_minimum=False
         )
         self._sections_host.set_vexpand(True)
+        self._sections_host.add_css_class("salon-settings-pane")
+        self._sections_host.add_css_class("salon-settings-sections-pane")
         body.append(self._sections_host)
 
         self._panel_list = SettingsList(scale)
@@ -166,6 +175,8 @@ class SettingsScreen(
         )
         self._panel_host.set_hexpand(True)
         self._panel_host.set_vexpand(True)
+        self._panel_host.add_css_class("salon-settings-pane")
+        self._panel_host.add_css_class("salon-settings-panel-pane")
         body.append(self._panel_host)
 
         # The list of values for whichever row is open. One instance for the

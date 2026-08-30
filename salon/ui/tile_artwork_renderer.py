@@ -50,7 +50,7 @@ class TileArtworkRenderer:
         )
         snapshot.push_blur(blur)
         snapshot.append_color(
-            _with_alpha(glow_color(self._artwork.accent), tokens.BLOOM_ALPHA * focus),
+            _with_alpha(glow_color(theme.accent()), tokens.BLOOM_ALPHA * focus),
             bounds,
         )
         snapshot.pop()
@@ -97,8 +97,8 @@ class TileArtworkRenderer:
         soft top-light, and the title below — this has to look designed,
         because for most tiles it is what the user actually sees."""
         accent = self._artwork.accent
-        top = _mix(theme.color("surface-1"), accent, 0.26)
-        bottom = _mix(theme.color("surface-0"), accent, 0.07)
+        top = _with_alpha(_mix(theme.color("surface-2"), accent, 0.10), 0.88)
+        bottom = _with_alpha(theme.color("surface-1"), 0.80)
         snapshot.append_linear_gradient(
             rect,
             _point(rect.get_x(), rect.get_y()),
@@ -138,6 +138,14 @@ class TileArtworkRenderer:
         in the tile: an icon centred on the tile itself reads as sitting too
         low once the title is drawn under it.
         """
+        if self._horizontal_content:
+            size = min(rect.get_height() * 0.46, rect.get_width() * 0.18)
+            return _rect(
+                rect.get_x() + self._metrics.padding,
+                rect.get_y() + (rect.get_height() - size) / 2.0,
+                size,
+                size,
+            )
         title_band = self._metrics.title_size * 1.9
         available_height = rect.get_height() - title_band
         size = min(available_height * 0.68, rect.get_width() * 0.34)

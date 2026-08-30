@@ -1,18 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Design tokens — the single source of truth for Salon's visual system.
 
-Two paths out of this module, and the split is deliberate (§7.2):
-
 * **Build time** — data/style/tokens.css is generated from COLORS by
   build-aux/gen-tokens-css.py. Only values that do *not* depend on viewport
   size live there: colours and font families. Never hand-edit that file.
-* **Runtime** — everything sized in design units (du) is resolved to pixels
+* **Runtime** — sizes in design units (du) are resolved to pixels
   by salon/ui/scale.py once the target monitor's geometry is known, and
   injected as CSS custom properties. 1du = viewport_height / 1080, so the
   same numbers below are correct on a 1080p TV and a 4K TV without a second
   design pass.
 
-Nothing here imports gi, so the whole design system stays testable headlessly.
 """
 
 from __future__ import annotations
@@ -51,9 +48,7 @@ def color(name: str) -> str:
     raise KeyError(name)
 
 
-# The surfaces a theme may repaint. The accent is not among them: it is a
-# separate choice the user makes and every palette has to work with any of
-# them, which is the discipline that keeps this from becoming a skin format.
+# The accent is separate from theme surfaces.
 THEMED_TOKENS = ("surface-0", "surface-1", "surface-2", "text-primary", "text-secondary")
 
 # Four palettes, not forty. Flex Launcher's themability is a real advantage
@@ -178,12 +173,16 @@ def scaled_type_size_du(name: str, size_scale: float) -> float:
 
 
 TILE_PADDING_DU: float = 20.0
-TILE_GAP_DU: float = 28.0
-ROW_GAP_DU: float = 56.0
-CORNER_RADIUS_DU: float = 12.0
+TILE_GAP_DU: float = 16.0
+ROW_GAP_DU: float = 20.0
+CORNER_RADIUS_DU: float = 18.0
 ROW_HEADING_GAP_DU: float = 14.0
 STATUS_BAR_HEIGHT_DU: float = 76.0
 
+CONSOLE_WIDTH_DU: float = 404.0
+CONTENT_GUTTER_DU: float = 48.0
+ACTION_BAR_HEIGHT_DU: float = 88.0
+CONSOLE_GAP_DU: float = 18.0
 # Transparent padding carried inside every tile widget's own footprint, so
 # the focus scale-up and the bloom have somewhere to render without the row
 # viewport's clip cutting into either. Has to comfortably exceed both the
@@ -195,7 +194,7 @@ TILE_BLEED_DU: float = 56.0
 # of the focused tile's bounds rendered beneath its neighbours.
 BLOOM_BLUR_DU: float = 26.0
 BLOOM_OFFSET_DU: float = 10.0
-BLOOM_ALPHA: float = 0.55
+BLOOM_ALPHA: float = 0.42
 FOCUS_RING_DU: float = 3.0
 
 SAFE_AREA_DEFAULT_PERCENT: float = 4.5
@@ -208,7 +207,7 @@ SAFE_AREA_MAX_PERCENT: float = 8.0
 ROW_ANCHOR_FRACTION: float = 0.38
 
 FOCUS_SCALE_REST: float = 1.0
-FOCUS_SCALE_FOCUSED: float = 1.09
+FOCUS_SCALE_FOCUSED: float = 1.07
 
 # Chrome's --force-device-scale-factor is computed from the same du scale as
 # the UI and clamped to this range (§6.3): on a 4K TV a factor of 1.0 makes

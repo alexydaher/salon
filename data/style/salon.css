@@ -671,6 +671,224 @@ toast > label {
   font-feature-settings: "tnum" 1;
 }
 
+/* --- Aurora Console --------------------------------------------------- */
+
+.salon-console-sidebar {
+  background-color: alpha(@surface-1, 0.36);
+  border-right: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.11);
+  padding: var(--pad-m);
+}
+
+.salon-console-block {
+  background-color: alpha(@surface-2, 0.68);
+  border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.18);
+  border-radius: var(--radius);
+  padding: var(--pad-m);
+}
+
+.salon-console-time .salon-status-clock {
+  color: @text-primary;
+  font-size: calc(var(--font-clock) * 2);
+  font-weight: 700;
+}
+
+.salon-console-time .salon-status-date {
+  color: @text-secondary;
+  font-size: var(--font-tile-subtitle);
+}
+
+.salon-console-heading {
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-group) * 0.62);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.salon-console-stat {
+  padding: calc(var(--pad-s) / 2) 0;
+}
+
+.salon-console-stat-icon {
+  color: @text-secondary;
+  margin-right: var(--pad-s);
+}
+
+.salon-console-stat-name {
+  color: @text-primary;
+  font-size: calc(var(--font-settings-body) * 0.72);
+}
+
+.salon-console-stat-value {
+  color: @accent;
+  font-size: calc(var(--font-settings-body) * 0.72);
+  font-weight: 600;
+}
+
+.salon-console-stat-value.low {
+  color: @danger;
+}
+
+.salon-console-sidebar .salon-now-playing {
+  border-radius: var(--radius);
+  color: @text-primary;
+}
+
+.salon-console-sidebar .salon-now-playing-title {
+  font-size: calc(var(--font-tile-title) * 0.62);
+}
+
+.salon-console-sidebar .salon-now-playing-detail {
+  font-size: calc(var(--font-tile-subtitle) * 0.62);
+}
+
+.salon-home-title {
+  color: @text-primary;
+  font-size: var(--font-overlay-title);
+  font-weight: 700;
+}
+
+.salon-bottom-bar {
+  min-height: var(--action-height);
+  background-color: alpha(@surface-1, 0.62);
+  border-top: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.13);
+}
+
+.salon-remote-hint {
+  background-color: alpha(@surface-1, 0.90);
+  border-color: alpha(@accent, 0.48);
+  border-radius: var(--radius);
+  padding: var(--pad-m);
+  opacity: 1;
+}
+
+.salon-remote-hint-title {
+  color: @accent;
+  font-size: calc(var(--font-settings-group) * 0.62);
+  letter-spacing: 0.18em;
+}
+
+.salon-remote-hint-detail {
+  font-size: calc(var(--font-tile-subtitle) * 0.58);
+}
+
+.salon-row-heading {
+  border-left: none;
+  padding-left: 0;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  opacity: 0.55;
+}
+
+.salon-row-heading.row-focused {
+  color: @text-primary;
+}
+
+.salon-status-button {
+  background-color: alpha(@surface-2, 0.76);
+  border-color: alpha(@text-primary, 0.22);
+  border-radius: var(--radius);
+}
+
+.salon-detail-title {
+  font-size: calc(var(--font-row-heading) * 0.78);
+}
+
+.salon-search.salon-apps-grid,
+.salon-search.salon-settings-screen {
+  background-color: transparent;
+}
+
+.salon-apps-grid .salon-search-query {
+  font-size: var(--font-overlay-title);
+}
+
+.salon-letter-rail-vertical {
+  background-color: alpha(@surface-2, 0.76);
+  border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.22);
+  border-radius: var(--radius-pill);
+  padding: var(--pad-s) 0;
+}
+
+.salon-letter-rail-vertical .salon-letter {
+  padding: 0 var(--pad-s);
+  font-size: calc(var(--font-settings-body) * 0.62);
+  opacity: 0.72;
+}
+
+.salon-letter-rail-vertical .salon-letter.unavailable {
+  opacity: 0.20;
+}
+
+.salon-letter-rail-vertical .salon-letter.current {
+  color: @surface-0;
+  background-color: @accent;
+  border-radius: var(--radius);
+  box-shadow: 0 0 var(--pad-m) alpha(@accent, 0.55);
+}
+
+.salon-apps-grid .salon-bottom-bar {
+  padding: 0;
+}
+
+.salon-apps-grid .salon-settings-legend {
+  padding-top: 0;
+}
+
+.salon-settings-eyebrow {
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-group) * 0.66);
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+
+.salon-settings-summary {
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-body) * 0.78);
+}
+
+.salon-settings-pane {
+  background-color: alpha(@surface-2, 0.72);
+  border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.25);
+  border-radius: var(--radius);
+  padding: var(--pad-s);
+}
+
+.salon-settings-row.selected {
+  background-color: alpha(@text-primary, 0.17);
+  box-shadow: inset 0 0 0 var(--focus-ring) @accent;
+}
+
+.salon-settings-list:not(.active) .salon-settings-row.selected {
+  background-color: alpha(@text-primary, 0.08);
+  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@text-primary, 0.22);
+}
+
+.salon-settings-screen .salon-scroll-indicator {
+  background-color: alpha(@surface-2, 0.92);
+}
+
+.salon-settings-screen .salon-settings-legend {
+  padding-top: var(--pad-s);
+  padding-bottom: 0;
+}
+
+.salon-value-popup > contents {
+  background-color: alpha(@surface-2, 0.96);
+  border-color: alpha(@text-primary, 0.26);
+}
+
+.salon-value-option.selected {
+  background-color: alpha(@text-primary, 0.18);
+  color: @text-primary;
+  box-shadow: inset 0 0 0 var(--focus-ring) @accent;
+}
+
+.salon-settings-preview-bar {
+  background-color: alpha(@surface-1, 0.88);
+  border-radius: 0;
+  border-top: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.18);
+}
+
 /* --- The value list (ui/settings/popup.py) ----------------------------- */
 
 /* A console dropdown, not a desktop menu: the same card as the system menu,
@@ -711,4 +929,19 @@ toast > label {
 
 .salon-value-option.selected .salon-value-option-tick {
   color: @surface-0;
+}
+
+.salon-value-popup.preview-values > contents {
+  background-color: alpha(@surface-1, 0.94);
+  border-color: alpha(@text-primary, 0.20);
+}
+
+.salon-value-popup.preview-values .salon-value-option {
+  background-color: alpha(@surface-2, 0.78);
+  border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.10);
+}
+
+.salon-value-popup.preview-values .salon-value-option.selected {
+  background-color: alpha(@text-primary, 0.18);
+  border-color: @accent;
 }

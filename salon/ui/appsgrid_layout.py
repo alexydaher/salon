@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -23,14 +21,7 @@ class AppsGridLayout:
         return column_count(self._viewport_width, self._safe_margin, metrics)
 
     def _relayout(self) -> None:
-        """Recompute density and geometry after either scale changes.
-
-        A tile-size preference does not resize the viewport, so its
-        ``SizeReporter`` has no reason to fire.  Recomputing the column
-        count here is what makes a smaller tile setting actually fit more
-        applications rather than merely shrinking the old number of
-        columns in place.
-        """
+        """Recompute density and geometry after either scale changes."""
         self._columns = self._column_count(self._metrics())
         self._rebuild()
 
@@ -47,8 +38,6 @@ class AppsGridLayout:
         return (horizontal_origin(self._safe_margin, metrics), 0.0)
 
     def _usable_width(self, metrics: TileMetrics) -> float:
-        """The width the cards themselves may occupy: the viewport now runs
-        edge to edge, and the safe area has to come back out of it."""
         left, _ = self._origin(metrics)
         return max(1.0, self._viewport_width - left - metrics.bleed - self._safe_margin)
 
@@ -82,11 +71,14 @@ class AppsGridLayout:
         for index, tile in enumerate(self._tiles):
             row, col = divmod(index, self._columns)
             artwork = self._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
-            # Without the subtitle: at this card width every description
-            # truncates to noise ("Access and m…", "Perform arith…"), and
-            # the space it costs is what makes the title truncate too. The
-            # description is shown in full for the focused app instead.
-            widget = TileWidget(replace(tile, subtitle=None), artwork, metrics, self._scale)
+            widget = TileWidget(
+                tile,
+                artwork,
+                metrics,
+                self._scale,
+                show_subtitle=True,
+                horizontal_content=True,
+            )
             click = Gtk.GestureClick()
             click.connect("released", lambda *_, i=index: self._click(i))
             widget.add_controller(click)
@@ -149,12 +141,20 @@ class AppsGridLayout:
             self._rail.remove(child)
             child = following
         self._rail_labels = {}
-        for letter, index in self._letters():
+        present = dict(self._letters())
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
             label = Gtk.Label(label=letter)
             label.add_css_class("salon-letter")
-            click = Gtk.GestureClick()
-            click.connect("released", lambda *_, i=index: self._jump_to_index(i))
-            label.add_controller(click)
+            label.set_vexpand(True)
+            label.set_valign(Gtk.Align.CENTER)
+            if letter in present:
+                click = Gtk.GestureClick()
+                click.connect(
+                    "released", lambda *_, i=present[letter]: self._jump_to_index(i)
+                )
+                label.add_controller(click)
+            else:
+                label.add_css_class("unavailable")
             self._rail.append(label)
             self._rail_labels[letter] = label
 
@@ -225,7 +225,7 @@ class AppsGridLayout:
         index = max(0, min(self._focused_index(), len(self._tiles) - 1))
         self._legend.set_label(
             f"{index + 1} of {len(self._tiles)} · OK opens · OPTIONS shows actions · "
-            "SEARCH searches · GROUP jumps a letter · BACK returns"
+            "LEFT/RIGHT jumps a letter · UP/DOWN walks apps · BACK returns"
         )
 
     def _scroll_to_focused(self, *, animate: bool) -> None:

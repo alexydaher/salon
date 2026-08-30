@@ -79,17 +79,20 @@ class HomePhoneInputController(ServiceComponent):
             self._owner._toast("Couldn't start the phone remote — port 8437 is already in use.")
             return
         self._owner._phone_pairing.set_hover_enabled(self._owner._pointer_visible)
+        self._owner._sync_shell_chrome()
         self._owner._publish_remote_state()
 
     def _close_phone_pairing(self) -> None:
         # The remote keeps running: connecting a phone and then dismissing
         # the screen is the whole gesture this exists for.
         self._owner.grab_focus()
+        self._owner._sync_shell_chrome()
         self._rebuild_system_menu()
 
     def _stop_phone_remote(self) -> None:
         self._owner.set_phone_remote(False)
         self._owner.grab_focus()
+        self._owner._sync_shell_chrome()
         self._rebuild_system_menu()
         self._owner._toast("Phone remote off.")
 

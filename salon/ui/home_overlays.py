@@ -16,7 +16,6 @@ from salon.ui.home_shared import (
 
 class HomeOverlayController(ServiceComponent):
     def _clear_global_surfaces(self, keep: str) -> None:
-        """Remove the surface behind a destination selected globally."""
         self._owner._system_menu.hide()
         self._owner._tile_menu.hide()
         if keep != "search" and self._owner._search.get_visible():
@@ -27,15 +26,6 @@ class HomeOverlayController(ServiceComponent):
             self._owner._settings_screen.close()
         if keep != "phone" and self._owner._phone_pairing.get_visible():
             self._owner._phone_pairing.close()
-
-    def _set_preview_chrome(self, previewing: bool) -> None:
-        """Settings collapsed to its strip, so the home screen is the thing
-        being looked at: take our own bottom row out of its way. Faded, not
-        hidden — `_bottom_inset` measures this row to decide where the
-        scrolling band ends and a hidden widget measures zero, so the tiles
-        would shift the moment the preview wrote a preference, which is
-        precisely the thing being judged."""
-        self._owner._bottom_bar.set_opacity(0.0 if previewing else 1.0)
 
     def _confirmation_frame(self, label: str, action: Callable[[], None]) -> MenuFrame:
         return MenuFrame(
@@ -74,6 +64,7 @@ class HomeOverlayController(ServiceComponent):
         self._owner._clear_global_surfaces("search")
         self._owner._set_nav_focused(False)
         self._owner._search.open(self._searchable_tiles())
+        self._sync_shell_chrome()
 
     def _searchable_tiles(self) -> list[Tile]:
         """Every catalogue tile, once.
@@ -98,6 +89,7 @@ class HomeOverlayController(ServiceComponent):
         self._owner._clear_global_surfaces("apps")
         self._owner._set_nav_focused(False)
         self._owner._apps_grid.open()
+        self._sync_shell_chrome()
 
     def _open_tile_menu(self, tile: Tile | None, *, from_grid: bool) -> None:
         """OPTIONS over a tile: what else can be done with this one thing.
@@ -110,17 +102,7 @@ class HomeOverlayController(ServiceComponent):
         if tile is None:
             return
         pinned = favourites.is_favourite(self._owner._settings, tile.id)
-        items: list[SystemMenuItem] = []
-        if from_grid:
-            items.append(
-                SystemMenuItem(
-                    f"Open {tile.title}",
-                    lambda: self._owner._launch_tile(tile),
-                    icon_name="media-playback-start-symbolic",
-                    detail="Launch this application",
-                )
-            )
-        items.append(
+        items: list[SystemMenuItem] = [
             SystemMenuItem(
                 "Remove from Favourites" if pinned else "Add to Favourites",
                 lambda: self._toggle_favourite(tile),
@@ -131,16 +113,24 @@ class HomeOverlayController(ServiceComponent):
                     else "Add a shortcut to Favourites"
                 ),
             )
-        )
+        ]
         located = self._owner._locate_in_config(tile.id)
         if located is None and self._owner._config.rows:
-            first = self._owner._config.rows[0]
             items.append(
                 SystemMenuItem(
-                    f"Add to {first.title or 'first row'}",
-                    lambda: self._add_tile_to_home(tile),
+                    "Add to a row…",
                     icon_name="list-add-symbolic",
-                    detail="Copy this application into the first editable Home row",
+                    detail=f"Choose from {len(self._owner._config.rows)} Home rows",
+                    submenu=lambda: self._add_to_row_frame(tile),
+                )
+            )
+        if from_grid:
+            items.append(
+                SystemMenuItem(
+                    f"Open {tile.title}",
+                    lambda: self._owner._launch_tile(tile),
+                    icon_name="media-playback-start-symbolic",
+                    detail="Launch this application",
                 )
             )
         if located is not None:
@@ -227,23 +217,27 @@ class HomeOverlayController(ServiceComponent):
         )
         self._owner._refresh_catalog(preserve_focus=True)
 
-    def _add_tile_to_home(self, tile: Tile) -> None:
-        """Copy an installed app out of the grid and into the catalogue.
+    def _add_to_row_frame(self, tile: Tile) -> MenuFrame:
+        return MenuFrame(
+            f"add-{tile.id}",
+            "Add to a row",
+            [
+                SystemMenuItem(
+                    row.title or "Untitled row",
+                    lambda r=row: self._add_tile_to_row(tile, r.id, r.title),
+                    icon_name="list-add-symbolic",
+                    detail=f"Copy {tile.title} into this Home row",
+                )
+                for row in self._owner._config.rows
+            ],
+        )
 
-        It goes into the first row, which is the one nearest the top of the
-        screen and the only choice that doesn't need a second picker in
-        front of a user holding a remote. Moving it afterwards is what the
-        tile editor is for.
-        """
+    def _add_tile_to_row(self, tile: Tile, row_id: str, row_title: str) -> None:
         if any(t.id == tile.id for row in self._owner._config.rows for t in row.tiles):
             self._owner._toast(f"{tile.title} is already on the home screen.")
             return
-        row = self._owner._config.rows[0]
-        # A copy, because add_tile renames the id it is handed to keep it
-        # unique within the row — and the object the grid passed in is the
-        # one its own widget is still rendering.
-        if editing.add_tile(self._owner._config, row.id, replace(tile)) is None:
+        if editing.add_tile(self._owner._config, row_id, replace(tile)) is None:
             self._owner._toast(f"{tile.title} couldn't be added.")
             return
         self._owner._save_config()
-        self._owner._toast(f"{tile.title} added to {row.title or 'the first row'}.")
+        self._owner._toast(f"{tile.title} added to {row_title or 'the selected row'}.")

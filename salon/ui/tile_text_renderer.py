@@ -25,6 +25,9 @@ class TileTextRenderer:
         of drifting as its measured width changes character by character
         while a search filters.
         """
+        if self._horizontal_content:
+            self._snapshot_horizontal_labels(snapshot, rect)
+            return
         padding = self._metrics.padding
         available = rect.get_width() - 2 * padding
 
@@ -55,11 +58,40 @@ class TileTextRenderer:
         snapshot.append_layout(title_layout, theme.color("text-primary"))
         snapshot.restore()
 
-    def _layout(self, text: str, font: Pango.FontDescription, width: float) -> Pango.Layout:
+    def _snapshot_horizontal_labels(
+        self, snapshot: Gtk.Snapshot, rect: Graphene.Rect
+    ) -> None:
+        padding = self._metrics.padding
+        icon = self._icon_box(rect)
+        left = icon.get_x() + icon.get_width() + padding
+        available = rect.get_x() + rect.get_width() - padding - left
+        title = self._layout(self.tile.title, self._title_font, available, centred=False)
+        subtitle = None
+        if self.tile.subtitle and self._show_subtitle:
+            subtitle = self._layout(
+                self.tile.subtitle, self._subtitle_font, available, centred=False
+            )
+        title_height = title.get_pixel_size()[1]
+        subtitle_height = subtitle.get_pixel_size()[1] if subtitle is not None else 0
+        gap = self._scale.du(4.0) if subtitle is not None else 0.0
+        top = rect.get_y() + (rect.get_height() - title_height - subtitle_height - gap) / 2.0
+        snapshot.save()
+        snapshot.translate(_point(left, top))
+        snapshot.append_layout(title, theme.color("text-primary"))
+        snapshot.restore()
+        if subtitle is not None:
+            snapshot.save()
+            snapshot.translate(_point(left, top + title_height + gap))
+            snapshot.append_layout(subtitle, theme.color("text-secondary"))
+            snapshot.restore()
+
+    def _layout(
+        self, text: str, font: Pango.FontDescription, width: float, *, centred: bool = True
+    ) -> Pango.Layout:
         layout = self.create_pango_layout(text)
         layout.set_font_description(font)
         layout.set_width(int(width * Pango.SCALE))
-        layout.set_alignment(Pango.Alignment.CENTER)
+        layout.set_alignment(Pango.Alignment.CENTER if centred else Pango.Alignment.LEFT)
         layout.set_ellipsize(Pango.EllipsizeMode.END)
         layout.set_single_paragraph_mode(True)
         return layout

@@ -12,6 +12,7 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
+from salon.core import tokens  # noqa: E402
 from salon.core.focus import Bump, FocusModel  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
@@ -27,10 +28,6 @@ _BUMP_DISTANCE_DU = 26.0
 
 
 class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
-    """Reachable from the top bar's grid button. Owns nothing but its own
-    view of the installed-app scan; the launch itself goes back out through
-    the same `on_launch` the home screen and search use."""
-
     def __init__(
         self,
         scale: Scale,
@@ -39,10 +36,12 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         tile_scale: float,
         on_launch: Callable[[Tile], None],
         on_close: Callable[[], None],
+        on_count: Callable[[int], None] | None = None,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._init_fade()
-        self.add_css_class("salon-search")  # the same full-bleed dark field
+        self.add_css_class("salon-search")
+        self.add_css_class("salon-apps-grid")
         self.set_visible(False)
         self.set_hexpand(True)
         self.set_vexpand(True)
@@ -52,6 +51,7 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._artwork = artwork
         self._on_launch = on_launch
         self._on_close = on_close
+        self._on_count = on_count
 
         self._tiles: list[Tile] = []
         self._widgets: list[TileWidget] = []
@@ -65,22 +65,21 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.append(self._content)
 
-        self._title = Gtk.Label(label="All apps")
+        self._header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._content.append(self._header)
+        self._title = Gtk.Label(label="All applications")
         self._title.add_css_class("salon-search-query")
         self._title.set_halign(Gtk.Align.START)
-        self._content.append(self._title)
+        self._header.append(self._title)
+        self._count = Gtk.Label(label="")
+        self._count.add_css_class("salon-search-hint")
+        self._count.set_halign(Gtk.Align.START)
+        self._header.append(self._count)
 
-        # The full name and description of whatever the cursor is on.
-        # The cards themselves cannot carry this: at seven columns a card is
-        # 240px wide and "Advanced Network Configuration" ellipsises to
-        # "Advanced…", which put two different apps on screen both reading
-        # "Documen…". One full-width line under the heading says what the
-        # card cannot.
         self._hint = Gtk.Label()
         self._hint.add_css_class("salon-search-hint")
         self._hint.set_halign(Gtk.Align.START)
         self._hint.set_ellipsize(Pango.EllipsizeMode.END)
-        self._content.append(self._hint)
 
         # The A–Z rail. Two hundred applications at seven columns is
         # twenty-nine rows of D-pad; the shoulder buttons cross a letter at
@@ -88,11 +87,12 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         # than a column down the side, because a side rail would narrow the
         # viewport and the viewport has to reach the screen edge for the
         # edge tiles' bloom to have somewhere to go.
-        self._rail = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._rail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._rail.add_css_class("salon-letter-rail")
-        self._rail.set_halign(Gtk.Align.START)
+        self._rail.add_css_class("salon-letter-rail-vertical")
+        self._rail.set_halign(Gtk.Align.END)
+        self._rail.set_valign(Gtk.Align.FILL)
         self._rail_labels: dict[str, Gtk.Label] = {}
-        self._content.append(self._rail)
 
         self._viewport = Gtk.Fixed()
         self._viewport.set_overflow(Gtk.Overflow.HIDDEN)
@@ -107,16 +107,23 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         )
         self._viewport_host.set_hexpand(True)
         self._viewport_host.set_vexpand(True)
-        self._content.append(self._viewport_host)
+        self._body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._body.set_vexpand(True)
+        self._body.append(self._viewport_host)
+        self._body.append(self._rail)
+        self._content.append(self._body)
 
-        # Where Settings puts its legend, for the same reason: what the
-        # buttons do belongs at the bottom edge, out of the way of the
-        # thing the eye is actually scanning.
         self._legend = Gtk.Label()
         self._legend.add_css_class("salon-settings-legend")
         self._legend.set_halign(Gtk.Align.START)
         self._legend.set_ellipsize(Pango.EllipsizeMode.END)
-        self._content.append(self._legend)
+        self._legend.set_hexpand(False)
+        self._bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._bottom.add_css_class("salon-bottom-bar")
+        self._hint.set_hexpand(True)
+        self._bottom.append(self._hint)
+        self._bottom.append(self._legend)
+        self._content.append(self._bottom)
 
         self.set_scale(scale)
 
@@ -125,15 +132,8 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
     def open(self) -> None:
         self.set_visible(True)
         self._begin_fade()
-        # Always from the top. The cursor is stored as (row, column) and
-        # the column count depends on the viewport, so a position kept
-        # across a close and reopen can be reinterpreted against a
-        # different width and land on a different app than it left.
         self._focus.jump_to(0, 0)
         self._set_hint("Loading the application list…")
-        # Scanning every .desktop file on the system is far too slow for the
-        # frame clock (§10), so the grid opens empty and fills a moment
-        # later rather than freezing on the way in.
         appinfo.list_installed_async(self._on_scanned)
 
     def close(self) -> None:
@@ -145,23 +145,27 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         if tile_scale is not None:
             self._tile_scale = tile_scale
         margin = scale.safe_margin_px
-        # The safe area is applied to the text, not to the whole column:
-        # the viewport underneath has to reach the screen edges so an edge
-        # tile's bloom has somewhere to go. The cards inside it are inset
-        # back to the same margin — see _origin.
         self._safe_margin = float(margin)
-        self._title.set_margin_start(margin)
-        self._title.set_margin_end(margin)
+        self._content.set_margin_start(scale.px(tokens.CONSOLE_WIDTH_DU))
+        self._header.set_margin_start(margin)
+        self._header.set_margin_end(margin)
+        self._header.set_margin_top(max(0, margin - scale.px(18.0)))
+        self._header.set_spacing(scale.px(18.0))
         self._hint.set_margin_start(margin)
-        self._hint.set_margin_end(margin)
+        self._hint.set_margin_end(scale.px(24.0))
         self._legend.set_margin_start(margin)
         self._legend.set_margin_end(margin)
-        self._rail.set_margin_start(margin)
-        self._rail.set_margin_end(margin)
-        self._rail.set_spacing(scale.px(4.0))
-        self._content.set_margin_top(margin)
-        self._content.set_margin_bottom(margin)
-        self._content.set_spacing(scale.px(8.0))
+        self._rail.set_margin_start(scale.px(20.0))
+        self._rail.set_margin_end(scale.px(20.0))
+        self._rail.set_margin_top(scale.px(12.0))
+        self._rail.set_margin_bottom(scale.px(12.0))
+        self._rail.set_spacing(0)
+        self._rail.set_size_request(scale.px(92.0), -1)
+        self._bottom.set_size_request(-1, scale.px(tokens.ACTION_BAR_HEIGHT_DU))
+        self._bottom.set_spacing(scale.px(24.0))
+        self._content.set_margin_top(0)
+        self._content.set_margin_bottom(0)
+        self._content.set_spacing(scale.px(12.0))
         self._relayout()
 
     def set_pointer_active(self, active: bool) -> None:
@@ -180,6 +184,9 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         # Already sorted case-insensitively by appinfo, which is the order
         # this screen wants: an A–Z grid is scannable, a ranked one is not.
         self._tiles = tiles
+        self._count.set_label(f"{len(tiles)} installed")
+        if self._on_count is not None:
+            self._on_count(len(tiles))
         self._rebuild()
 
     def _set_hint(self, text: str) -> None:
@@ -200,6 +207,18 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
             return
         if action in (Action.PREV_GROUP, Action.NEXT_GROUP):
             self._jump_letter(-1 if action is Action.PREV_GROUP else 1)
+            return
+        if action in (Action.LEFT, Action.RIGHT):
+            self._jump_letter(-1 if action is Action.LEFT else 1)
+            return
+        if action in (Action.UP, Action.DOWN):
+            step = -1 if action is Action.UP else 1
+            target = self._focused_index() + step
+            if 0 <= target < len(self._tiles):
+                self._jump_to_index(target)
+            else:
+                distance = self._scale.du(_BUMP_DISTANCE_DU)
+                self._scroll.bump(distance if step < 0 else -distance)
             return
         change = self._focus.handle(action)
         if change.moved:

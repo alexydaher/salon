@@ -30,7 +30,8 @@ class StatusBar(Gtk.Box):
         on_search: Callable[[], None],
         on_apps: Callable[[], None],
         on_phone: Callable[[], None],
-        on_more: Callable[[], None],
+        on_settings: Callable[[], None],
+        on_power: Callable[[], None],
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
         self.set_halign(Gtk.Align.END)
@@ -53,14 +54,9 @@ class StatusBar(Gtk.Box):
         for icon_name, tooltip, handler, hint in (
             ("system-search-symbolic", "Search", on_search, "Find a tile or an installed app"),
             ("view-grid-symbolic", "All apps", on_apps, "Every installed application, A to Z"),
-            # Connecting a phone remains visible because it also carries
-            # controller/phone presence. Settings and Power moved behind
-            # More: duplicating them here made the toolbar a second menu.
-            # Before More, not inside it: connecting a phone is the
-            # best input this television has, and burying the way to do it
-            # is how it stayed unused.
             ("phone-symbolic", "Connect a phone", on_phone, "Use a phone as the remote"),
-            ("view-more-symbolic", "More", on_more, "Open the Salon menu"),
+            ("preferences-system-symbolic", "Settings", on_settings, "Configure Salon"),
+            ("system-shutdown-symbolic", "Power", on_power, "Suspend or shut down"),
         ):
             self._hints.append((tooltip, hint))
             button = self._make_button(icon_name, tooltip, handler)

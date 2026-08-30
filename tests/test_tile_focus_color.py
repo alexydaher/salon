@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Keep every layer of tile focus tied to the focused app's colour."""
+"""Keep the crisp cursor tied to the chosen interface accent."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import ast
 from pathlib import Path
 
 
-def test_focus_ring_uses_the_artwork_accent() -> None:
+def test_focus_ring_uses_the_interface_accent() -> None:
     path = Path(__file__).resolve().parent.parent / "salon/ui/tile.py"
     tree = ast.parse(path.read_text(), filename=str(path))
     card_renderer = next(
@@ -24,11 +24,7 @@ def test_focus_ring_uses_the_artwork_accent() -> None:
 
     assert isinstance(ring_assignment.value, ast.Call)
     colour = ring_assignment.value.args[0]
-    assert isinstance(colour, ast.Attribute)
-    assert isinstance(colour.value, ast.Attribute)
-    assert isinstance(colour.value.value, ast.Name)
-    assert (colour.value.value.id, colour.value.attr, colour.attr) == (
-        "self",
-        "_artwork",
-        "accent",
-    )
+    assert isinstance(colour, ast.Call)
+    assert isinstance(colour.func, ast.Attribute)
+    assert isinstance(colour.func.value, ast.Name)
+    assert (colour.func.value.id, colour.func.attr) == ("theme", "accent")

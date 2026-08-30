@@ -102,6 +102,7 @@ from salon.services.pointer_injector import (  # noqa: E402
 from salon.ui import motion  # noqa: E402
 from salon.ui.appsgrid import AppsGrid  # noqa: E402
 from salon.ui.backdrop import Backdrop  # noqa: E402
+from salon.ui.console_sidebar import ConsoleSidebar  # noqa: E402
 from salon.ui.detailbar import DetailBar  # noqa: E402
 from salon.ui.legend import Legend  # noqa: E402
 from salon.ui.motion import SizeReporter  # noqa: E402

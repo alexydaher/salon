@@ -1,20 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The small list of values a settings row can take.
 
-Opened with OK on any row that has `choices` (see `widgets.py`), anchored on
-that row's value so it appears where the setting is written rather than in
-the middle of the screen. UP/DOWN walks it, OK picks, and BACK leaves it
-unchanged — the shape a games console uses for exactly this, and the only
-one where the alternatives are *visible* before the choice is made. Stepping
-a value with a direction key shows one candidate at a time and hides the set.
-
 On a row marked previewable the list opens over the *home screen* and each
 value is applied as the cursor passes over it. That is `preview_policy` and
 `screen_preview.py`; all this owns is `anchor` (the strip, not the row, has
 the screen to itself down there), `on_candidate` and `on_dismissed` — the
 last one being what makes BACK's promise of "unchanged" true again.
-
-Two deliberate choices in here:
 
 * **`set_autohide(False)`.** An autohiding popover takes a GTK input grab,
   and Salon does not route input through GTK focus — every button arrives as
@@ -40,7 +31,6 @@ from collections.abc import Callable
 import gi
 
 gi.require_version("Gtk", "4.0")
-
 from gi.repository import Gtk  # noqa: E402
 
 from salon.input.actions import Action  # noqa: E402
@@ -139,6 +129,15 @@ class ValuePopup(Gtk.Popover):
         self._keys = [key for key, _ in choices]
         current = row.current_choice
         self._selected = self._keys.index(current) if current in self._keys else 0
+        preview = anchor is not None
+        if preview:
+            self.add_css_class("preview-values")
+            self._list.set_orientation(Gtk.Orientation.HORIZONTAL)
+            self._scroller.set_min_content_width(self._scale.px(920.0))
+        else:
+            self.remove_css_class("preview-values")
+            self._list.set_orientation(Gtk.Orientation.VERTICAL)
+            self._scroller.set_min_content_width(self._scale.px(280.0))
 
         self._buttons = []
         child = self._list.get_first_child()
@@ -159,6 +158,8 @@ class ValuePopup(Gtk.Popover):
                 on_hover=self._hover,
                 swatch=swatches.get(key, ""),
             )
+            if preview:
+                button.set_size_request(self._scale.px(176.0), self._scale.px(104.0))
             self._list.append(button)
             self._buttons.append(button)
 

@@ -18,8 +18,7 @@ class HomeScrollController(ServiceComponent):
         status, playback card, and buttons share one horizontal band.
         """
         natural = max(
-            self._owner._status_info.get_preferred_size()[1].height,
-            self._owner._now_playing_status.get_preferred_size()[1].height,
+            self._owner._home_title.get_preferred_size()[1].height,
             self._owner._status_bar.get_preferred_size()[1].height,
         )
         if natural > 0:

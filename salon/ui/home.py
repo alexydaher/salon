@@ -30,6 +30,7 @@ from salon.ui.home_setup_input import HomeInputSetup
 from salon.ui.home_setup_monitors import HomeMonitorSetup
 from salon.ui.home_setup_surfaces import HomeSurfaceSetup
 from salon.ui.home_shared import Gtk, ScaleManager, ThemeManager
+from salon.ui.home_shell_chrome import HomeShellChrome
 
 
 class HomeView(
@@ -57,6 +58,7 @@ class HomeView(
     HomeActionRouter,
     HomeNavigationController,
     HomeOverlayController,
+    HomeShellChrome,
     HomeLaunchController,
     HomePowerMenuController,
 ):

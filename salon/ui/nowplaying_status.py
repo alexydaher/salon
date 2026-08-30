@@ -72,9 +72,10 @@ class _CircularCover(Gtk.Widget):
 
 class NowPlayingStatus(Gtk.Box):
     def __init__(self, scale: Scale, on_activate: Callable[[], None] | None = None) -> None:
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("salon-now-playing")
-        self.set_halign(Gtk.Align.CENTER)
+        self.add_css_class("salon-console-block")
+        self.set_halign(Gtk.Align.FILL)
         self.set_valign(Gtk.Align.START)
         self.set_visible(False)
         # Still a STATUS rather than a BUTTON, and the click is layered on
@@ -97,22 +98,29 @@ class NowPlayingStatus(Gtk.Box):
             click.connect("released", self._on_click)
             self.add_controller(click)
 
+        heading = Gtk.Label(label="NOW PLAYING")
+        heading.add_css_class("salon-console-heading")
+        heading.set_halign(Gtk.Align.START)
+        self.append(heading)
+        content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.append(content)
+        self._content = content
+
         # The cover occupies the exact same slot as the transport glyph.
         # Its intrinsic dimensions therefore cannot make this pill larger.
         self._art = _CircularCover()
-        self.append(self._art)
+        content.append(self._art)
         self._icon = Gtk.Image.new_from_icon_name("media-playback-start-symbolic")
-        self.append(self._icon)
-        labels = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.append(labels)
+        content.append(self._icon)
+        labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content.append(labels)
         self._title = Gtk.Label()
         self._title.add_css_class("salon-now-playing-title")
         self._title.set_halign(Gtk.Align.START)
         self._title.set_ellipsize(Pango.EllipsizeMode.END)
         labels.append(self._title)
-        self._separator = Gtk.Label(label="·")
-        self._separator.add_css_class("salon-now-playing-detail")
-        labels.append(self._separator)
+        self._separator = Gtk.Label(label="")
+        self._separator.set_visible(False)
         self._detail = Gtk.Label()
         self._detail.add_css_class("salon-now-playing-detail")
         self._detail.set_halign(Gtk.Align.START)
@@ -122,13 +130,14 @@ class NowPlayingStatus(Gtk.Box):
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        self.set_spacing(scale.px(12.0))
-        self._labels.set_spacing(scale.px(8.0))
-        icon_size = scale.px(28.0)
+        self.set_spacing(scale.px(14.0))
+        self._content.set_spacing(scale.px(14.0))
+        self._labels.set_spacing(scale.px(3.0))
+        icon_size = scale.px(50.0)
         self._art.set_size(icon_size)
         self._icon.set_pixel_size(icon_size)
-        self.set_size_request(scale.px(300.0), -1)
-        self.set_margin_top(max(0, scale.safe_margin_px - scale.px(24.0)))
+        self.set_size_request(-1, -1)
+        self.set_margin_top(0)
 
     def set_track(self, title: str, detail: str, *, playing: bool) -> None:
         state = "Playing" if playing else "Paused"

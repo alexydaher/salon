@@ -47,7 +47,7 @@ class HomeCatalogSetup(ServiceComponent):
             provider_outcomes=lambda: self._owner._provider_outcomes,
             reload_catalog=lambda: self._owner._refresh_catalog(preserve_focus=True),
             quit_app=self._owner._application.quit,
-            on_close=self._owner.grab_focus,
+            on_close=self._owner._on_global_surface_closed,
             preview_chrome=self._owner._set_preview_chrome,
             phone_remote_running=self._owner.phone_remote_running,
             set_phone_remote=self._owner.set_phone_remote,
@@ -62,6 +62,16 @@ class HomeCatalogSetup(ServiceComponent):
             config_path=str(self._owner._config_path),
         )
         self._owner._overlay.add_overlay(self._owner._settings_screen)
+        # These are root-owned chrome rather than children of Home or Apps.
+        # Raise them above both content surfaces, but leave dialogs and menus
+        # that are created below this point above them.
+        for chrome in (
+            self._owner._console_sidebar,
+            self._owner._home_title,
+            self._owner._status_bar,
+        ):
+            self._owner._overlay.remove_overlay(chrome)
+            self._owner._overlay.add_overlay(chrome)
         self._owner._system_menu = SystemMenu(
             self._owner._build_system_menu_items(),
             self._owner._scale,
@@ -88,6 +98,10 @@ class HomeCatalogSetup(ServiceComponent):
         self._owner._overlay.add_overlay(self._owner._text_entry)
         self._owner._onboarding = Onboarding(self._owner._scale, self._owner._finish_onboarding)
         self._owner._overlay.add_overlay(self._owner._onboarding)
+        # The pairing code is the one global card that must remain above a
+        # scrim. Visibility policy hides it on the full pairing/onboarding
+        # surfaces where another QR or explanation owns the screen.
+        self._owner._overlay.add_overlay(self._owner._remote_hint)
         motion.set_animation_speed(self._owner._settings.get_double("animation-scale"))
         self._owner._return_fade = motion.FadeIn(self._owner._overlay, motion.RETURN_FADE_MS)
         self._owner._faded_surfaces: tuple[motion.Fadable, ...] = (
@@ -102,6 +116,7 @@ class HomeCatalogSetup(ServiceComponent):
         self._owner._catalog = Catalog([])
         self._owner._focus = FocusModel([])
         self._owner._apply_metrics()
+        self._owner._apply_scale_to_surfaces(self._owner._scale)
         self._owner._rebuild_row_widgets()
         self._owner._refresh_catalog(preserve_focus=False)
         if self._owner._starter_expected is not None:

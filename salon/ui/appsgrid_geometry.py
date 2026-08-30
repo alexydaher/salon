@@ -17,7 +17,10 @@ def grid_metrics(scale: Scale, tile_scale: float) -> TileMetrics:
     surfaces. A wide card is also the better one for a name: it is the axis
     a title runs along, so fewer of them truncate at the same card area.
     """
-    return metrics_for(scale, "wide", size_scale=tile_scale)
+    # All-app cards carry icon, title and subtitle on one horizontal axis.
+    # They therefore use a larger presentation scale than the compact Home
+    # tiles while following the same preference proportionally.
+    return metrics_for(scale, "wide", size_scale=min(1.35, tile_scale * 1.45))
 
 
 def horizontal_origin(safe_margin: float, metrics: TileMetrics) -> float:

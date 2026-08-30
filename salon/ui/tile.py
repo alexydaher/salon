@@ -66,6 +66,7 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         *,
         animations_enabled: bool = True,
         show_subtitle: bool = True,
+        horizontal_content: bool = False,
     ) -> None:
         super().__init__()
         self.tile = tile
@@ -74,6 +75,7 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         self._scale = scale
         self._animations_enabled = animations_enabled
         self._show_subtitle = show_subtitle
+        self._horizontal_content = horizontal_content
         self._focus_amount = 0.0
         self._focused = False
 
@@ -213,13 +215,13 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         # A hairline edge so a dark tile still separates from a dark
         # backdrop; the app-coloured ring replaces it as focus comes up.
         hairline = max(1.0, self._scale.du(1.0))
-        edge = _with_alpha(theme.color("text-primary"), 0.10 * (1.0 - focus))
+        edge = _with_alpha(theme.color("text-primary"), 0.24 * (1.0 - focus))
         snapshot.append_border(rounded, [hairline] * 4, [edge] * 4)
 
         if focus > 0.01:
             ring_width = self._scale.du(tokens.FOCUS_RING_DU)
-            # The backdrop and bloom already follow the focused app's
-            # artwork colour. Keep the crisp part of that same halo in sync
-            # instead of falling back to Salon's global interface accent.
-            ring = _with_alpha(self._artwork.accent, focus)
+            # The ambient backdrop follows the artwork; the crisp cursor is
+            # the user's chosen interface accent and therefore stays stable
+            # while moving between differently coloured applications.
+            ring = _with_alpha(theme.accent(), focus)
             snapshot.append_border(rounded, [ring_width] * 4, [ring] * 4)

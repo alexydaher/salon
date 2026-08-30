@@ -18,6 +18,16 @@ from salon.ui import theme  # noqa: E402
 _GLOW_ALPHA = 0.13
 _GLOW_RADIUS_FRACTION = 0.40
 
+# The final visual direction uses several broad pools of colour rather than
+# one spotlight. They are deliberately cheap GSK gradients rendered into the
+# Backdrop's quarter-resolution cache, not live blurred widgets.
+_AMBIENT_FIELDS = (
+    (0.02, 0.02, 0.58, 0.20, "#176DDB", 0.34),
+    (0.50, 0.54, 0.52, 0.22, "#D57A2D", 0.22),
+    (0.96, 0.12, 0.54, 0.22, "#6638B8", 0.25),
+    (0.82, 0.92, 0.48, 0.22, "#0A9D9B", 0.18),
+)
+
 
 def rgba(red: float, green: float, blue: float, alpha: float = 1.0) -> Gdk.RGBA:
     color = Gdk.RGBA()
@@ -83,6 +93,11 @@ class BackdropRenderer:
                 rgba(surface.red, surface.green, surface.blue, self._wallpaper_dim), bounds
             )
 
+        for x, y, radius_x, radius_y, value, alpha in _AMBIENT_FIELDS:
+            self._snapshot_ambient_field(
+                snapshot, bounds, x, y, radius_x, radius_y, _parse(value), alpha
+            )
+
         accent = self._current()
         center = Graphene.Point()
         center.init(width * self._focus_x, height * self._focus_y)
@@ -100,6 +115,39 @@ class BackdropRenderer:
 
         snapshot.append_radial_gradient(
             bounds, center, radius, radius, 0.0, 1.0, [inner, mid, outer]
+        )
+
+        # A dark veil keeps type and QR edges stable over every combination
+        # of ambient fields and user wallpaper.
+        snapshot.append_color(rgba(0.02, 0.03, 0.05, 0.34), bounds)
+
+    @staticmethod
+    def _snapshot_ambient_field(
+        snapshot: Gtk.Snapshot,
+        bounds: Graphene.Rect,
+        x: float,
+        y: float,
+        radius_x: float,
+        radius_y: float,
+        color: Gdk.RGBA,
+        alpha: float,
+    ) -> None:
+        center = Graphene.Point()
+        center.init(bounds.get_width() * x, bounds.get_height() * y)
+        inner = Gsk.ColorStop()
+        inner.offset = 0.0
+        inner.color = rgba(color.red, color.green, color.blue, alpha)
+        outer = Gsk.ColorStop()
+        outer.offset = 1.0
+        outer.color = _TRANSPARENT
+        snapshot.append_radial_gradient(
+            bounds,
+            center,
+            bounds.get_width() * radius_x,
+            bounds.get_height() * radius_y,
+            0.0,
+            1.0,
+            [inner, outer],
         )
 
     def snapshot_art(

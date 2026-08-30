@@ -7,6 +7,7 @@ from salon.ui.home_rows import _RowWidgets
 from salon.ui.home_shared import (
     _EDGE_FADE_DU,
     _FALLBACK_VIEWPORT_HEIGHT_PX,
+    GLib,
     Gtk,
     Pango,
     RemoteRow,
@@ -48,7 +49,9 @@ class HomeLayoutBuilder(ServiceComponent):
                 self._owner._scale, row.tile_aspect, size_scale=self._owner._tile_scale
             )
 
-            heading = Gtk.Label(label=row.title or "")
+            title = GLib.markup_escape_text((row.title or "").upper())
+            heading = Gtk.Label()
+            heading.set_markup(f"{title}  <span alpha='35%'>{len(row.tiles)}</span>")
             heading.set_halign(Gtk.Align.START)
             heading.set_xalign(0.0)
             heading.set_yalign(0.5)
@@ -212,6 +215,7 @@ class HomeLayoutBuilder(ServiceComponent):
         """
         self._owner._viewport_host.set_margin_top(round(self._owner._top_inset()))
         self._owner._viewport_host.set_margin_bottom(round(self._owner._bottom_inset()))
+        self._owner._apply_shell_viewport_inset()
 
     def _attach_pointer(self, widget: TileWidget, row: int, col: int) -> None:
         click = Gtk.GestureClick()
