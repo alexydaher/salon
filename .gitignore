@@ -24,11 +24,7 @@ __pycache__/
 # for a repository that has no outside contributors yet.
 CLAUDE.md
 DECISIONS.md
-docs/publishing.md
-docs/release-checklist.md
-docs/sessions.md
-docs/development.md
-docs/providers.md
+docs/
 docs/settings-review.md
 CONTRIBUTING.md
 CHANGELOG.md
