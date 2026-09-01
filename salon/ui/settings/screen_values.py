@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # ruff: noqa: F403, F405
-"""Raising a row's list of values, and what comes back from it.
+"""Raising a row's values control, and what comes back from it.
 
 One press — OK, or a click — reaches three different places from here: the
 popup, the live-preview strip that a previewable row collapses the screen
@@ -31,7 +31,7 @@ class SettingsValuesController(ServiceComponent):
         """Raise the row's values.
 
         On a previewable row Settings gets out of the way first and the
-        list opens over the live home screen, anchored on the strip along
+        control opens over the live home screen, embedded in the strip along
         the bottom because the row it belongs to is no longer drawn. That
         is the whole of the feature: an accent, a tile size or a row
         density is a claim about the home screen, and this is the press
@@ -42,8 +42,8 @@ class SettingsValuesController(ServiceComponent):
             self._owner._enter_peek(row)
         opened = self._owner._popup.open_for(
             row,
-            anchor=self._owner._preview_value if peek else None,
-            position=Gtk.PositionType.TOP if peek else Gtk.PositionType.BOTTOM,
+            inline=self._owner._preview_bar.choices if peek else None,
+            position=Gtk.PositionType.BOTTOM,
         )
         if not opened:
             # Nothing to steer the collapsed screen with. Put it back.

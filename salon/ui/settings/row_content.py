@@ -110,6 +110,10 @@ class RowContent(Gtk.Box):
     def label_text(self) -> str:
         return self._label.get_label() or ""
 
+    @property
+    def detail_text(self) -> str:
+        return self._detail.get_label() or ""
+
     def set_label_text(self, text: str) -> None:
         self._label.set_label(text)
 

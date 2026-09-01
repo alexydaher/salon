@@ -73,7 +73,10 @@ class SettingsList(Gtk.Fixed):
         for row in self._rows:
             row.set_content_width(width)
         gutter = self._chrome.layout(self._scale, width, height)
-        self._content.set_margin_top(gutter)
+        # No invisible top gutter. The first row starts at the pane's own
+        # padding; a top pill only exists after content has actually moved
+        # above the viewport, where the fade can safely run over it.
+        self._content.set_margin_top(0)
         self._content.set_margin_bottom(gutter)
         # And only now is there a height to scroll within: set_rows runs
         # before the first allocation, so without this the list opens

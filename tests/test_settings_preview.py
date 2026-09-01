@@ -51,6 +51,12 @@ class _Recorder:
     def set_label(self, text: str) -> None:
         self.label = text
 
+    def set_row(self, row) -> None:
+        self.label = row.label_text
+
+    def set_controls(self, hints) -> None:
+        self.controls = hints
+
     def refresh_values(self) -> None:
         pass
 
@@ -63,9 +69,6 @@ class _Owner:
         self._content = _Recorder()
         self._preview_bar = _Recorder()
         self._preview_bar.visible = False
-        self._preview_label = _Recorder()
-        self._preview_value = _Recorder()
-        self._preview_hint = _Recorder()
         self._panel_list = _Recorder()
         self.chrome: list[bool] = []
         self.classes: set[str] = set()
@@ -99,16 +102,14 @@ def test_walking_the_list_writes_the_value_so_the_home_screen_answers() -> None:
     preview._enter_peek(_row(store))
     assert not owner._content.visible and owner._preview_bar.visible
     assert "preview" in owner.classes
-    assert owner._preview_label.label == "Accent colour"
-    assert owner._preview_hint.label == preview_policy.PEEK_HINT
+    assert owner._preview_bar.label == "Accent colour"
+    assert (Action.BACK, "Restore") in owner._preview_bar.controls
     # The home screen's own bottom row wants the same edge of the screen.
     assert owner.chrome == [True]
 
     preview._peek_candidate("c")
     assert store["value"] == "c"
-    # The strip is the only thing still naming the setting, so it carries
-    # the candidate as well as the label.
-    assert owner._preview_value.label == "Cold"
+    assert owner._preview_bar.label == "Accent colour"
 
 
 def test_leaving_the_list_without_choosing_puts_the_original_back() -> None:

@@ -1,6 +1,7 @@
 python_sources = [
   '__init__.py',
   'context.py',
+  'footer.py',
   'widgets.py',
   'action_rows.py',
   'advanced_input_panel.py',
@@ -33,6 +34,7 @@ python_sources = [
   'network_panel.py',
   'navigation_policy.py',
   'preview_policy.py',
+  'preview_strip.py',
   'setup_panel.py',
   'system_panel.py',
   'tiles.py',

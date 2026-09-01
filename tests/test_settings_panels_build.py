@@ -132,6 +132,12 @@ def test_every_section_builds(index: int) -> None:
     assert all(hasattr(row, "hint") for row in rows)
 
 
+def test_setup_ends_after_its_fifth_step() -> None:
+    rows = _sections()[0].build()
+    assert rows[-1].label_text == "Use a phone as the remote"
+    assert all(row.label_text != "Everything else" for row in rows)
+
+
 def test_a_long_panel_says_where_its_groups_start() -> None:
     for panel in _sections():
         rows = panel.build()

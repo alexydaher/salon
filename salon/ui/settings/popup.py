@@ -1,28 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The small list of values a settings row can take.
-
-On a row marked previewable the list opens over the *home screen* and each
-value is applied as the cursor passes over it. That is `preview_policy` and
-`screen_preview.py`; all this owns is `anchor` (the strip, not the row, has
-the screen to itself down there), `on_candidate` and `on_dismissed` — the
-last one being what makes BACK's promise of "unchanged" true again.
-
-* **`set_autohide(False)`.** An autohiding popover takes a GTK input grab,
-  and Salon does not route input through GTK focus — every button arrives as
-  an `Action` on the window's controllers, or over HTTP from a phone, or off
-  a gamepad, and a grab would silently take all of that away from the screen
-  underneath. Dismissal is therefore ours to do: `SettingsScreen` closes
-  this before anything else can happen to the list behind it.
-* **It is unparented every time it closes.** Popovers hold a reference to
-  the widget they are parented on, and settings panels rebuild their rows
-  wholesale on every save — leaving one attached to a row that is about to
-  be thrown away is how you get a popover pointing at nothing.
-
-A real `Gtk.ScrolledWindow` here, unlike everywhere else in Salon: one small
-list inside a popover with a bounded height, not a viewport whose scroll
-position the selection has to drive across a full screen, so none of the
-`Gtk.Fixed` machinery in `ui/motion.py` buys anything.
-"""
+"""A row's value list, either anchored or embedded in live preview."""
 
 from __future__ import annotations
 
@@ -36,14 +13,11 @@ from gi.repository import Gtk  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.settings.navigation_policy import is_settings_back  # noqa: E402
-from salon.ui.settings.popup_option import ValueOption  # noqa: E402
-from salon.ui.settings.widgets import SettingsRow  # noqa: E402
+from salon.ui.settings.popup_option import RangePreview, ValueOption  # noqa: E402
+from salon.ui.settings.widgets import RangeRow, SettingsRow  # noqa: E402
 
-# How tall the list may get before it scrolls. Eight rows is enough for every
-# choice list in Salon and for a useful window onto the long ranges (the
-# 41-step idle-inhibit one is the worst), while staying short enough that the
-# popup still reads as attached to its row rather than as a second screen.
-_MAX_VISIBLE_ROWS = 8
+# Eight visible rows keep long ranges useful without becoming a second screen.
+_MAX_VISIBLE_ROWS = 5
 
 
 class ValuePopup(Gtk.Popover):
@@ -76,6 +50,9 @@ class ValuePopup(Gtk.Popover):
         self._buttons: list[Gtk.Button] = []
         self._selected = 0
         self._hover_enabled = False
+        self._inline_host: Gtk.Box | None = None
+        self._horizontal = False
+        self._range_preview: RangePreview | None = None
 
         self._scroller = Gtk.ScrolledWindow()
         self._scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -92,10 +69,13 @@ class ValuePopup(Gtk.Popover):
         self._scale = scale
         self._row_height = scale.px(56.0)
         self._list.set_spacing(scale.px(2.0))
-        self._scroller.set_max_content_height(_MAX_VISIBLE_ROWS * self._row_height)
+        list_height = _MAX_VISIBLE_ROWS * self._row_height + (_MAX_VISIBLE_ROWS - 1) * scale.px(2.0)
+        self._scroller.set_max_content_height(list_height)
         self._scroller.set_min_content_width(scale.px(280.0))
         for button in self._buttons:
             button.set_size_request(-1, self._row_height)
+        if self._range_preview is not None:
+            self._range_preview.set_scale(scale)
 
     def set_hover_enabled(self, enabled: bool) -> None:
         self._hover_enabled = enabled
@@ -115,6 +95,7 @@ class ValuePopup(Gtk.Popover):
         row: SettingsRow,
         *,
         anchor: Gtk.Widget | None = None,
+        inline: Gtk.Box | None = None,
         position: Gtk.PositionType = Gtk.PositionType.BOTTOM,
     ) -> bool:
         """Raise the list for `row`; False if it hasn't got one. `anchor`
@@ -129,45 +110,78 @@ class ValuePopup(Gtk.Popover):
         self._keys = [key for key, _ in choices]
         current = row.current_choice
         self._selected = self._keys.index(current) if current in self._keys else 0
-        preview = anchor is not None
+        preview = anchor is not None or inline is not None
+        range_preview = preview and isinstance(row, RangeRow)
+        self._horizontal = preview
         if preview:
             self.add_css_class("preview-values")
             self._list.set_orientation(Gtk.Orientation.HORIZONTAL)
+            self._list.set_hexpand(True)
+            self._list.set_homogeneous(not range_preview)
             self._scroller.set_min_content_width(self._scale.px(920.0))
         else:
             self.remove_css_class("preview-values")
             self._list.set_orientation(Gtk.Orientation.VERTICAL)
+            self._list.set_hexpand(False)
+            self._list.set_homogeneous(False)
             self._scroller.set_min_content_width(self._scale.px(280.0))
 
         self._buttons = []
+        self._range_preview = None
         child = self._list.get_first_child()
         while child is not None:
             following = child.get_next_sibling()
             self._list.remove(child)
             child = following
 
-        swatches = row.swatches
-        for index, (key, label) in enumerate(choices):
-            button = ValueOption(
+        if range_preview:
+            self._range_preview = RangePreview(
                 self._scale,
-                label,
-                current=index == self._selected,
-                index=index,
-                height=self._row_height,
-                on_click=self._activate,
-                on_hover=self._hover,
-                swatch=swatches.get(key, ""),
+                [label for _key, label in choices],
+                self._selected,
+                self._range_changed,
             )
-            if preview:
-                button.set_size_request(self._scale.px(176.0), self._scale.px(104.0))
-            self._list.append(button)
-            self._buttons.append(button)
+            self._list.append(self._range_preview)
+        else:
+            swatches = row.swatches
+            for index, (key, label) in enumerate(choices):
+                button = ValueOption(
+                    self._scale,
+                    label,
+                    current=index == self._selected,
+                    index=index,
+                    height=self._row_height,
+                    on_click=self._activate,
+                    on_hover=self._hover,
+                    swatch=swatches.get(key, ""),
+                    preview=preview,
+                )
+                if preview:
+                    button.set_hexpand(True)
+                    button.set_size_request(-1, self._scale.px(122.0))
+                self._list.append(button)
+                self._buttons.append(button)
 
-        self.set_position(position)
-        self.set_parent(anchor if anchor is not None else row.value_anchor)
+        self._inline_host = inline
         row.set_list_open(True)
         self._update_selection()
-        self.popup()
+        if inline is not None:
+            self._scroller.set_child(None)
+            inline.append(self._list)
+        else:
+            self.set_position(position)
+            self.set_parent(anchor if anchor is not None else row.value_anchor)
+            if anchor is None:
+                pitch = self._row_height + self._scale.px(2.0)
+                # Centre the selected value on its setting row. BOTTOM is
+                # GTK's reliable anchor for a label nested inside the row.
+                self.set_position(Gtk.PositionType.BOTTOM)
+                visible = min(len(self._buttons), _MAX_VISIBLE_ROWS)
+                first = max(0, min(self._selected - visible // 2, len(self._buttons) - visible))
+                selected_centre = (self._selected - first + 0.5) * pitch
+                vertical = selected_centre + self._row_height * 0.54
+                self.set_offset(self._scale.px(-70.0), -round(vertical))
+            self.popup()
         # After popup(), so the scroller has an adjustment with a real upper
         # bound to move within: before it, every value below the fold is
         # clamped back to zero and a list opens at the top however far down
@@ -180,18 +194,26 @@ class ValuePopup(Gtk.Popover):
             return
         self._row.set_list_open(False)
         self._row = None
-        self.popdown()
-        self.unparent()
+        if self._inline_host is not None:
+            self._inline_host.remove(self._list)
+            self._scroller.set_child(self._list)
+            self._inline_host = None
+        else:
+            self.popdown()
+            self.unparent()
         if not self._committing and self._on_dismissed is not None:
             self._on_dismissed()
 
     # --- navigation ------------------------------------------------------
 
     def handle_action(self, action: Action) -> None:
-        if action in (Action.UP, Action.DOWN):
-            step = -1 if action is Action.UP else 1
+        directions = (
+            (Action.LEFT, Action.RIGHT) if self._horizontal else (Action.UP, Action.DOWN)
+        )
+        if action in directions:
+            step = -1 if action is directions[0] else 1
             target = self._selected + step
-            if 0 <= target < len(self._buttons):
+            if 0 <= target < len(self._keys):
                 self._selected = target
                 self._update_selection()
                 self._scroll_to_selection()
@@ -210,6 +232,13 @@ class ValuePopup(Gtk.Popover):
             self._selected = index
             self._update_selection()
             self._announce_candidate()
+
+    def _range_changed(self, index: int) -> None:
+        if index == self._selected or not (0 <= index < len(self._keys)):
+            return
+        self._selected = index
+        self._update_selection()
+        self._announce_candidate()
 
     def _activate(self, index: int) -> None:
         row = self._row
@@ -230,6 +259,8 @@ class ValuePopup(Gtk.Popover):
             self._on_candidate(self._keys[self._selected])
 
     def _update_selection(self) -> None:
+        if self._range_preview is not None:
+            self._range_preview.set_selected(self._selected)
         for index, button in enumerate(self._buttons):
             if index == self._selected:
                 button.add_css_class("selected")
@@ -243,8 +274,5 @@ class ValuePopup(Gtk.Popover):
         pitch = float(self._row_height + self._scale.px(2.0))
         top = self._selected * pitch
         page = adjustment.get_page_size()
-        value = adjustment.get_value()
-        if top < value:
-            adjustment.set_value(top)
-        elif top + pitch > value + page:
-            adjustment.set_value(top + pitch - page)
+        if page > 0:
+            adjustment.set_value(top + pitch / 2.0 - page / 2.0)

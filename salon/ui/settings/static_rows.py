@@ -64,4 +64,4 @@ class GroupRow(SettingsRow):
         """Shorter than a real row, and short enough that a heading costs
         less than the row it is introducing."""
         super().set_scale(scale)
-        self.set_size_request(-1, scale.px(46.0))
+        self.set_size_request(-1, scale.px(32.0))

@@ -23,7 +23,7 @@ _DENY_FLASH_MS = 220
 # How wide a row's own content may get, however wide the list is. Chosen so
 # the label and the value stay one readable pair at 1080p, and — because it
 # is in design units — the same pair at 4K rather than twice the distance.
-_MAX_CONTENT_DU = 1150.0
+_MAX_CONTENT_DU = 1250.0
 # What an external row says when it says nothing else. Every one of them
 # goes to the same place, so the sentence is the same sentence.
 _EXTERNAL_DETAIL = "Opens GNOME Settings"
@@ -120,6 +120,10 @@ class SettingsRow(Gtk.Button, RowContract):
     @property
     def label_text(self) -> str:
         return self._content.label_text
+
+    @property
+    def detail_text(self) -> str:
+        return self._content.detail_text
 
     @property
     def identity(self) -> str:

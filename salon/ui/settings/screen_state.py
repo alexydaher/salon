@@ -146,29 +146,29 @@ class SettingsStateController(ServiceComponent):
 
     def set_scale(self, scale: Scale) -> None:
         self._owner._scale = scale
-        margin = scale.safe_margin_px
-        self._owner._content.set_margin_start(margin)
-        self._owner._content.set_margin_end(margin)
-        self._owner._content.set_margin_top(margin)
-        self._owner._content.set_margin_bottom(margin)
+        horizontal = scale.px(64.0)
+        self._owner._content.set_margin_start(horizontal)
+        self._owner._content.set_margin_end(horizontal)
+        self._owner._content.set_margin_top(scale.px(34.0))
+        self._owner._content.set_margin_bottom(scale.px(44.0))
         self._owner._content.set_spacing(scale.px(8.0))
         self._owner._header.set_spacing(scale.px(32.0))
         self._owner._body.set_spacing(scale.px(34.0))
-        self._owner._body.set_margin_top(scale.px(24.0))
+        self._owner._body.set_margin_top(scale.px(19.0))
         # 420du here cut seven of the nine live summaries mid-word
         # ("Midnight · Lamplight am…"), which is most of the value of
         # having them — the point is answering the visit without entering
         # the section. The panel beside it is capped at 1150du anyway, so
         # the extra 100du comes out of dead space rather than out of a row.
         self._owner._sections_host.set_size_request(scale.px(540.0), -1)
-        self._owner._sections_host.set_margin_bottom(scale.px(154.0))
+        self._owner._sections_host.set_margin_bottom(scale.px(140.0))
         self._owner._sections.set_scale(scale)
         self._owner._panel_list.set_scale(scale)
-        self._owner._preview_bar.set_spacing(scale.px(24.0))
+        self._owner._legend.set_scale(scale)
         self._owner._preview_bar.set_margin_start(scale.px(tokens.CONSOLE_WIDTH_DU))
         self._owner._preview_bar.set_margin_end(0)
         self._owner._preview_bar.set_margin_bottom(0)
-        self._owner._preview_bar.set_size_request(-1, scale.px(206.0))
+        self._owner._preview_bar.set_scale(scale)
         self._owner._popup.set_scale(scale)
 
     def set_pointer_active(self, active: bool) -> None:

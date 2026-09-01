@@ -2,8 +2,8 @@
 # ruff: noqa: F403, F405
 """Focused settings-screen workflow."""
 
+from salon.core.actions import Action
 from salon.services.component import ServiceComponent
-from salon.ui.settings import preview_policy
 from salon.ui.settings.widgets import SettingsRow
 
 
@@ -52,13 +52,13 @@ class SettingsPreviewController(ServiceComponent):
         # writing straight through to GSettings while the list was hidden.
         self._owner._panel_list.refresh_values()
 
-    # --- the same strip, with the row's value list open above it ---------
+    # --- the same strip, with the row's value control open above it ------
 
     def _enter_peek(self, row: SettingsRow) -> None:
-        """OK on a previewable row: the list opens over the home screen.
+        """OK on a previewable row: its control opens over the home screen.
 
         The value under the cursor is written as it is passed over, so the
-        home screen behind answers the question the list can't — which is
+        home screen behind answers the question the control can't — which is
         what an accent or a tile size actually looks like. What that costs
         is that leaving has to undo it, hence `_peek_restore`: BACK on this
         list promises "unchanged" everywhere else in Settings and has to
@@ -67,8 +67,15 @@ class SettingsPreviewController(ServiceComponent):
         self._owner._peek_row = row
         self._owner._peek_restore = row.current_choice
         self._show_home_behind(True)
-        self._owner._preview_label.set_label(row.label_text)
-        self._owner._preview_hint.set_label(preview_policy.PEEK_HINT)
+        self._owner._preview_bar.set_row(row)
+        self._owner._preview_bar.set_controls(
+            (
+                ("LEFT/RIGHT", "Preview"),
+                (Action.OK, "Keep"),
+                (Action.BACK, "Restore"),
+                (Action.MENU, "Home"),
+            )
+        )
         self._refresh_peek()
 
     def _peek_candidate(self, key: str) -> None:
@@ -85,7 +92,7 @@ class SettingsPreviewController(ServiceComponent):
         if row is None:
             return
         row.refresh()
-        self._owner._preview_value.set_label(row.value_text)
+        self._owner._preview_bar.set_row(row)
 
     def _leave_peek(self, *, commit: bool) -> None:
         row = self._owner._peek_row
@@ -104,15 +111,15 @@ class SettingsPreviewController(ServiceComponent):
         if row is None:
             return
         row.refresh()
-        self._owner._preview_label.set_label(row.label_text)
-        self._owner._preview_value.set_label(f"‹  {row.value_text}  ›")
+        self._owner._preview_bar.set_row(row)
         # "OPTIONS restores" appears only when there is something to
         # restore: on a row already at its default it would name a press
         # that does nothing but flash.
-        restore = "OPTIONS restores · " if row.modified else ""
-        self._owner._preview_hint.set_label(
-            f"LEFT/RIGHT adjusts · UP/DOWN changes setting · {restore}OK/BACK returns · MENU home"
-        )
+        hints = [("D-PAD", "Adjust")]
+        if row.modified:
+            hints.append((Action.OPTIONS, "Restore"))
+        hints.extend(((Action.BACK, "Return"), (Action.MENU, "Home")))
+        self._owner._preview_bar.set_controls(tuple(hints))
 
     def _previewable_indices(self) -> list[int]:
         return [i for i, row in enumerate(self._owner._panel_list.rows) if row.previewable]

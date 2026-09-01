@@ -2,7 +2,7 @@
 """What a value list does to the screen behind it (pure, no gi).
 
 Settings covers the home screen completely, so a row that changes how the
-home screen *looks* is picked from a list of its own names — "Tile size
+home screen *looks* is picked from a control of its own labels — "Tile size
 70%", "Row density 85%" — which is not a claim anyone can evaluate. The
 strip on `OPTIONS` was the first answer to that and it is still here; this
 is the same answer wired to the press people actually make, which is OK.
@@ -15,7 +15,7 @@ from __future__ import annotations
 # passes over it: without "BACK restores" printed somewhere, walking a list
 # and leaving it would look exactly like having chosen the last thing
 # touched.
-PEEK_HINT = "UP/DOWN previews  ·  OK keeps it  ·  BACK restores  ·  MENU goes home"
+PEEK_HINT = "LEFT/RIGHT previews  ·  OK keeps it  ·  BACK restores  ·  MENU goes home"
 
 
 def previews_home(previewable: bool, has_choices: bool) -> bool:

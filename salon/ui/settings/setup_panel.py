@@ -90,12 +90,6 @@ def setup_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             ),
             GroupRow("5 · Pick up your phone"),
             _phone_row(context),
-            GroupRow("Then"),
-            opens_panel(
-                "Everything else",
-                lambda: context.push(_more_panel(context)),
-                detail="The rest of Settings, whenever you want it",
-            ),
         ]
 
     return Panel(
@@ -130,24 +124,3 @@ def _phone_row(context: SettingsContext) -> SettingsRow:
             else "Switch this on, then scan the code that appears on the home screen"
         ),
     )
-
-
-def _more_panel(context: SettingsContext) -> Panel:
-    """A signpost, not a copy: names where each remaining thing lives.
-
-    Listing the sections again would be a second section list that could
-    disagree with the real one. This says which section to go to and lets
-    the left-hand column do its job.
-    """
-
-    def build() -> list[SettingsRow]:
-        return [
-            InfoRow("Tiles", "", detail="Add, rename and reorder what is on the home screen"),
-            InfoRow("Home screen", "", detail="Which rows appear: recents, games, favourites"),
-            InfoRow("Appearance", "", detail="Theme, background, motion and density"),
-            InfoRow("Input", "", detail="Rebind buttons, pair a controller, repeat speed"),
-            InfoRow("Network", "", detail="Wi-Fi, wired and VPN"),
-            InfoRow("System", "", detail="The computer's own settings, and power"),
-        ]
-
-    return Panel(title="Everything else", build=build)

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from salon.ui.settings.footer import SettingsFooter
+from salon.ui.settings.preview_strip import PreviewStrip
 from salon.ui.settings.screen_actions import SettingsActionController
 from salon.ui.settings.screen_navigation import SettingsNavigationController
 from salon.ui.settings.screen_preview import SettingsPreviewController
@@ -196,10 +198,7 @@ class SettingsScreen(
         # there is no longer anything for `activate_row` to do on one.
         self._panel_list.set_activate_handler(self._activate_panel_row)
 
-        self._legend = Gtk.Label()
-        self._legend.add_css_class("salon-settings-legend")
-        self._legend.set_halign(Gtk.Align.START)
-        self._legend.set_ellipsize(Pango.EllipsizeMode.END)
+        self._legend = SettingsFooter(scale)
         self._content.append(self._legend)
 
         # The preview strip lives outside _content so it can sit on the
@@ -212,37 +211,15 @@ class SettingsScreen(
         # walking the list wrote.
         self._peek_row: SettingsRow | None = None
         self._peek_restore = ""
-        self._preview_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self._preview_bar.add_css_class("salon-settings-preview-bar")
-        self._preview_bar.set_visible(False)
-        self._preview_bar.set_valign(Gtk.Align.END)
-        self._preview_bar.set_vexpand(True)
+        self._preview_bar = PreviewStrip(scale)
         self.append(self._preview_bar)
-
-        # Label and value sit together on the left and the hint takes the
-        # rest: the label used to expand, which pushed the two halves of one
-        # statement a thousand pixels apart and left the value touching the
-        # hint. "Tile size" and "65%" are one thing being said.
-        self._preview_label = Gtk.Label()
-        self._preview_label.add_css_class("salon-settings-label")
-        self._preview_label.set_halign(Gtk.Align.START)
-        self._preview_label.set_ellipsize(Pango.EllipsizeMode.END)
-        self._preview_bar.append(self._preview_label)
-
-        self._preview_value = Gtk.Label()
-        self._preview_value.add_css_class("salon-settings-preview-value")
-        self._preview_value.set_halign(Gtk.Align.START)
-        self._preview_bar.append(self._preview_value)
-
-        self._preview_hint = Gtk.Label()
-        self._preview_hint.add_css_class("salon-settings-legend")
-        self._preview_hint.set_hexpand(True)
-        self._preview_hint.set_halign(Gtk.Align.END)
-        self._preview_hint.set_ellipsize(Pango.EllipsizeMode.END)
-        self._preview_bar.append(self._preview_hint)
 
         self._content.set_vexpand(True)
 
         self._section_panels: list[Panel] = []
         self._build_sections()
         self.set_scale(scale)
+
+    def set_input_device(self, source: str, family: str) -> None:
+        self._legend.set_input_device(source, family)
+        self._preview_bar.set_input_device(source, family)

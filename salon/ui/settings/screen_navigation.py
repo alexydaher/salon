@@ -4,7 +4,7 @@
 
 from salon.services.component import ServiceComponent
 from salon.ui.settings import preview_policy
-from salon.ui.settings.screen_shared import Pane, Panel
+from salon.ui.settings.screen_shared import Action, Pane, Panel
 
 
 def _panel_name(panel: Panel) -> str:
@@ -110,10 +110,17 @@ class SettingsNavigationController(ServiceComponent):
             self._owner._legend.set_label(
                 "OK or RIGHT opens · BACK returns home · GROUP changes section"
             )
+            self._owner._legend.set_hints(((Action.OK, "Open"), (Action.BACK, "Home")))
             return
         row = self._owner._panel_list.selected_row
         if self._owner._popup.is_open and row is not None:
-            self._owner._legend.set_label("UP/DOWN picks · OK sets · BACK cancels · MENU goes home")
+            direction = "LEFT/RIGHT" if row.previewable else "UP/DOWN"
+            self._owner._legend.set_label(
+                f"{direction} picks · OK sets · BACK cancels · MENU goes home"
+            )
+            self._owner._legend.set_hints(
+                ((Action.OK, "Set"), (Action.BACK, "Cancel"), (Action.MENU, "Home"))
+            )
             return
         parts = [
             preview_policy.choosing_hint(row.hint, row.previewable)
@@ -137,3 +144,13 @@ class SettingsNavigationController(ServiceComponent):
         )
         parts.append("MENU goes home")
         self._owner._legend.set_label("  ·  ".join(parts))
+        hints = [(Action.OK, "Choose")]
+        if row is not None and row.previewable:
+            hints.append((Action.OPTIONS, "Preview"))
+        elif row is not None and row.modified:
+            hints.append((Action.OPTIONS, "Restore"))
+        hints.append(
+            (Action.BACK, "Back" if len(self._owner._stack) > 1 else "Sections")
+        )
+        hints.append((Action.MENU, "Home"))
+        self._owner._legend.set_hints(tuple(hints))

@@ -50,7 +50,7 @@ class ListChrome:
         """
         gutter = self.gutter(scale)
         pill_width = min(width, scale.px(_PILL_WIDTH_DU))
-        x = max(0, width - pill_width)
+        x = max(0, (width - pill_width) // 2)
         for pill in (self.top, self.bottom):
             pill.set_size_request(pill_width, gutter)
         Gtk.Fixed.move(self._host, self.top, x, 0)
