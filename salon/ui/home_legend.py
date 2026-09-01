@@ -5,11 +5,12 @@
 from salon.services.component import ServiceComponent
 from salon.ui.home_legend_policy import HOME_ACTION_MEANINGS
 from salon.ui.home_shared import (
+    CEC,
     GAMEPAD,
     Action,
     buttons,
 )
-from salon.ui.legend import Hint
+from salon.ui.legend import ControllerGlyph, Hint
 
 
 class HomeLegendController(ServiceComponent):
@@ -24,14 +25,23 @@ class HomeLegendController(ServiceComponent):
         if source == self._owner._input_source:
             return
         self._owner._input_source = source
+        family = buttons.GENERIC
+        if source == GAMEPAD:
+            family = buttons.gamepad_family(self._owner._gamepad.device_name)
+        self._owner._apps_grid.set_input_device(source, family)
+        self._owner._settings_screen.set_input_device(source, family)
         self._update_legend()
 
-    def _legend_caption(self, action: Action) -> str:
+    def _legend_caption(self, action: Action) -> str | ControllerGlyph:
         source = self._owner._input_source
         family = buttons.GENERIC
         if source == GAMEPAD:
             family = buttons.gamepad_family(self._owner._gamepad.device_name)
-        return buttons.label(action, source, family=family)
+        label = buttons.label(action, source, family=family)
+        glyph = buttons.glyph(action, source, family=family)
+        if glyph:
+            return ControllerGlyph(glyph, label)
+        return label.upper() if source == CEC else label
 
     def _legend_hints(self) -> tuple[Hint, ...]:
         """What can be pressed *here*, most-used first.
@@ -51,7 +61,7 @@ class HomeLegendController(ServiceComponent):
         if self._owner._child_active or self._owner._pointer_mode:
             # The one thing that still works from behind another
             # application, and the one nobody can guess.
-            return ((cap(Action.MENU), "Close app"),)
+            return ((cap(Action.MENU), "Back to Salon"),)
         if self._owner._nav_focused:
             return ((cap(Action.OK), "Choose"), (cap(Action.DOWN), "Back to tiles"))
         # Home's available actions do not change with time. Keeping the

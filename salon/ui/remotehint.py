@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The standing offer of a remote, in the bottom-right corner.
+"""The standing offer of a remote, at the foot of the console rail.
 
 `ui/phonepairing.py` is the full screen: a QR big enough to scan from a
 sofa, opened deliberately from MENU or the top bar. This is the other half
@@ -40,10 +40,16 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui.qrcode import QrCode  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
+
+# A version-6 symbol plus its quiet zone is 49 modules wide. 196du gives
+# every module exactly four pixels at the reference size. The next useful
+# step is 245du, which cannot fit the console card after its quiet padding.
+_HOME_QR_DU = 196.0
+_SETTINGS_QR_DU = 102.0
+_HOME_CARD_HEIGHT_DU = 352.0
 
 
 class RemoteHint(Gtk.Box):
@@ -56,19 +62,19 @@ class RemoteHint(Gtk.Box):
         # The corner and nothing else. An overlay child fills the overlay
         # unless it is told otherwise, and a transparent box across the
         # whole screen swallows every click meant for a tile.
-        self.set_halign(Gtk.Align.START)
-        self.set_valign(Gtk.Align.END)
-        self.set_visible(False)
-
         self._pairing = pairing
         # What the QR currently encodes. `refresh` runs on a poll, and
         # re-encoding an unchanged URL a few dozen times a minute is a
         # version-6 matrix built for nothing.
         self._shown_url = ""
+        self._settings_layout = False
 
-        self._title = Gtk.Label(label="No remote connected")
+        self._title = Gtk.Label(label="Phone remote")
         self._title.add_css_class("salon-remote-hint-title")
-        self._title.set_halign(Gtk.Align.START)
+        self._title.set_halign(Gtk.Align.FILL)
+        self._title.set_xalign(0.0)
+        self._title.set_hexpand(True)
+        self._title.set_max_width_chars(20)
         self._title.set_ellipsize(Pango.EllipsizeMode.END)
         self.append(self._title)
 
@@ -79,14 +85,20 @@ class RemoteHint(Gtk.Box):
         self._qr.set_halign(Gtk.Align.START)
         self._row.append(self._qr)
 
-        self._detail = Gtk.Label()
-        self._detail.add_css_class("salon-remote-hint-detail")
-        self._detail.set_halign(Gtk.Align.START)
-        self._detail.set_justify(Gtk.Justification.LEFT)
-        self._detail.set_valign(Gtk.Align.CENTER)
-        self._detail.set_wrap(True)
-        self._detail.set_max_width_chars(24)
-        self._row.append(self._detail)
+        self._details = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._details.set_valign(Gtk.Align.CENTER)
+        self._row.append(self._details)
+        self._instruction = self._detail_label()
+        self._instruction.add_css_class("salon-remote-hint-instruction")
+        self._instruction.set_label("Scan to connect")
+        self._details.append(self._instruction)
+        self._address = self._detail_label()
+        self._address.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self._details.append(self._address)
+        self._code = Gtk.Label()
+        self._code.add_css_class("salon-remote-hint-code")
+        self._code.set_halign(Gtk.Align.START)
+        self._details.append(self._code)
 
         click = Gtk.GestureClick()
         click.connect("released", lambda *_: on_open())
@@ -94,18 +106,82 @@ class RemoteHint(Gtk.Box):
         self.set_tooltip_text("Open the pairing screen")
         self.update_property(
             [Gtk.AccessibleProperty.LABEL],
-            ["No remote connected. Scan this code to use a phone as the remote."],
+            ["Connect your phone. Scan the QR code to use it as the remote."],
         )
 
         self.set_scale(scale)
 
+    @staticmethod
+    def _detail_label() -> Gtk.Label:
+        label = Gtk.Label()
+        label.add_css_class("salon-remote-hint-detail")
+        label.set_halign(Gtk.Align.START)
+        label.set_xalign(0.0)
+        label.set_single_line_mode(True)
+        label.set_max_width_chars(26)
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        return label
+
     def set_scale(self, scale: Scale) -> None:
+        self._scale = scale
         self.set_spacing(scale.px(12.0))
         self._row.set_spacing(scale.px(16.0))
-        self.set_margin_start(scale.px(30.0))
-        self.set_margin_bottom(scale.px(34.0))
-        self.set_size_request(scale.px(tokens.CONSOLE_WIDTH_DU - 60.0), -1)
-        self._qr.set_size(scale.px(102.0))
+        self._details.set_spacing(scale.px(2.0))
+        self.set_settings_layout(self._settings_layout)
+
+    def set_settings_layout(self, settings: bool) -> None:
+        """Use the dedicated 540x123 card beneath Settings' sections pane."""
+        self._settings_layout = settings
+        self._repack(settings)
+        self._qr.set_size(
+            self._scale.px(_SETTINGS_QR_DU if settings else _HOME_QR_DU)
+        )
+        if settings:
+            self.add_css_class("settings-pairing")
+        else:
+            self.remove_css_class("settings-pairing")
+
+    def _repack(self, settings: bool) -> None:
+        for widget in (
+            self._title,
+            self._row,
+            self._qr,
+            self._details,
+            self._instruction,
+            self._address,
+            self._code,
+        ):
+            parent = widget.get_parent()
+            if isinstance(parent, Gtk.Box):
+                parent.remove(widget)
+        if settings:
+            self.set_orientation(Gtk.Orientation.HORIZONTAL)
+            self._qr.set_halign(Gtk.Align.START)
+            self._details.set_halign(Gtk.Align.FILL)
+            self.append(self._qr)
+            self.append(self._row)
+            self._row.set_orientation(Gtk.Orientation.VERTICAL)
+            self._row.set_hexpand(True)
+            self._row.append(self._title)
+            self._row.append(self._details)
+            self._details.append(self._instruction)
+            self._details.append(self._address)
+            self._details.append(self._code)
+        else:
+            self.set_orientation(Gtk.Orientation.VERTICAL)
+            self._qr.set_halign(Gtk.Align.CENTER)
+            self._details.set_halign(Gtk.Align.CENTER)
+            self.append(self._title)
+            self.append(self._instruction)
+            self.append(self._qr)
+            self.append(self._details)
+            self._details.append(self._address)
+            self._details.append(self._code)
+        alignment = 0.0 if settings else 0.5
+        halign = Gtk.Align.START if settings else Gtk.Align.CENTER
+        for label in (self._title, self._instruction, self._address, self._code):
+            label.set_halign(halign)
+            label.set_xalign(alignment)
 
     def refresh(self) -> bool:
         """Re-read the server. Returns False when there is nothing true to
@@ -121,5 +197,7 @@ class RemoteHint(Gtk.Box):
         if pair_url != self._shown_url:
             self._shown_url = pair_url
             self._qr.set_text(pair_url)
-            self._detail.set_label(f"Scan to use your phone\n{url} · {self._pairing.code}")
+            address = str(url).removeprefix("http://").removeprefix("https://")
+            self._address.set_label(address)
+            self._code.set_label(f"CODE  {self._pairing.code}")
         return True

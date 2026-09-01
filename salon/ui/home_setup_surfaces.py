@@ -20,6 +20,7 @@ from salon.ui.home_shared import (
     NowPlayingWatcher,
     PairingServer,
     RemoteHint,
+    RemoteHintHost,
     RemoteRow,
     ScaleManager,
     ScreenSaver,
@@ -113,8 +114,13 @@ class HomeSurfaceSetup(ServiceComponent):
         # says, and it is the input this is built for.
         self._owner._input_source = CEC
         self._owner._gamepad_count = 0
-        self._owner._remote_hint = RemoteHint(
-            self._owner._scale, self._owner._pairing, on_open=self._owner._open_phone_pairing
+        self._owner._remote_hint = RemoteHintHost(
+            RemoteHint(
+                self._owner._scale,
+                self._owner._pairing,
+                on_open=self._owner._open_phone_pairing,
+            ),
+            self._owner._scale,
         )
         self._owner._launching_overlay = LaunchingOverlay(self._owner._scale)
         self._owner._overlay.add_overlay(self._owner._launching_overlay)

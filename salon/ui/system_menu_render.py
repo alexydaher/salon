@@ -21,8 +21,13 @@ class SystemMenuRenderer:
             return
         frame = self._frames[-1]
         frame.selected = max(0, min(frame.selected, len(frame.items) - 1)) if frame.items else 0
-        self._title.set_label(frame.title)
-        self._title.set_visible(bool(frame.title))
+        enriched = len(self._frames) == 1
+        self._header.set_content(
+            frame.title,
+            self._header_subtitle if enriched else "",
+            self._header_icon_name if enriched else "",
+        )
+        self._header_separator.set_visible(bool(frame.title))
         self.update_property([Gtk.AccessibleProperty.LABEL], [frame.title or "Menu"])
         for index, item in enumerate(frame.items):
             row = Gtk.Button()
@@ -46,6 +51,7 @@ class SystemMenuRenderer:
             label.set_xalign(0.0)
             label.set_hexpand(True)
             label.set_ellipsize(Pango.EllipsizeMode.END)
+            label.set_max_width_chars(30)
             content.append(label)
             tail = Gtk.Label(label="›" if item.submenu is not None else item.trailing)
             tail.add_css_class("salon-system-menu-trailing")
@@ -65,20 +71,27 @@ class SystemMenuRenderer:
         self._scale = scale
         self._card.set_spacing(scale.px(6.0))
         self._card.set_size_request(scale.px(560.0), -1)
-        for setter in (
-            self._card.set_margin_start,
-            self._card.set_margin_end,
-            self._card.set_margin_top,
-            self._card.set_margin_bottom,
-        ):
-            setter(scale.safe_margin_px)
+        self._apply_content_insets()
         self._scroller.set_max_content_height(scale.px(600.0))
         self._items_box.set_spacing(scale.px(4.0))
         self._description.set_margin_start(scale.px(24.0))
         self._description.set_margin_end(scale.px(24.0))
         self._description.set_margin_top(scale.px(8.0))
         self._legend.set_scale(scale)
+        self._header.set_scale(scale)
         self._style_rows()
+
+    def set_content_insets(self, left: float = 0.0, right: float = 0.0) -> None:
+        self._content_insets = (left, right) if left or right else None
+        self._apply_content_insets()
+
+    def _apply_content_insets(self) -> None:
+        margin = self._scale.safe_margin_px
+        left, right = self._content_insets or (margin, margin)
+        self._card.set_margin_start(round(left))
+        self._card.set_margin_end(round(right))
+        self._card.set_margin_top(margin)
+        self._card.set_margin_bottom(margin)
 
     def _style_rows(self) -> None:
         scale = self._scale

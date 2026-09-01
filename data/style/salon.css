@@ -35,6 +35,19 @@ window {
   border-left-color: @accent;
 }
 
+/* Aurora Console keeps the whole catalogue readable while letting the live
+   row come forward as one unit.  This is the mockup's 80% resting treatment,
+   with the same short transition as its heading so moving vertically feels
+   like attention shifting rather than rows blinking on and off. */
+.salon-tile-row {
+  opacity: 0.80;
+  transition: opacity 180ms ease;
+}
+
+.salon-tile-row.row-focused {
+  opacity: 1;
+}
+
 .salon-status-bar {
   /* Tabular figures: without them the clock's layout twitches every time a
      1 ticks past, which is very visible at this size. */
@@ -360,7 +373,7 @@ toast > label {
    presses — see static_rows.GroupRow. */
 .salon-settings-row.group {
   color: @text-secondary;
-  padding: var(--pad-m) var(--pad-m) var(--pad-s) var(--pad-m);
+  padding: calc(var(--pad-s) / 2) var(--pad-m) 0 var(--pad-m);
   background-color: transparent;
   box-shadow: none;
 }
@@ -485,6 +498,22 @@ toast > label {
   padding: var(--pad-s) var(--pad-m);
 }
 
+.salon-system-menu-header {
+  padding: var(--pad-s) var(--pad-m) var(--pad-m);
+}
+
+.salon-system-menu-header .salon-system-menu-title {
+  color: @text-primary;
+  font-size: calc(var(--font-settings-body) * 1.0);
+  padding: 0;
+}
+
+.salon-system-menu-card separator {
+  background-color: alpha(@text-primary, 0.14);
+  min-height: calc(var(--focus-ring) / 3);
+  margin-bottom: var(--pad-s);
+}
+
 .salon-now-playing {
   background-color: alpha(@surface-1, 0.72);
   border: var(--focus-ring) solid alpha(@text-primary, 0.08);
@@ -554,6 +583,12 @@ toast > label {
   font-size: var(--font-menu-item);
   font-weight: var(--weight-menu-item);
   font-feature-settings: "tnum" 1;
+}
+
+.salon-preview-title {
+  color: @text-primary;
+  font-size: calc(var(--font-overlay-title) * 0.8);
+  font-weight: 700;
 }
 
 /* The top bar's buttons name themselves once the cursor is on them. A
@@ -649,7 +684,7 @@ toast > label {
   background-color: @surface-1;
   border: var(--focus-ring) solid alpha(@text-primary, 0.06);
   border-radius: var(--radius-lg);
-  padding: var(--pad-m);
+  padding: var(--console-block-pad);
   opacity: 0.80;
   transition: opacity 160ms ease;
 }
@@ -676,14 +711,19 @@ toast > label {
 .salon-console-sidebar {
   background-color: alpha(@surface-1, 0.36);
   border-right: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.11);
-  padding: var(--pad-m);
+  padding: var(--console-inset-y) var(--console-inset-x);
 }
 
 .salon-console-block {
   background-color: alpha(@surface-2, 0.68);
   border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.18);
   border-radius: var(--radius);
-  padding: var(--pad-m);
+  padding: var(--console-block-pad);
+}
+
+.salon-console-time {
+  padding: calc(var(--console-block-pad) - calc(var(--focus-ring) * 1.33))
+    var(--console-block-pad);
 }
 
 .salon-console-time .salon-status-clock {
@@ -694,7 +734,7 @@ toast > label {
 
 .salon-console-time .salon-status-date {
   color: @text-secondary;
-  font-size: var(--font-tile-subtitle);
+  font-size: calc(var(--font-tile-subtitle) * 0.75);
 }
 
 .salon-console-heading {
@@ -702,6 +742,7 @@ toast > label {
   font-size: calc(var(--font-settings-group) * 0.62);
   font-weight: 700;
   letter-spacing: 0.22em;
+  margin-bottom: var(--heading-gap);
 }
 
 .salon-console-stat {
@@ -741,6 +782,43 @@ toast > label {
   font-size: calc(var(--font-tile-subtitle) * 0.62);
 }
 
+/* Additional MPRIS sources stay in the same left-column block. Each row is
+   a real independent transport target; the first row remains the physical
+   remote's play-key target and the rows below never borrow its state. */
+.salon-now-playing-sources {
+  margin-top: calc(var(--pad-s) / 2);
+  border-top: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.12);
+  padding-top: calc(var(--pad-s) / 2);
+}
+
+.salon-now-playing-source {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  padding: calc(var(--pad-s) / 2);
+  color: @text-secondary;
+}
+
+.salon-now-playing-source:hover {
+  background-color: alpha(@text-primary, 0.08);
+}
+
+.salon-media-timeline {
+  margin-top: calc(var(--pad-s) / 3);
+  color: @text-secondary;
+  font-size: calc(var(--font-tile-subtitle) * 0.52);
+}
+
+.salon-media-progress trough {
+  min-height: calc(var(--focus-ring) / 2);
+  background-color: alpha(@text-primary, 0.15);
+}
+
+.salon-media-progress progress {
+  min-height: calc(var(--focus-ring) / 2);
+  background-color: @accent;
+}
+
 .salon-home-title {
   color: @text-primary;
   font-size: var(--font-overlay-title);
@@ -755,20 +833,46 @@ toast > label {
 
 .salon-remote-hint {
   background-color: alpha(@surface-1, 0.90);
-  border-color: alpha(@accent, 0.48);
+  border-color: alpha(@accent, 0.42);
   border-radius: var(--radius);
-  padding: var(--pad-m);
+  padding: var(--console-block-pad);
   opacity: 1;
 }
 
 .salon-remote-hint-title {
-  color: @accent;
-  font-size: calc(var(--font-settings-group) * 0.62);
-  letter-spacing: 0.18em;
+  color: @text-primary;
+  font-size: calc(var(--font-settings-body) * 0.72);
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .salon-remote-hint-detail {
-  font-size: calc(var(--font-tile-subtitle) * 0.58);
+  color: @text-secondary;
+  font-size: calc(var(--font-tile-subtitle) * 0.54);
+}
+
+.salon-remote-hint-instruction {
+  color: @accent;
+  font-weight: 600;
+}
+
+.salon-remote-hint-code {
+  color: @accent;
+  background-color: alpha(@accent, 0.12);
+  border-radius: var(--radius-pill);
+  padding: calc(var(--pad-s) / 4) var(--pad-s);
+  font-size: calc(var(--font-settings-body) * 0.68);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.salon-remote-hint.settings-pairing {
+  padding: calc(var(--pad-s) / 2) var(--pad-s);
+}
+
+.salon-remote-hint.settings-pairing .salon-remote-hint-code {
+  background-color: transparent;
+  padding: 0;
 }
 
 .salon-row-heading {
@@ -802,28 +906,52 @@ toast > label {
   font-size: var(--font-overlay-title);
 }
 
+.salon-app-group-heading {
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-body) * 0.58);
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+
+.salon-app-group-heading separator {
+  background-color: alpha(@text-primary, 0.12);
+  min-height: calc(var(--focus-ring) / 3);
+}
+
 .salon-letter-rail-vertical {
-  background-color: alpha(@surface-2, 0.76);
-  border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.22);
+  background-color: alpha(@surface-1, 0.72);
+  border: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.14);
   border-radius: var(--radius-pill);
-  padding: var(--pad-s) 0;
+  padding: calc(var(--pad-s) / 2) 0;
+  box-shadow: 0 var(--focus-ring) var(--pad-m) alpha(@surface-0, 0.32);
 }
 
 .salon-letter-rail-vertical .salon-letter {
-  padding: 0 var(--pad-s);
-  font-size: calc(var(--font-settings-body) * 0.62);
-  opacity: 0.72;
+  min-width: var(--pad-m);
+  padding: 0;
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-body) * 0.58);
+  font-weight: 600;
+  opacity: 0.56;
 }
 
 .salon-letter-rail-vertical .salon-letter.unavailable {
-  opacity: 0.20;
+  opacity: 0.14;
+}
+
+.salon-letter-rail-vertical .salon-letter:not(.unavailable):hover {
+  color: @text-primary;
+  background-color: alpha(@text-primary, 0.10);
+  border-radius: var(--radius-pill);
+  opacity: 1;
 }
 
 .salon-letter-rail-vertical .salon-letter.current {
   color: @surface-0;
   background-color: @accent;
-  border-radius: var(--radius);
-  box-shadow: 0 0 var(--pad-m) alpha(@accent, 0.55);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 var(--pad-s) alpha(@accent, 0.42);
+  opacity: 1;
 }
 
 .salon-apps-grid .salon-bottom-bar {
@@ -887,6 +1015,15 @@ toast > label {
   background-color: alpha(@surface-1, 0.88);
   border-radius: 0;
   border-top: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.18);
+  padding: 0;
+}
+
+.salon-system-menu-scrim .salon-system-menu-item {
+  font-size: calc(var(--font-menu-item) * 0.73);
+}
+
+.salon-system-menu-header .salon-settings-detail {
+  font-size: calc(var(--font-tile-subtitle) * 0.67);
 }
 
 /* --- The value list (ui/settings/popup.py) ----------------------------- */
@@ -944,4 +1081,62 @@ toast > label {
 .salon-value-popup.preview-values .salon-value-option.selected {
   background-color: alpha(@text-primary, 0.18);
   border-color: @accent;
+}
+
+.salon-settings-preview-bar .salon-value-option {
+  background-color: alpha(@surface-2, 0.78);
+  border: var(--focus-ring) solid transparent;
+  padding: var(--pad-s);
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-body) * 0.70);
+  font-weight: var(--weight-menu-item);
+}
+
+.salon-settings-preview-bar .salon-value-option.selected {
+  background-color: alpha(@text-primary, 0.18);
+  border-color: @accent;
+  color: @text-primary;
+}
+
+.salon-settings-preview-bar .salon-value-option-tick {
+  font-size: calc(var(--font-settings-group) * 0.55);
+  letter-spacing: 0.16em;
+  color: @text-secondary;
+}
+
+.salon-preview-range {
+  color: @text-secondary;
+}
+
+.salon-preview-range-value {
+  color: @text-primary;
+  font-size: var(--font-settings-group);
+  font-weight: var(--weight-settings-group);
+  font-feature-settings: "tnum" 1;
+}
+
+.salon-preview-range-ends {
+  color: @text-secondary;
+  font-size: calc(var(--font-settings-body) * 0.62);
+  font-feature-settings: "tnum" 1;
+}
+
+.salon-preview-slider trough {
+  min-height: calc(var(--focus-ring) * 1.5);
+  border-radius: var(--radius-pill);
+  background-color: alpha(@text-primary, 0.22);
+}
+
+.salon-preview-slider highlight {
+  border-radius: var(--radius-pill);
+  background-color: @accent;
+}
+
+.salon-preview-slider slider {
+  min-width: calc(var(--focus-ring) * 5);
+  min-height: calc(var(--focus-ring) * 5);
+  border-radius: var(--radius-pill);
+  background-color: @text-primary;
+  border: var(--focus-ring) solid @accent;
+  box-shadow: 0 0 var(--pad-s) alpha(@accent, 0.52);
 }

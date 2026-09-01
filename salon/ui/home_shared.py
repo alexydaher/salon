@@ -109,6 +109,7 @@ from salon.ui.onboarding import Onboarding  # noqa: E402
 from salon.ui.osd import VolumeOsd  # noqa: E402
 from salon.ui.overlays import LaunchingOverlay, MenuFrame, SystemMenu, SystemMenuItem  # noqa: E402
 from salon.ui.phonepairing import PhonePairing  # noqa: E402
+from salon.ui.remote_hint_host import RemoteHintHost  # noqa: E402
 from salon.ui.remotehint import RemoteHint  # noqa: E402
 from salon.ui.scale import Scale, ScaleManager  # noqa: E402
 from salon.ui.screensaver import ScreenSaver  # noqa: E402

@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core import tokens
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     Callable,
@@ -161,18 +162,22 @@ class HomeOverlayController(ServiceComponent):
                     detail="Open the complete Home layout editor",
                 )
             )
-        # No Cancel row. BACK closes it, OPTIONS closes it, a click on the
-        # scrim closes it, and the legend at the bottom of the screen names
-        # the button — a row that does nothing is one more thing for an
-        # accelerating repeat to land on.
+        # BACK, OPTIONS, or the scrim closes this; no redundant Cancel row.
+        left = self._owner._scale.px(tokens.CONSOLE_WIDTH_DU)
+        right = self._owner._scale.px(132.0) if from_grid else 0.0
+        self._owner._tile_menu.set_content_insets(left, right)
+        destination = tile.launch.target
+        subtitle = " · ".join(part for part in (tile.subtitle or "", destination) if part)
         self._owner._tile_menu.set_items(
-            items, title=tile.title, frame_id=f"tile-{tile.id}"
+            items,
+            title=tile.title,
+            subtitle=subtitle,
+            icon_name=tile.icon_name or "",
+            frame_id=f"tile-{tile.id}",
         )
         self._owner._tile_menu.show()
 
-    def _remove_from_home_frame(
-        self, tile: Tile, row_id: str, tile_id: str
-    ) -> MenuFrame:
+    def _remove_from_home_frame(self, tile: Tile, row_id: str, tile_id: str) -> MenuFrame:
         return MenuFrame(
             "confirm-remove-home",
             "Remove from Home?",
@@ -204,9 +209,7 @@ class HomeOverlayController(ServiceComponent):
         # Do not preserve by id: Recents/Favourites may still expose the
         # same id and would pull focus into a provider-owned row. The old
         # coordinate clamps to the next tile, then the previous at an end.
-        self._owner._refresh_catalog(
-            preserve_focus=False, fallback_position=fallback
-        )
+        self._owner._refresh_catalog(preserve_focus=False, fallback_position=fallback)
 
     def _toggle_favourite(self, tile: Tile) -> None:
         pinned = favourites.toggle_favourite(self._owner._settings, tile.id)

@@ -12,11 +12,12 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("Gsk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Pango", "1.0")
-from gi.repository import Graphene, Gtk, Pango  # noqa: E402
+from gi.repository import Graphene, Gtk  # noqa: E402
 
 from salon.ui import motion  # noqa: E402
 from salon.ui.legend import Hint, Legend  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
+from salon.ui.system_menu_header import SystemMenuHeader  # noqa: E402
 from salon.ui.system_menu_model import MenuFrame, SystemMenuItem  # noqa: E402
 from salon.ui.system_menu_render import SystemMenuRenderer  # noqa: E402
 
@@ -64,13 +65,10 @@ class SystemMenu(Gtk.Box, motion.FadesIn, SystemMenuRenderer):
         self._card.set_vexpand(True)
         self.append(self._card)
 
-        self._title = Gtk.Label()
-        self._title.add_css_class("salon-system-menu-title")
-        self._title.set_halign(Gtk.Align.START)
-        self._title.set_xalign(0.0)
-        self._title.set_ellipsize(Pango.EllipsizeMode.END)
-        self._title.set_visible(False)
-        self._card.append(self._title)
+        self._header = SystemMenuHeader()
+        self._card.append(self._header)
+        self._header_separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        self._card.append(self._header_separator)
 
         self._scroller = Gtk.ScrolledWindow()
         self._scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -97,8 +95,10 @@ class SystemMenu(Gtk.Box, motion.FadesIn, SystemMenuRenderer):
         # stationary cursor, so without this the menu opens with whatever
         # item happens to be under the mouse selected rather than the first.
         self._hover_enabled = False
+        self._header_subtitle = ""
+        self._header_icon_name = ""
+        self._content_insets: tuple[float, float] | None = None
         self.set_items(items)
-
         self._legend = Legend(scale)
         self._legend.set_visible(False)
         self.append(self._legend)
@@ -116,18 +116,20 @@ class SystemMenu(Gtk.Box, motion.FadesIn, SystemMenuRenderer):
         title: str = "",
         frame_id: str = "root",
         selected: int = 0,
+        subtitle: str = "",
+        icon_name: str = "",
     ) -> None:
         """Replace the root frame when dynamic labels or capabilities change."""
         self._frames = [MenuFrame(frame_id, title, items, selected)]
+        self._header_subtitle = subtitle
+        self._header_icon_name = icon_name
         self._render_frame()
 
     def push_frame(self, frame: MenuFrame) -> None:
         """Enter a submenu without unmapping the scrim or losing its parent."""
         self._frames.append(frame)
         self._render_frame()
-        self.announce(
-            f"{frame.title} menu", Gtk.AccessibleAnnouncementPriority.MEDIUM
-        )
+        self.announce(f"{frame.title} menu", Gtk.AccessibleAnnouncementPriority.MEDIUM)
 
     def _on_scrim_clicked(
         self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float
@@ -199,9 +201,7 @@ class SystemMenu(Gtk.Box, motion.FadesIn, SystemMenuRenderer):
             self._render_frame()
             title = self.current_title
             if title:
-                self.announce(
-                    f"{title} menu", Gtk.AccessibleAnnouncementPriority.MEDIUM
-                )
+                self.announce(f"{title} menu", Gtk.AccessibleAnnouncementPriority.MEDIUM)
             return
         self.hide()
 
@@ -240,6 +240,7 @@ class SystemMenu(Gtk.Box, motion.FadesIn, SystemMenuRenderer):
         if item.closes:
             self.hide()
         item.action()
+
 
 def point_at(x: float, y: float) -> Graphene.Point:
     point = Graphene.Point()
