@@ -46,6 +46,7 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
         server.add_handler("/action", self._owner._handle_action)
         server.add_handler("/launch", self._owner._handle_launch)
         server.add_handler("/transport", self._owner._handle_transport)
+        server.add_handler("/running", self._owner._handle_running)
         server.add_handler("/tune", self._owner._handle_tune)
         server.add_handler("/pointer", self._owner._handle_pointer)
         try:

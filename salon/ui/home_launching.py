@@ -17,35 +17,50 @@ from salon.ui.home_shared import (
 
 
 class HomeLaunchController(ServiceComponent):
-    def _return_from_child(self) -> None:
-        """Come back to Salon from whatever is in front of it.
+    def _on_running_changed(self) -> None:
+        self._owner._status_info.set_running_count(len(self._owner._launcher.running_apps))
+        self._owner._publish_remote_state()
 
-        This is the answer to "how do I get out of Netflix with a
-        controller". Wayland forbids a client raising itself, so Salon
-        cannot simply put its own window back on top — the only lever it has
-        over a window it does not own is the process it started, so MENU
-        ends that process and the compositor hands focus back by itself.
+    def _return_from_child(self) -> bool:
+        """Come back to Salon while leaving the foreground app alive."""
+        title = self._owner._launcher.child_title or "the app"
+        if self._owner._pointer.ready and self._owner._launcher.return_to_salon():
+            if self._owner._pointer.switch_window():
+                self._owner._toast(f"Returning to Salon — {title} stays open.")
+                return True
+        self._owner._toast(
+            "Salon needs the remote-control permission to switch windows without closing the app."
+        )
+        self._owner._pending_launch = None
+        return False
 
-        The gamepad is what makes this reachable at all: libmanette reads
-        evdev directly, so button presses arrive even while Chrome holds
-        keyboard focus. A CEC remote reaches it the same way. A keyboard
-        does not, and can't — its events go to the focused window — which is
-        why the toast at launch names the controller button.
-        """
+    def _close_running_app(self, app_id: str) -> bool:
+        title = next(
+            (app.title for app in self._owner._launcher.running_apps if app.id == app_id),
+            "the app",
+        )
+        if self._owner._launcher.close_app(app_id):
+            self._owner._toast(f"Closing {title}…")
+            return True
+        front = app_id == self._owner._launcher.front_child_id
+        return self._close_failed(title, return_home=front)
+
+    def _close_front_app(self) -> bool:
+        app_id = self._owner._launcher.front_child_id
+        if app_id:
+            return self._close_running_app(app_id)
         title = self._owner._launcher.child_title or "the app"
         if self._owner._launcher.close_child():
             self._owner._toast(f"Closing {title}…")
-            return
-        # No handle on it: a .desktop launch whose pid was a wrapper that
-        # exited immediately (§11). Saying so beats a button that silently
-        # does nothing — and the launcher is told to stop tracking it,
-        # because nothing will ever report that app going away and MENU
-        # would otherwise keep answering "I can't close that" long after the
-        # user closed it themselves.
-        self._owner._pointer_mode = False
-        self._owner._child_active = False
-        self._owner._launcher.abandon()
-        self._owner._toast(f"Salon can't close {title} — use the app's own way out.")
+            return True
+        return self._close_failed(title, return_home=True)
+
+    def _close_failed(self, title: str, *, return_home: bool) -> bool:
+        if return_home and self._owner._return_from_child():
+            self._owner._toast(f"Salon couldn't close {title}, so it returned home instead.")
+        else:
+            self._owner._toast(f"Salon can't close {title} — it is still running.")
+        return False
 
     def _launch_focused(self) -> None:
         tile = self._owner._catalog.tile_at(self._owner._focus.row, self._owner._focus.col)
@@ -59,24 +74,13 @@ class HomeLaunchController(ServiceComponent):
         if tile.launch.kind is LaunchKind.BUILTIN:
             self._handle_builtin(tile.launch.target)
             return
-        # Whichever full-screen browser it came from gets out of the way:
-        # the launching overlay is stacked *below* search and the all-apps
-        # grid, so leaving one of those up hides the only feedback that
-        # anything is happening at all.
         if self._owner._apps_grid.get_visible():
             self._owner._apps_grid.close()
         if self._owner._search.get_visible():
             self._owner._search.close()
         if self._owner._launcher.has_child:
-            # Something is already out there. Only the phone can reach this
-            # — on the television the launcher is behind the app and nobody
-            # can press OK on a tile they cannot see — and launching over
-            # the top of it is what breaks MENU: the launcher would forget
-            # the first child completely, so the button that closes an app
-            # would close the *new* one and leave the old app on screen with
-            # nothing tracking it.
-            #
-            # So: close what is there, and open this once it has gone.
+            # Return to Salon without ending what is there, then open this
+            # once the compositor has put Salon back in front.
             self._owner._pending_launch = tile
             self._return_from_child()
             return
@@ -154,7 +158,7 @@ class HomeLaunchController(ServiceComponent):
         self._owner._launching_overlay.show_for(
             tile,
             accent=artwork.accent,
-            hint=f"{self._close_hint()} to close it and come back to Salon",
+            hint=f"{self._close_hint()} to return to Salon; the app keeps running",
         )
         recents.push_recent(self._owner._settings, tile.id)
         self._owner._refresh_catalog(preserve_focus=True)
@@ -184,11 +188,11 @@ class HomeLaunchController(ServiceComponent):
                     if self._owner._pairing.connected
                     else "Menu/Start"
                 )
-                + " = close and come back"
+                + " = back to Salon"
             )
         else:
             self._owner._child_active = True
-            self._owner._toast(f"{self._close_hint()} to close {tile_title} and come back.")
+            self._owner._toast(f"{self._close_hint()} to return; {tile_title} keeps running.")
         # The child taking focus arrives asynchronously, long after the
         # press that launched it — so without this the phone's header still
         # said "home" while the application was on the television, and only

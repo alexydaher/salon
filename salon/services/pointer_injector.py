@@ -107,6 +107,10 @@ class PointerInjector:
     def type_text(self, value: str) -> bool:
         return self._events.type_text(value)
 
+    def switch_window(self) -> bool:
+        """Ask the compositor for its most-recent-window switch."""
+        return self._events.switch_window()
+
     def _start_mutter(self) -> bool:
         return self._mutter._start_mutter()  # noqa: SLF001
 

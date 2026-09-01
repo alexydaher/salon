@@ -233,3 +233,52 @@ def test_the_volume_popover_hangs_off_a_measured_header() -> None:
     assert "--header-h" in (UI / "dom.js").read_text(), "nothing measures the header"
     assert "measureHeader" in (UI / "render.js").read_text(), "it is measured but never"
     assert "top: calc(var(--header-h" in (UI / "overlays.css").read_text()
+
+
+def test_media_surface_names_apps_sources_and_shared_controls_honestly() -> None:
+    page = PAGE.read_text()
+    script = (UI / "nowplaying.js").read_text()
+    style = (UI / "media.css").read_text()
+    assert 'id="television-title">On the television' in page
+    assert 'id="running-section" hidden' in page
+    assert 'id="now-playing-title">Now playing' in page
+    assert "running-chip" not in script
+    assert 'post("/running", { what: "close"' in script
+    assert 'post("/transport", { what, source: source.id })' in script
+    assert "REMOTE PLAY TARGET" not in script and "PLAY KEY" not in script
+    assert ".single-source .media-source-cover" not in style
+    assert 'sources.length > 1 ? `${sources.length} sources` : ""' in script
+    assert "source-progress" in script and "source-progress" in style
+
+
+def test_media_surface_keeps_volume_optional_and_single_source_compact() -> None:
+    style = (UI / "media.css").read_text()
+    assert "body.np-open #volume" not in style, "the volume popover is forced open"
+    assert "body.np-open #hdr-volume" not in style, "there is no way to open volume"
+    assert "min-height: 20rem" not in style, "one source is inflated to fill the screen"
+    assert "color: var(--fg)" in style, "media copy can inherit an unreadable colour"
+
+
+def test_media_surface_moves_focus_and_hides_the_covered_pane() -> None:
+    page = PAGE.read_text()
+    script = (UI / "nowplaying.js").read_text()
+    assert re.search(
+        r'id="np-full" role="region" aria-labelledby="media-title" tabindex="-1" hidden',
+        page,
+    )
+    assert '<h2 id="media-title">Media</h2>' in page
+    assert "pane.inert = open" in script
+    assert 'pane.setAttribute("aria-hidden", open ? "true" : "false")' in script
+    assert "surface.focus({ preventScroll: true })" in script
+    assert "restoreFocus.focus()" in script
+
+
+def test_an_uncloseable_app_keeps_the_return_to_salon_escape_hatch() -> None:
+    page = PAGE.read_text()
+    render = (UI / "render.js").read_text()
+    style = (UI / "media.css").read_text()
+
+    assert 'id="hdr-menu"' in page
+    assert 'menu.setAttribute("aria-label", inApp ? "Return to Salon" : "Menu")' in render
+    assert 'front?.closeable === false' in render
+    assert "#hdr-menu.salon-return::after" in style

@@ -39,6 +39,7 @@ class StatusInfo(Gtk.Box):
         self._date_label.set_halign(Gtk.Align.START)
         time_card.append(self._date_label)
         self.append(time_card)
+        self._time_card = time_card
 
         system_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         system_card.add_css_class("salon-console-block")
@@ -49,7 +50,9 @@ class StatusInfo(Gtk.Box):
         self._network = self._make_row(system_card, "network-wireless-symbolic", "Network")
         self._battery = self._make_row(system_card, "battery-symbolic", "Battery")
         self._applications = self._make_row(system_card, "view-grid-symbolic", "Applications")
+        self._application_count = 0
         self.append(system_card)
+        self._system_card = system_card
 
         self._network_watcher = NetworkWatcher(self.set_network)
         self._battery_watcher = BatteryWatcher(self.set_battery)
@@ -112,13 +115,28 @@ class StatusInfo(Gtk.Box):
             value.remove_css_class("low")
 
     def set_application_count(self, count: int) -> None:
-        self._applications[2].set_label(str(max(0, count)))
+        self._application_count = max(0, count)
+        if self._applications[1].get_label() == "Applications":
+            self._applications[2].set_label(str(self._application_count))
+
+    def set_running_count(self, count: int) -> None:
+        icon, name, value = self._applications
+        running = max(0, count)
+        if running:
+            icon.set_from_icon_name("view-grid-symbolic")
+            name.set_label("Apps still running")
+            value.set_label(str(running))
+        else:
+            icon.set_from_icon_name("view-grid-symbolic")
+            name.set_label("Applications")
+            value.set_label(str(self._application_count))
 
     def set_scale(self, scale: Scale) -> None:
         self.set_spacing(scale.px(18.0))
-        for card in (self.get_first_child(), self.get_last_child()):
-            if isinstance(card, Gtk.Box):
-                card.set_spacing(scale.px(8.0))
+        self._time_card.set_spacing(scale.px(3.0))
+        self._system_card.set_spacing(0)
+        self._time_card.set_size_request(-1, scale.px(140.0))
+        self._system_card.set_size_request(-1, scale.px(181.0))
         for icon, _name, _value in (self._network, self._battery, self._applications):
             icon.set_pixel_size(scale.px(21.0))
 

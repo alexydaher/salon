@@ -20,47 +20,80 @@ from salon.services.launcher_shared import (  # noqa: E402
 
 class ChildWindowLifecycle(ServiceComponent):
     def close_child(self) -> bool:
-        """Shut the launched app down and come back to Salon.
-
-        This is the *only* way off a fullscreen browser tile with a
-        controller. Wayland forbids a client raising itself, so Salon cannot
-        put its own window back in front while Netflix is up; what it can do
-        is end the process it started, at which point the compositor hands
-        focus back on its own. Nothing else in the session has to cooperate.
-
-        SIGTERM first so Chrome closes its profile cleanly, then SIGKILL
-        after a grace period if it is still there. Returns False when there
-        is no handle to act on — a .desktop launch whose pid was a wrapper —
-        so the caller can say so instead of leaving the user pressing a
-        button that silently does nothing.
-        """
+        """SIGTERM the foreground child, then force it after a grace period."""
+        self._owner._keep_running_on_return = False
+        self._owner._closing_current = True
         if self._owner._subprocess is not None:
             self._owner._subprocess.send_signal(signal.SIGTERM)
             proc = self._owner._subprocess
             GLib.timeout_add_seconds(_CLOSE_GRACE_SECONDS, lambda: self._force_exit(proc))
             return True
         if self._owner._child_pid is not None:
+            pid = self._owner._child_pid
             try:
-                os.kill(self._owner._child_pid, signal.SIGTERM)
+                os.kill(pid, signal.SIGTERM)
             except OSError:
                 # Already gone, or it belonged to a wrapper that exited the
                 # moment it handed off. Either way there is nothing here to
                 # close, and the app on screen is not ours to end.
                 self._owner._child_pid = None
+                self._owner._forget_current_pid(pid)
                 return False
-            pid = self._owner._child_pid
             GLib.timeout_add_seconds(_CLOSE_GRACE_SECONDS, lambda: self._force_kill(pid))
-            # And watch it go. A .desktop launch has no Gio.Subprocess to
-            # wait on, so the only other thing that would ever notice this
-            # app ending is Salon's window going active again — which does
-            # not happen if it never went inactive in the first place.
-            # Without this the state machine stayed convinced the app was
-            # still out there: MENU closed it, and then every following MENU
-            # tried to close it again instead of opening the system menu.
-            # Measured, with a real child: it took two presses.
+            # A .desktop launch has no Gio.Subprocess to watch.
             self._owner._watch_id = GLib.timeout_add(_CLOSE_POLL_MS, lambda: self._poll_closed(pid))
             return True
         return False
+
+    def close_background(self, app_id: str) -> bool:
+        child = self._owner._children.get(app_id)
+        if child is None:
+            return False
+        if child.subprocess is not None:
+            child.subprocess.send_signal(signal.SIGTERM)
+            proc = child.subprocess
+            GLib.timeout_add_seconds(_CLOSE_GRACE_SECONDS, lambda: self._force_any(proc))
+            return True
+        if child.pid is None:
+            return False
+        try:
+            os.kill(child.pid, signal.SIGTERM)
+        except OSError:
+            self._owner._children.pop(app_id, None)
+            self._owner._notify_running_changed()
+            return False
+        pid = child.pid
+        GLib.timeout_add_seconds(_CLOSE_GRACE_SECONDS, lambda: self._force_any_pid(pid))
+        GLib.timeout_add(_CLOSE_POLL_MS, lambda: self._poll_background(app_id, pid))
+        return True
+
+    @staticmethod
+    def _force_any(proc: Gio.Subprocess) -> bool:
+        try:
+            proc.force_exit()
+        except GLib.Error:
+            pass
+        return GLib.SOURCE_REMOVE
+
+    @staticmethod
+    def _force_any_pid(pid: int) -> bool:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+        return GLib.SOURCE_REMOVE
+
+    def _poll_background(self, app_id: str, pid: int) -> bool:
+        child = self._owner._children.get(app_id)
+        if child is None or child.pid != pid:
+            return GLib.SOURCE_REMOVE
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            self._owner._children.pop(app_id, None)
+            self._owner._notify_running_changed()
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
 
     def _poll_closed(self, pid: int) -> bool:
         if pid != self._owner._child_pid:
@@ -99,6 +132,12 @@ class ChildWindowLifecycle(ServiceComponent):
             GLib.source_remove(self._owner._return_debounce_id)
             self._owner._return_debounce_id = None
         if is_active:
+            # Focus can return because the user switched windows rather than
+            # because the process ended. That is multitasking, not an exit:
+            # keep the owned process in the running-app registry unless an
+            # explicit Close is already in progress.
+            if not self._owner._closing_current:
+                self._owner._keep_running_on_return = True
             self._owner._return_debounce_id = GLib.timeout_add(
                 _RETURN_DEBOUNCE_MS, self._confirm_return
             )
@@ -110,20 +149,7 @@ class ChildWindowLifecycle(ServiceComponent):
             self._owner.on_child_focused()
 
     def _on_overlay_timeout(self) -> bool:
-        """Twelve seconds without the window-activity edge. Two different
-        things look like this, and they need opposite answers.
-
-        If Salon still has focus, nothing is covering it: the app is slow or
-        it never started, the overlay says so, and BACK gives up. That is
-        the case this timeout was written for.
-
-        If Salon does *not* have focus, something is in front of it and the
-        edge was simply never generated — a window that maps while Salon is
-        already inactive produces no notify at all, which is what happens
-        every time the phone opens a tile from behind another app. Waiting
-        longer cannot help; the launch has plainly succeeded. Treating it as
-        arrival is what keeps MENU meaning "close this and come back".
-        """
+        """Resolve a missing focus edge as success or a stalled launch."""
         self._owner._overlay_timeout_id = None
         if not self._owner._awaiting_child_focus:
             return GLib.SOURCE_REMOVE
@@ -155,13 +181,15 @@ class ChildWindowLifecycle(ServiceComponent):
         except GLib.Error:
             pass
         if proc is not self._owner._subprocess:
-            return  # a cancelled or superseded launch; its return already fired
+            self._owner._remove_process(proc)
+            return
         elapsed_ms = GLib.get_monotonic_time() // 1000 - self._owner._launched_at_ms
         if self._owner._awaiting_child_focus and elapsed_ms < _WRAPPER_EXIT_GRACE_MS:
             # Almost certainly the wrapper, not the app — keep waiting for
             # the window-activity signal, which §6.4 expects to carry most
             # of the weight anyway. The 12s overlay timeout still bounds it.
             return
+        self._owner._remove_process(proc)
         self._finish_return()
 
     def _finish_return(self) -> None:
@@ -176,9 +204,14 @@ class ChildWindowLifecycle(ServiceComponent):
         if self._owner._return_debounce_id is not None:
             GLib.source_remove(self._owner._return_debounce_id)
             self._owner._return_debounce_id = None
+        keep_running = self._owner._keep_running_on_return and not self._owner._closing_current
+        if not keep_running:
+            self._owner._remove_current_record()
         self._owner._subprocess = None
         self._owner._child_pid = None
         self._owner._launching_tile = None
+        self._owner._keep_running_on_return = False
+        self._owner._closing_current = False
         # The inhibit exists to cover the gap between launching and the
         # child issuing its own; once the user is back in Salon there's
         # nothing left to cover, and holding it until the timer expires

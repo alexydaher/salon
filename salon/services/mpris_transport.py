@@ -23,13 +23,14 @@ class MprisTransport:
         self._connection = connection
         self._current_player = current_player
 
-    def call(self, method: str) -> bool:
+    def call(self, method: str, bus_name: str | None = None) -> bool:
         player = self._current_player()
         connection = self._connection()
-        if player is None or connection is None:
+        target = bus_name or (player.bus_name if player is not None else "")
+        if not target or connection is None:
             return False
         connection.call(
-            player.bus_name,
+            target,
             _PATH,
             _PLAYER_INTERFACE,
             method,

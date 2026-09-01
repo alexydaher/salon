@@ -74,6 +74,7 @@ from salon.core.provider import CatalogBuild, ProviderOutcome  # noqa: E402
 from salon.core.remote import (  # noqa: E402
     RemoteNowPlaying,
     RemoteRow,
+    RemoteRunningApp,
     RemoteState,
     RemoteTile,
 )

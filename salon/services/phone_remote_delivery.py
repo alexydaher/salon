@@ -53,8 +53,13 @@ def _deliver_motion(callback: Callable[[float, float], None], dx: float, dy: flo
     return GLib.SOURCE_REMOVE
 
 
-def _deliver_transport(callback: Callable[[str], bool], what: str) -> bool:
-    callback(what)
+def _deliver_transport(callback: Callable[[str, str], bool], what: str, source: str) -> bool:
+    callback(what, source)
+    return GLib.SOURCE_REMOVE
+
+
+def _deliver_running(callback: Callable[[str, str], bool], what: str, app_id: str) -> bool:
+    callback(what, app_id)
     return GLib.SOURCE_REMOVE
 
 

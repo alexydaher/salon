@@ -320,6 +320,7 @@ def remote(tmp_path):
         "clicks": [],
         "launched": [],
         "transport": [],
+        "running": [],
         "searched": [],
         "tile_actions": [],
         "volume": [],
@@ -345,7 +346,10 @@ def remote(tmp_path):
         on_pointer=lambda dx, dy: received["motion"].append((dx, dy)),
         on_click=lambda: received["clicks"].append(True),
         on_launch=received["launched"].append,
-        on_transport=lambda what: bool(received["transport"].append(what)) or True,
+        on_transport=lambda what, _source: bool(received["transport"].append(what)) or True,
+        on_running=lambda what, app_id: bool(
+            received["running"].append((what, app_id))
+        ) or True,
         art_for=lambda tile_id: poster if tile_id in ("netflix", "app:gimp.desktop") else None,
         on_search=searched,
         on_tile_action=tile_action,
@@ -399,6 +403,7 @@ def test_the_token_gates_every_endpoint(remote) -> None:
             _send(port, "/type", {"key": "", "text": "hello"}),
             _send(port, "/launch", {"key": "", "id": "netflix"}),
             _send(port, "/transport", {"key": "", "what": "play_pause"}),
+            _send(port, "/running", {"key": "", "what": "salon", "id": ""}),
             _send(port, "/search", {"key": "", "q": "net"}),
             _send(port, "/tile", {"key": "", "id": "netflix", "what": "pin"}),
             _send(port, "/volume", {"key": "", "level": 0.5}),
@@ -407,7 +412,7 @@ def test_the_token_gates_every_endpoint(remote) -> None:
             _get(port, "/events")[0],
         ]
 
-    assert _run(server, exchange) == [401] * 14
+    assert _run(server, exchange) == [401] * 15
     # Not "no actions arrived" — *nothing* arrived, on any callback the home
     # screen hands this server. Written as an equality against the whole
     # record so that a new endpoint wired up without a credential fails here
@@ -418,6 +423,7 @@ def test_the_token_gates_every_endpoint(remote) -> None:
         "clicks": [],
         "launched": [],
         "transport": [],
+        "running": [],
         "searched": [],
         "tile_actions": [],
         "volume": [],
@@ -597,6 +603,25 @@ def test_transport_controls_reach_the_player(remote) -> None:
 
     assert _run(server, exchange) == [200, 200, 400]
     assert received["transport"] == ["play_pause", "next"]
+
+
+def test_running_app_controls_are_named_and_targeted(remote) -> None:
+    server, received = remote
+    port = server._port  # noqa: SLF001
+
+    def exchange() -> list[int]:
+        return [
+            _send(port, "/running", {"key": server.token, "what": "salon", "id": ""}),
+            _send(
+                port,
+                "/running",
+                {"key": server.token, "what": "close", "id": "youtube"},
+            ),
+            _send(port, "/running", {"key": server.token, "what": "kill", "id": "youtube"}),
+        ]
+
+    assert _run(server, exchange) == [200, 200, 400]
+    assert received["running"] == [("salon", ""), ("close", "youtube")]
 
 
 # --- typing into something that isn't Salon -------------------------------

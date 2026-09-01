@@ -8,6 +8,7 @@ from salon.services.phone_remote_delivery import (
     _deliver,
     _deliver_button,
     _deliver_motion,
+    _deliver_running,
     _deliver_transport,
     _finite,
     _notify,
@@ -15,6 +16,7 @@ from salon.services.phone_remote_delivery import (
 from salon.services.phone_remote_shared import (
     ACTION_NAMES,
     POINTER_BUTTONS,
+    RUNNING_ACTIONS,
     TRANSPORT_NAMES,
     GLib,
     PhoneRemoteComponent,
@@ -114,7 +116,28 @@ class PhoneRemoteInput(PhoneRemoteComponent):
             self._owner._refuse(message, Soup.Status.BAD_REQUEST, "Unknown transport control.")
             return
         callback = self._owner._on_transport
-        GLib.idle_add(lambda: _deliver_transport(callback, what))
+        source = str(fields.get("source", ""))
+        GLib.idle_add(lambda: _deliver_transport(callback, what, source))
+        self._owner._ok(message)
+
+    def _handle_running(
+        self,
+        server: Soup.Server,
+        message: Soup.ServerMessage,
+        path: str,
+        query: dict[str, str] | None,
+    ) -> None:
+        """Return to Salon or close one process Salon owns."""
+        fields = self._owner._authorize(message)
+        if fields is None:
+            return
+        what = str(fields.get("what", ""))
+        app_id = str(fields.get("id", ""))
+        if self._owner._on_running is None or what not in RUNNING_ACTIONS:
+            self._owner._refuse(message, Soup.Status.BAD_REQUEST, "Unknown running-app action.")
+            return
+        callback = self._owner._on_running
+        GLib.idle_add(lambda: _deliver_running(callback, what, app_id))
         self._owner._ok(message)
 
     def _handle_pointer(

@@ -16,6 +16,9 @@ from salon.services.pointer_shared import (  # noqa: E402
     keysym_for,
 )
 
+_XK_TAB = 0xFF09
+_XK_ALT_L = 0xFFE9
+
 
 class PointerEventInjection(ServiceComponent):
     def move(self, dx: float, dy: float) -> None:
@@ -107,6 +110,23 @@ class PointerEventInjection(ServiceComponent):
             return not text
         for index, keysym in enumerate(keysyms):
             GLib.timeout_add(index * _KEY_GAP_MS * 2, self._tap_keysym, keysym)
+        return True
+
+    def switch_window(self) -> bool:
+        """Inject Alt+Tab while preserving the modifier across the tap.
+
+        A Wayland client cannot raise itself without an activation token,
+        and a phone press arriving over HTTP has no such token. The existing
+        RemoteDesktop grant can, however, invoke the compositor's own MRU
+        switcher. A launched app is the window that most recently covered
+        Salon, so one switch returns to Salon without ending that process.
+        """
+        if not self._owner.ready:
+            return False
+        self._notify_keysym(_XK_ALT_L, _PRESSED)
+        GLib.timeout_add(_KEY_GAP_MS, self._notify_keysym, _XK_TAB, _PRESSED)
+        GLib.timeout_add(_KEY_GAP_MS * 2, self._notify_keysym, _XK_TAB, _RELEASED)
+        GLib.timeout_add(_KEY_GAP_MS * 3, self._notify_keysym, _XK_ALT_L, _RELEASED)
         return True
 
     def _tap_keysym(self, keysym: int) -> bool:

@@ -38,7 +38,12 @@ class StateFeed:
             return False
 
     def tile_ids(self) -> frozenset[str]:
-        return frozenset(tile.id for row in self.state.rows for tile in row.tiles)
+        visible = {tile.id for row in self.state.rows for tile in row.tiles}
+        # Running apps are visible on the media surface too. Authorizing
+        # their ids here lets /art draw the same application image there
+        # without widening the endpoint beyond things the phone was shown.
+        visible.update(app.id for app in self.state.running_apps)
+        return frozenset(visible)
 
 
 @dataclass(slots=True)

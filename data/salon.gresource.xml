@@ -24,6 +24,7 @@
     <file compressed="true">remote/ui/overlays.css</file>
     <file compressed="true">remote/ui/controls.css</file>
     <file compressed="true">remote/ui/strips.css</file>
+    <file compressed="true">remote/ui/media.css</file>
     <file compressed="true">remote/ui/allapps.js</file>
     <file compressed="true">remote/ui/awake.js</file>
     <file compressed="true">remote/ui/bus.js</file>

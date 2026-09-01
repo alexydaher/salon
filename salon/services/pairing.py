@@ -39,7 +39,8 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         on_click: Callable[[], None] | None = None,
         on_locked: Callable[[], None] | None = None,
         on_launch: Callable[[str], None] | None = None,
-        on_transport: Callable[[str], bool] | None = None,
+        on_transport: Callable[[str, str], bool] | None = None,
+        on_running: Callable[[str, str], bool] | None = None,
         art_for: Callable[[str], Path | None] | None = None,
         pointer_ready: Callable[[], bool] | None = None,
         on_remote_text: Callable[[str], bool] | None = None,
@@ -51,7 +52,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         on_scroll_end: Callable[[], None] | None = None,
         on_button: Callable[[str, str], None] | None = None,
         on_apps: Callable[[], list[RemoteTile]] | None = None,
-        np_art_for: Callable[[], Path | None] | None = None,
+        np_art_for: Callable[[str], Path | None] | None = None,
         # The settings the phone may read and write — `core/remote_settings`
         # says which, and nothing here names a GSettings key of its own.
         tune_read: Callable[[], dict[str, object]] | None = None,
@@ -63,6 +64,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         self._on_locked = on_locked
         self._on_launch = on_launch
         self._on_transport = on_transport
+        self._on_running = on_running
         self._art_for = art_for
         self._pointer_ready = pointer_ready
         self._on_remote_text = on_remote_text

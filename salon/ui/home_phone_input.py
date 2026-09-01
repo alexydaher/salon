@@ -127,6 +127,14 @@ class HomePhoneInputController(ServiceComponent):
         self._owner._update_focus()
         self._owner._launch_tile(tile)
 
+    def _on_phone_running(self, what: str, app_id: str) -> bool:
+        if what == "salon":
+            if not self._owner._launcher.has_child:
+                return True
+            self._owner._return_from_child()
+            return True
+        return self._owner._close_running_app(app_id)
+
     def _search_for_phone(self, query: str) -> list[RemoteTile]:
         """Rank the catalogue and every installed app for the phone.
 

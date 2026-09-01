@@ -18,6 +18,7 @@ python_sources = [
   'legend.py',
   'controller_glyph.py',
   'nowplaying_status.py',
+  'nowplaying_progress.py',
   'home_action_router.py',
   'home_bindings.py',
   'home_catalog.py',

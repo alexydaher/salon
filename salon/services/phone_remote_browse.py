@@ -73,7 +73,8 @@ class PhoneRemoteBrowse(PhoneRemoteComponent):
         """
         if not self._owner._authorize_get(message, query):
             return
-        art = None if self._owner._np_art_for is None else self._owner._np_art_for()
+        source = "" if query is None else str(query.get("source", ""))
+        art = None if self._owner._np_art_for is None else self._owner._np_art_for(source)
         if art is None:
             message.set_status(Soup.Status.NOT_FOUND, None)
             return

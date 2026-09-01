@@ -141,6 +141,7 @@ ACTION_NAMES = frozenset(action.value for action in Action)
 # The three things you can do to a player. Not Actions: see the comment on
 # the transport buttons in the page.
 TRANSPORT_NAMES = frozenset({"play_pause", "next", "previous"})
+RUNNING_ACTIONS = frozenset({"salon", "close"})
 
 # What the per-tile menu on the phone may ask for. Pinning and unpinning
 # write `favourite-tile-ids`; "edit" opens the television's own tile editor

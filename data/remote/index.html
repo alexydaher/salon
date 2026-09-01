@@ -1,16 +1,13 @@
 <!doctype html>
 <!--
   SPDX-License-Identifier: GPL-3.0-or-later
-
   Salon's phone remote (§6.12). Served by salon/services/pairing.py, which
   is on the LAN only while something on the television is asking for it.
-
   The page is markup only. Its stylesheets and its modules live beside it
   in `ui/`, served from the same GResource bundle, one file per job and
   none longer than the Python next to them. It was a single 1900-line file
   until the second screen grew a mirrored cursor, an A-Z list and a gesture
   D-pad; at that size nobody edits a page, they append to it.
-
   There is still **no build step**: plain ES modules and plain stylesheets,
   loaded as they are. A launcher that needs npm to change a button is a
   launcher nobody will change a button in.
@@ -36,10 +33,10 @@
 <link rel="stylesheet" href="/ui/overlays.css">
 <link rel="stylesheet" href="/ui/controls.css">
 <link rel="stylesheet" href="/ui/strips.css">
+<link rel="stylesheet" href="/ui/media.css">
 <title>Salon</title>
 </head>
 <body>
-
 <!-- One sprite for every glyph on the page. Referenced with <use>, so the
      icons inherit `currentColor` and there is one place to change them. -->
 <svg class="sprite" aria-hidden="true" focusable="false">
@@ -63,7 +60,6 @@
   <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zm10-2a3 3 0 1 1-3-3 3 3 0 0 1 3 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></g></symbol>
 </svg>
-
 <section id="connect">
   <h1>Salon</h1>
   <p>Enter the four-digit code on the television, or scan the code there
@@ -76,7 +72,6 @@
   <button id="connect-go" class="primary" disabled>Connect</button>
   <div id="connect-status" role="status"></div>
 </section>
-
 <!-- The controls that apply everywhere live here. Volume opens a compact
      popover instead of permanently taking a row from every pane; Now Playing
      only appears while there is something to open. -->
@@ -106,20 +101,18 @@
     <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
   </button>
 </header>
-
-<div id="volume" role="group" aria-label="Volume control">
+<div id="volume" role="group" aria-labelledby="volume-title">
+  <span id="volume-title" class="visually-hidden">TV volume</span>
   <button id="mute" aria-label="Mute">
     <svg class="i" aria-hidden="true"><use href="#i-volume"/></svg>
   </button>
   <input id="vol" type="range" min="0" max="100" step="1" value="0"
          aria-label="Volume">
 </div>
-
 <div id="offline" role="status">
   <span id="offline-text">Salon isn't answering.</span>
   <button id="retry">Retry</button>
 </div>
-
 <main hidden id="body">
   <section id="pane-apps" class="pane on">
     <!-- Search lives here rather than behind a fifth tab: what you are
@@ -143,7 +136,6 @@
     <div id="allapps"></div>
     <div id="allapps-empty" role="status"></div>
   </section>
-
   <section id="pane-remote" class="pane">
     <!-- What the cursor is resting on, mirrored from the television. -->
     <div id="mirror">
@@ -157,7 +149,7 @@
     </div>
     <div id="mirror-neighbours"><span id="mirror-prev"></span><span id="mirror-next"></span></div>
     <p class="why">The D-pad drives Salon, and Salon is behind this app.
-       Use the Pointer tab, or close it from the top.</p>
+       Use the Pointer tab, return to Salon, or explicitly close it from the top.</p>
     <div class="bar secondary remote-tools">
       <button data-action="options" data-tv-only>Options</button>
       <button data-action="prev_group" data-tv-only aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
@@ -191,7 +183,6 @@
     </div>
     <details id="tune-drawer"><summary>Picture</summary><div id="tune"></div></details>
   </section>
-
   <section id="pane-pad" class="pane">
     <div id="pad"><span>Move&#8202;&middot;&#8202;tap to click&#8202;&middot;&#8202;two fingers to scroll</span></div>
     <div class="pad-meta"><span id="pad-status" role="status">Ready</span>
@@ -226,38 +217,42 @@
         <button id="key-enter" aria-label="Enter"><svg class="i" aria-hidden="true"><use href="#i-enter"/></svg>Enter</button></div>
     </section>
   </section>
-
-  <!-- Opened from the contextual button in the header. -->
-  <section id="np-full">
-    <div class="grab">
-      <button id="np-close" aria-label="Close now playing">
-        <svg class="i" aria-hidden="true"><use href="#i-down"/></svg>
-      </button>
+  <!-- A temporary navigation surface inside Remote. It is not modal: the
+       bottom tabs remain available, while the pane underneath becomes inert. -->
+  <section id="np-full" role="region" aria-labelledby="media-title" tabindex="-1" hidden>
+    <div class="media-toolbar">
+      <div><span class="media-eyebrow">Remote</span><h2 id="media-title">Media</h2></div>
+      <button id="np-close">Done</button>
     </div>
-    <img id="np-big" class="cover" alt="">
-    <div id="np-fallback" aria-hidden="true"><svg class="i"><use href="#i-music"/></svg></div>
-    <div class="np-title" id="np-big-title"></div>
-    <div class="np-detail" id="np-big-detail"></div>
-    <div class="keys-row">
-      <button class="np-key" id="np-big-prev" data-transport="previous" aria-label="Previous">
-        <svg class="i" aria-hidden="true"><use href="#i-prev"/></svg>
-      </button>
-      <button class="np-key big" id="np-big-play" data-transport="play_pause" aria-label="Play or pause">
-        <svg class="i" aria-hidden="true"><use href="#i-play"/></svg>
-      </button>
-      <button class="np-key" id="np-big-next" data-transport="next" aria-label="Next">
-        <svg class="i" aria-hidden="true"><use href="#i-next"/></svg>
-      </button>
-    </div>
+    <section class="television-state" aria-labelledby="television-title">
+      <div class="media-heading">
+        <h3 id="television-title">On the television</h3>
+      </div>
+      <div id="television-current"></div>
+      <div id="running-section" hidden>
+        <div class="media-heading running-heading">
+          <h3>Running apps</h3><span>Close without affecting the others</span>
+        </div>
+        <div id="running-apps"></div>
+      </div>
+    </section>
+    <section class="playing-sources" aria-labelledby="now-playing-title">
+      <div class="media-heading">
+        <h3 id="now-playing-title">Now playing</h3>
+        <span id="media-count" aria-live="polite"></span>
+      </div>
+      <div id="media-sources"></div>
+      <div id="np-fallback" class="media-empty" aria-hidden="true">
+        <svg class="i"><use href="#i-music"/></svg>
+      </div>
+    </section>
   </section>
 </main>
-
 <!-- The A-Z index for the list above, and the letter it draws under the
      thumb — a rail this narrow is covered by the hand using it, so the
      feedback has to be somewhere the hand is not. -->
 <div id="rail" aria-hidden="true"></div>
 <div id="rail-bubble" aria-hidden="true"></div>
-
 <div id="sheet">
   <div id="sheet-card">
     <div id="sheet-title"></div>
@@ -277,15 +272,12 @@
     </div>
   </div>
 </div>
-
 <nav hidden id="tabs">
   <button data-tab="apps" class="on"><svg class="i" aria-hidden="true"><use href="#i-apps"/></svg>Browse</button>
   <button data-tab="remote"><svg class="i" aria-hidden="true"><use href="#i-buttons"/></svg>Remote</button>
   <button data-tab="pad"><svg class="i" aria-hidden="true"><use href="#i-pointer"/></svg>Pointer</button>
 </nav>
-
 <div id="toast" role="status"></div>
-
 <!-- What holds the phone's screen on. `navigator.wakeLock` needs a secure
      context and this page is HTTP on a LAN address, so on a real phone it
      is absent. A muted loop is the fallback every phone honours. -->
@@ -294,7 +286,6 @@
   <source src="/awake.webm" type="video/webm">
   <source src="/awake.mp4" type="video/mp4">
 </video>
-
 <script type="module" src="/ui/main.js"></script>
 </body>
 </html>

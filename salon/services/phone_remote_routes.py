@@ -113,6 +113,9 @@ class PhoneRemoteRoutes:
     def _handle_transport(self, *args: Any) -> None:
         self._input._handle_transport(*args)  # noqa: SLF001
 
+    def _handle_running(self, *args: Any) -> None:
+        self._input._handle_running(*args)  # noqa: SLF001
+
     def _handle_tune(self, *args: Any) -> None:
         self._tuning._handle_tune(*args)  # noqa: SLF001
 

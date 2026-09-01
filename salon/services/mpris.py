@@ -21,8 +21,7 @@ _PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 _ROOT_IFACE = "org.mpris.MediaPlayer2"
 _PROPERTIES = "org.freedesktop.DBus.Properties"
 
-# Short: a player that does not answer this fast is one the remote should
-# not be waiting on.
+# A player that does not answer this fast should not hold up the remote.
 _TIMEOUT_MS = 1500
 
 
@@ -36,9 +35,8 @@ class NowPlayingWatcher:
         self._connection: Gio.DBusConnection | None = None
         self._subscriptions: list[int] = []
         self._last: Player | None = None
+        self._last_players: tuple[Player, ...] = ()
         self._transport = MprisTransport(lambda: self._connection, lambda: self.current)
-
-    # --- lifecycle -------------------------------------------------------
 
     def start(self) -> None:
         try:
@@ -48,18 +46,22 @@ class NowPlayingWatcher:
             # one that costs the transport keys rather than the launcher.
             return
         self._connection = connection
-        # Property changes from any player, on the one path they all use.
-        self._subscriptions.append(
-            connection.signal_subscribe(
-                None,
-                _PROPERTIES,
-                "PropertiesChanged",
-                _PATH,
-                None,
-                Gio.DBusSignalFlags.NONE,
-                self._on_properties_changed,
+        # Position does not emit PropertiesChanged; MPRIS sends Seeked.
+        for interface, signal in (
+            (_PROPERTIES, "PropertiesChanged"),
+            (_PLAYER_IFACE, "Seeked"),
+        ):
+            self._subscriptions.append(
+                connection.signal_subscribe(
+                    None,
+                    interface,
+                    signal,
+                    _PATH,
+                    None,
+                    Gio.DBusSignalFlags.NONE,
+                    self._on_player_signal,
+                )
             )
-        )
         # Players coming and going. Without this a closed browser stays on
         # the strip for ever, because a dead player sends no properties.
         self._subscriptions.append(
@@ -83,23 +85,25 @@ class NowPlayingWatcher:
         self._subscriptions.clear()
         self._connection = None
         self._selection = Selection()
-
-    # --- control ---------------------------------------------------------
+        self._last = None
+        self._last_players = ()
 
     @property
     def current(self) -> Player | None:
         return self._selection.current()
 
-    def play_pause(self) -> bool:
-        return self._transport.call("PlayPause")
+    @property
+    def players(self) -> tuple[Player, ...]:
+        return self._selection.active_players()
 
-    def next_track(self) -> bool:
-        return self._transport.call("Next")
+    def play_pause(self, bus_name: str | None = None) -> bool:
+        return self._transport.call("PlayPause", bus_name)
 
-    def previous_track(self) -> bool:
-        return self._transport.call("Previous")
+    def next_track(self, bus_name: str | None = None) -> bool:
+        return self._transport.call("Next", bus_name)
 
-    # --- discovery -------------------------------------------------------
+    def previous_track(self, bus_name: str | None = None) -> bool:
+        return self._transport.call("Previous", bus_name)
 
     def _list_names(self) -> None:
         connection = self._connection
@@ -145,7 +149,7 @@ class NowPlayingWatcher:
             self._selection.remove(name)
             self._publish()
 
-    def _on_properties_changed(
+    def _on_player_signal(
         self,
         connection: Gio.DBusConnection,
         sender: str,
@@ -154,6 +158,10 @@ class NowPlayingWatcher:
         signal: str,
         parameters: GLib.Variant,
     ) -> None:
+        if signal == "Seeked":
+            if sender:
+                self._refresh_by_unique_name(sender)
+            return
         changed_interface, _changed, _invalidated = parameters.unpack()
         if changed_interface != _PLAYER_IFACE or not sender:
             return
@@ -233,7 +241,9 @@ class NowPlayingWatcher:
 
     def _publish(self) -> None:
         current = self._selection.current()
-        if current == self._last:
+        players = self._selection.active_players()
+        if current == self._last and players == self._last_players:
             return
         self._last = current
+        self._last_players = players
         self._on_change(current)

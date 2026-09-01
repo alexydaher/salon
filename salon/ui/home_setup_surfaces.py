@@ -45,6 +45,7 @@ class HomeSurfaceSetup(ServiceComponent):
             on_locked=self._owner._on_phone_locked,
             on_launch=self._owner._on_phone_launch,
             on_transport=self._owner._on_phone_transport,
+            on_running=self._owner._on_phone_running,
             art_for=self._owner._art_for_phone,
             pointer_ready=lambda: self._owner._pointer.ready,
             on_remote_text=self._owner._type_remotely,
@@ -78,7 +79,7 @@ class HomeSurfaceSetup(ServiceComponent):
         # an independent overlay child: putting it in the bottom row made it
         # compete with both the selection description and the button legend.
         self._owner._now_playing_status = NowPlayingStatus(
-            self._owner._scale, on_activate=self._owner._toggle_playback
+            self._owner._scale, on_activate=self._owner._toggle_source_playback
         )
         self._owner._console_sidebar = ConsoleSidebar(
             self._owner._scale,

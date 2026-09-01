@@ -62,8 +62,8 @@ PAGES: tuple[Page, ...] = (
         title="Getting back",
         body=(
             "When something you started is filling the screen, press Menu to "
-            "close it and come back to Salon. On many controllers Menu is the "
-            "Start button. Salon can still hear it behind the app."
+            "come back to Salon without closing it. On many controllers Menu "
+            "is the Start button. Salon can still hear it behind the app."
         ),
         hint="Press OK to continue",
     ),
@@ -72,7 +72,7 @@ PAGES: tuple[Page, ...] = (
         body=(
             "Options over any tile opens its actions: pin it, add it to Home, "
             "or edit it. Menu opens system controls from Home, closes Settings, "
-            "and always brings you back from an app. Settings is where you add "
+            "and brings you back from an app while leaving it running. Settings is where you add "
             "tiles, group them into rows, drop in your own artwork, and "
             "change how big everything is — with the home screen live behind "
             "you while you do it."

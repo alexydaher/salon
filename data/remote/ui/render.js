@@ -10,7 +10,7 @@ import {
 import { session } from "./session.js";
 import { renderCatalog, renderFocus, renderMirror } from "./catalog.js";
 import { renderVolume } from "./volume.js";
-import { renderPlaying } from "./nowplaying.js";
+import { openNowPlaying, renderPlaying } from "./nowplaying.js";
 import { focusTypeField, renderTyping } from "./typing.js";
 import { showTab } from "./tabs.js";
 
@@ -47,22 +47,30 @@ function renderHeader(data) {
   $("connection").setAttribute(
     "aria-label", `Connected to Salon. ${$("screen").textContent} on television`
   );
-  $("close-app").hidden = !inApp;
-  // MENU *is* "close the app" while one is in front, so two buttons doing
-  // the same thing would be two things to work out. The named one wins.
-  $("hdr-menu").hidden = inApp;
+  const front = (data.runningApps || []).find((running) => running.front);
+  // A desktop activation can outlive the only PID Gio gave Salon. Once a
+  // close attempt proves that handle is gone, leave the reliable Salon
+  // return visible without continuing to advertise a Close that cannot work.
+  $("close-app").hidden = !inApp || front?.closeable === false;
+  const menu = $("hdr-menu");
+  menu.hidden = false;
+  menu.classList.toggle("salon-return", inApp);
+  menu.setAttribute("aria-label", inApp ? "Return to Salon" : "Menu");
+  menu.querySelector("use").setAttribute("href", inApp ? "#i-apps" : "#i-menu");
   $("close-app").querySelector(".app-name").textContent = `Close ${app}`;
   $("close-app").setAttribute("aria-label", `Close ${app}`);
+  $("close-app").dataset.appId = data.appId || "";
   for (const node of document.querySelectorAll("[data-tv-only]")) node.disabled = inApp;
 
   // Move to the pointer *once*, on the transition, and only from a pane
   // that has just gone useless. Doing it on every render would fight anyone
   // who deliberately went to Apps to launch something else; not doing it at
   // all leaves a thumb resting on a dead D-pad.
-  if (inApp && !wasInApp && (session.tab === "remote" || session.tab === "apps")) {
-    showTab("pad");
-  }
+  const enteredApp = inApp && !wasInApp;
+  if (enteredApp && !(data.media || []).length
+      && (session.tab === "remote" || session.tab === "apps")) showTab("pad");
   wasInApp = inApp;
+  return enteredApp;
 }
 
 function renderPad(data) {
@@ -91,12 +99,18 @@ function followTextField(data) {
 
 export function render(data) {
   applyAccent(data.accent);
-  renderHeader(data);
+  const enteredApp = renderHeader(data);
   renderVolume(data);
   renderCatalog(data.rows);
   renderFocus(data);
   renderMirror(data);
-  renderPlaying(data.playing);
+  renderPlaying(
+    data.playing, data.media || [], data.runningApps || [], data.app || "", data.appId || ""
+  );
+  if (enteredApp && (data.media || []).length) {
+    showTab("remote");
+    openNowPlaying();
+  }
   renderTyping(data);
   renderPad(data);
   followTextField(data);

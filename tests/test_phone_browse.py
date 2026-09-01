@@ -41,7 +41,7 @@ def browsing(tmp_path):
         on_launch=lambda tile_id: None,
         art_for=lambda tile_id: poster if tile_id.startswith("app:") else None,
         on_apps=lambda: list(installed),
-        np_art_for=lambda: state["cover"],
+        np_art_for=lambda _source: state["cover"],
     )
     instance.publish(
         RemoteState(

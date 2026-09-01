@@ -100,27 +100,26 @@ class RemoteRow:
 
 @dataclass(frozen=True, slots=True)
 class RemoteNowPlaying:
-    """Enough to draw a transport card. Deliberately not a position or a
-    duration: MPRIS reports those as a value that has to be extrapolated
-    against a clock, and a progress bar that has to be right to the frame
-    is not worth a poll every second."""
+    """Enough to draw one independently controlled transport card."""
 
     title: str
     detail: str
     playing: bool
     can_next: bool = False
     can_previous: bool = False
-    # Cover art, by two routes that are not interchangeable. A streaming
-    # player publishes an `http(s)` URL, which is handed to the phone as it
-    # stands and fetched by the phone: it already has the network, and
-    # proxying someone else's CDN through the television buys nothing.
-    # `has_art` means the opposite case — a file on this host — which the
-    # phone cannot reach and Salon serves at `/np-art`.
+    # Remote URLs go direct; local covers are served at `/np-art`.
     art_url: str = ""
     has_art: bool = False
+    source_id: str = ""
+    identity: str = ""
+    play_key: bool = False
+    position_ms: int = -1
+    duration_ms: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "id": self.source_id,
+            "identity": self.identity,
             "title": self.title,
             "detail": self.detail,
             "playing": self.playing,
@@ -128,6 +127,27 @@ class RemoteNowPlaying:
             "previous": self.can_previous,
             "artUrl": self.art_url,
             "art": self.has_art,
+            "playKey": self.play_key,
+            "positionMs": self.position_ms,
+            "durationMs": self.duration_ms,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteRunningApp:
+    """One process Salon launched and still owns."""
+
+    id: str
+    title: str
+    front: bool = False
+    closeable: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "front": self.front,
+            "closeable": self.closeable,
         }
 
 
@@ -142,6 +162,8 @@ class RemoteState:
 
     rows: tuple[RemoteRow, ...] = ()
     now_playing: RemoteNowPlaying | None = None
+    # `now_playing` remains the play-key target for older phone pages.
+    media: tuple[RemoteNowPlaying, ...] = ()
     # Where the cursor is, so the phone can show it in its own grid rather
     # than making you look up at the television to find out.
     focus: tuple[int, int] | None = None
@@ -187,14 +209,19 @@ class RemoteState:
     # is unambiguously better at than a physical remote.
     volume: float = -1.0
     muted: bool = False
+    running_apps: tuple[RemoteRunningApp, ...] = ()
+    app_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "rows": [row.to_dict() for row in self.rows],
             "app": self.app,
+            "appId": self.app_id,
+            "runningApps": [app.to_dict() for app in self.running_apps],
             "volume": self.volume,
             "muted": self.muted,
             "playing": self.now_playing.to_dict() if self.now_playing else None,
+            "media": [source.to_dict() for source in self.media],
             "focus": list(self.focus) if self.focus else None,
             "screen": self.screen,
             "wantsText": self.wants_text,
@@ -214,6 +241,7 @@ from salon.core.remote_feed import OfferedIds, StateFeed  # noqa: E402
 __all__ = [
     "OfferedIds",
     "RemoteNowPlaying",
+    "RemoteRunningApp",
     "RemoteRow",
     "RemoteState",
     "RemoteTile",

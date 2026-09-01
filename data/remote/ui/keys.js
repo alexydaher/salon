@@ -98,16 +98,15 @@ export function bindKeys(onCloseApp) {
     });
   }
 
-  // The same MENU a controller's START sends, which the television turns
-  // into "close the child and come back". Not a new verb: the press arrives
-  // over HTTP into Salon's own process, so unlike a keyboard it does not
-  // need the compositor's focus to be heard.
+  // Closing is now explicit. MENU returns to Salon without ending the app;
+  // this named destructive key reaches the owned process directly.
   $("close-app").addEventListener("click", () => {
     buzz(14);
     const node = $("close-app");
     node.classList.add("pressed");
     setTimeout(() => node.classList.remove("pressed"), 180);
-    sendAction("menu");
+    post("/running", { what: "close", id: node.dataset.appId || "" });
+    pollSoon();
     onCloseApp();
   });
 }

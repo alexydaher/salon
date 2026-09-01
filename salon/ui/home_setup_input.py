@@ -79,6 +79,7 @@ class HomeInputSetup(ServiceComponent):
         self._owner._launcher.on_launch_timed_out = self._owner._on_launch_timed_out
         self._owner._launcher.on_returned = self._owner._on_returned
         self._owner._launcher.on_error = self._owner._on_launch_error
+        self._owner._launcher.on_running_changed = self._owner._on_running_changed
         self._owner._gamepad = GamepadSource(
             self._owner._on_gamepad_action,
             on_right_stick=self._owner._on_right_stick,

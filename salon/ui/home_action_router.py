@@ -72,7 +72,7 @@ class HomeActionRouter(ServiceComponent):
 
         if action is Action.POWER:
             # POWER is as global as MENU on every surface Salon owns. If an
-            # external application is covering Salon, close it first and
+            # external application is covering Salon, return from it first and
             # present Power as soon as the compositor returns us.
             if (
                 self._owner._child_active
@@ -89,8 +89,8 @@ class HomeActionRouter(ServiceComponent):
             self._owner._show_power_menu()
             return
 
-        # Above the menus it is opened from, and below MENU, which closes
-        # everything: a screen showing a code is not a place MENU should
+        # Above the menus it is opened from, and below MENU, which returns
+        # to Salon: a screen showing a code is not a place MENU should
         # stop working.
         if self._owner._phone_pairing.get_visible():
             self._owner._phone_pairing.handle_action(action)
@@ -134,6 +134,8 @@ class HomeActionRouter(ServiceComponent):
             if action is Action.SEARCH:
                 self._owner._apps_grid.close()
                 self._owner._open_search()
+            elif self._owner._nav_focused:
+                self._owner._handle_nav_action(action)
             elif action is Action.OPTIONS:
                 self._owner._open_tile_menu(self._owner._apps_grid.focused_tile, from_grid=True)
             else:
@@ -168,7 +170,7 @@ class HomeActionRouter(ServiceComponent):
         # system menu the same way, and PLAY_PAUSE with nothing playing fell
         # through to *launching the focused tile* on top of the app that was
         # already running — which is also what left MENU with no child to
-        # close. The rule the MENU handler above states ("a menu drawn in
+        # return from. The rule the MENU handler above states ("a menu drawn in
         # Salon's own window would appear underneath Netflix") is this one.
         if self._owner._pointer_mode or self._owner._child_active:
             if action is Action.PLAY_PAUSE:
@@ -193,7 +195,7 @@ class HomeActionRouter(ServiceComponent):
                     self._owner._pointer.click()
                 elif action is Action.BACK:
                     self._owner._pointer_mode = False
-                    self._owner._toast("Cursor off. Press MENU to close the app and come back.")
+                    self._owner._toast("Cursor off. Press MENU to return to Salon.")
                 return
             # A native app (e.g. a game client) reads the same raw gamepad
             # device directly — that input bypasses window focus entirely,

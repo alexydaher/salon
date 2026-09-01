@@ -61,7 +61,7 @@ class HomePhoneCatalogController(ServiceComponent):
         apps = sorted(self._owner._phone_apps, key=lambda tile: appinfo.sort_key(tile.title))
         return [self._owner._remote_tile(tile) for tile in apps]
 
-    def _now_playing_art_for_phone(self) -> Path | None:
+    def _now_playing_art_for_phone(self, source: str = "") -> Path | None:
         """The cover of what is playing, when it is a file on this host.
 
         A player that publishes an `https://` cover is not handled here at
@@ -69,7 +69,14 @@ class HomePhoneCatalogController(ServiceComponent):
         fetches it itself. This is the other case — a local music player
         naming a file — which the phone has no way to reach.
         """
-        player = self._owner._current_player
+        player = next(
+            (
+                candidate
+                for candidate in self._owner._now_playing.players
+                if candidate.bus_name == source
+            ),
+            self._owner._current_player if not source else None,
+        )
         if player is None or not player.art_url.startswith("file://"):
             return None
         try:
@@ -191,16 +198,19 @@ class HomePhoneCatalogController(ServiceComponent):
         else:
             self._owner._pointer.release(code)
 
-    def _on_phone_transport(self, what: str) -> bool:
+    def _on_phone_transport(self, what: str, source: str = "") -> bool:
         """Play/pause, next track, previous track, for the player the phone
         can see. Not routed through `Action`: see the comment on the page's
         transport buttons."""
+        offered = {player.bus_name for player in self._owner._now_playing.players}
+        if source and source not in offered:
+            return False
         if what == "play_pause":
-            done = self._owner._now_playing.play_pause()
+            done = self._owner._now_playing.play_pause(source or None)
         elif what == "next":
-            done = self._owner._now_playing.next_track()
+            done = self._owner._now_playing.next_track(source or None)
         else:
-            done = self._owner._now_playing.previous_track()
+            done = self._owner._now_playing.previous_track(source or None)
         if not done:
             self._owner._toast("Nothing is playing.")
         return done

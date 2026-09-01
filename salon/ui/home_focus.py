@@ -7,6 +7,7 @@ from salon.ui.home_rows import _RowWidgets
 from salon.ui.home_shared import (
     Gtk,
     RemoteNowPlaying,
+    RemoteRunningApp,
     RemoteState,
     TileWidget,
     nowplaying,
@@ -70,37 +71,39 @@ class HomeFocusController(ServiceComponent):
         if not self._owner._pairing.running:
             return
         player = self._owner._current_player
-        playing: RemoteNowPlaying | None = None
-        if player is not None:
-            # No status word: both of the phone's surfaces draw the
-            # play/pause glyph beside this line, so "Playing · " spent the
-            # front of a one-line card repeating the key next to it. The
-            # detail is the artist and the application, and the header card
-            # now shows it under the title.
-            title, detail = nowplaying.describe(player, include_status=False)
-            # An `https://` cover goes to the phone as it stands, because
-            # the phone has the network and proxying someone else's CDN
-            # through the television buys nothing. A `file://` one becomes
-            # `has_art`, and Salon serves the bytes at /np-art.
-            remote_cover = player.art_url.startswith(("http://", "https://"))
-            playing = RemoteNowPlaying(
+
+        def remote_player(source: nowplaying.Player) -> RemoteNowPlaying:
+            # Both phone surfaces already draw the state glyph.
+            title, detail = nowplaying.describe(source, include_status=False)
+            # Remote covers go direct; local ones are served by Salon.
+            remote_cover = source.art_url.startswith(("http://", "https://"))
+            return RemoteNowPlaying(
                 title=title,
                 detail=detail,
-                playing=player.status == nowplaying.PLAYING,
-                can_next=player.can_go_next,
-                can_previous=player.can_go_previous,
-                art_url=player.art_url if remote_cover else "",
+                playing=source.status == nowplaying.PLAYING,
+                can_next=source.can_go_next,
+                can_previous=source.can_go_previous,
+                art_url=source.art_url if remote_cover else "",
                 # Not a stat: this runs on every cursor movement, and
                 # /np-art answers 404 for a file that turns out to be
                 # unreadable — which the phone's card already falls back
                 # from rather than drawing a broken glyph.
-                has_art=player.art_url.startswith("file://"),
+                has_art=source.art_url.startswith("file://"),
+                source_id=source.bus_name,
+                identity=source.identity,
+                play_key=player is not None and source.bus_name == player.bus_name,
+                position_ms=nowplaying.position_ms(source),
+                duration_ms=source.length_us // 1000,
             )
+
+        media = tuple(remote_player(source) for source in self._owner._now_playing.players)
+        playing = next((source for source in media if source.play_key), None)
         timing = self._owner._repeat_timing()
         self._owner._pairing.publish(
             RemoteState(
                 rows=self._owner._remote_rows,
                 now_playing=playing,
+                media=media,
                 focus=(self._owner._focus.row, self._owner._focus.col),
                 screen=self._current_screen(),
                 # The phone opens its keyboard by itself when the television
@@ -120,6 +123,16 @@ class HomeFocusController(ServiceComponent):
                 # string but as one of six reserved words. The page hides
                 # half its own controls on this, so it cannot be guessing.
                 app=self._app_in_front(),
+                app_id=self._owner._launcher.front_child_id,
+                running_apps=tuple(
+                    RemoteRunningApp(
+                        id=app.id,
+                        title=app.title,
+                        front=app.front,
+                        closeable=app.closeable,
+                    )
+                    for app in self._owner._launcher.running_apps
+                ),
                 volume=self._owner._phone_volume,
                 muted=self._owner._phone_muted,
             )

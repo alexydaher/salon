@@ -39,6 +39,15 @@ def _fallback_identity(bus_name: str) -> str:
     return tail.replace("_", " ").title() if tail else "Media"
 
 
+def _microseconds(value: object, fallback: int) -> int:
+    if isinstance(value, bool):
+        return fallback
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+
+
 def player_from_properties(
     bus_name: str,
     properties: Mapping[str, object],
@@ -49,6 +58,7 @@ def player_from_properties(
     status = str(properties.get("PlaybackStatus", ""))
     title = str(metadata.get("xesam:title", "") or "")
     unchanged = previous is not None and previous.status == status and previous.title == title
+    observed_at = time.monotonic()
     return Player(
         bus_name=bus_name,
         identity=previous.identity if previous else _fallback_identity(bus_name),
@@ -58,5 +68,8 @@ def player_from_properties(
         changed_at=previous.changed_at if unchanged and previous else time.monotonic(),
         can_go_next=bool(properties.get("CanGoNext", False)),
         can_go_previous=bool(properties.get("CanGoPrevious", False)),
+        position_us=_microseconds(properties.get("Position"), -1),
+        length_us=_microseconds(metadata.get("mpris:length"), 0),
+        position_at=observed_at,
         art_url=_art_url(metadata),
     )

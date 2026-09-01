@@ -57,6 +57,7 @@ class LauncherExecution(ServiceComponent):
         self._owner._awaiting_child_focus = True
         self._owner._awaiting_return = True
         self._owner._launched_at_ms = GLib.get_monotonic_time() // 1000
+        self._owner._register_current(tile)
         self._owner._start_idle_inhibit()
 
         if self._owner.on_launch_started is not None:
@@ -115,6 +116,7 @@ class LauncherExecution(ServiceComponent):
         self._owner._awaiting_child_focus = True
         self._owner._awaiting_return = True
         self._owner._launched_at_ms = GLib.get_monotonic_time() // 1000
+        self._owner._register_current(tile)
         self._owner._start_idle_inhibit()
         if self._owner.on_launch_started is not None:
             self._owner.on_launch_started(tile)

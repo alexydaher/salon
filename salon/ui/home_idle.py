@@ -83,28 +83,28 @@ class HomeIdleController(ServiceComponent):
         self.wake()
         self._play_pause()
 
+    def _toggle_source_playback(self, source: str) -> None:
+        """The left column addresses the row that was actually pressed."""
+        self.wake()
+        if not self._owner._now_playing.play_pause(source or None):
+            self._owner._toast("That media source is no longer available.")
+
     def _on_now_playing(self, player: nowplaying.Player | None) -> None:
         """Update the compact player status without erasing tile context."""
         self._owner._current_player = player
         self._owner._publish_remote_state()
-        if player is None:
-            self._owner._now_playing_status.clear()
-            return
-        title, detail = nowplaying.describe(player, include_status=False)
-        self._owner._now_playing_status.set_track(
-            title,
-            detail,
-            playing=player.status == nowplaying.PLAYING,
-        )
-        self._owner._now_playing_status.set_artwork(
-            self._owner._artwork.texture_for_uri(player.art_url)
+        self._owner._now_playing_status.set_players(
+            self._owner._now_playing.players,
+            current_source=player.bus_name if player is not None else "",
+            artwork_for=self._owner._artwork.texture_for_uri,
         )
 
     def _on_artwork_fetched(self) -> None:
         """Refresh both consumers of Salon's shared artwork cache."""
         self._owner._rebuild_row_widgets()
         player = self._owner._current_player
-        if player is not None:
-            self._owner._now_playing_status.set_artwork(
-                self._owner._artwork.texture_for_uri(player.art_url)
-            )
+        self._owner._now_playing_status.set_players(
+            self._owner._now_playing.players,
+            current_source=player.bus_name if player is not None else "",
+            artwork_for=self._owner._artwork.texture_for_uri,
+        )

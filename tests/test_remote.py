@@ -17,6 +17,7 @@ from salon.core.remote import (
     OfferedIds,
     RemoteNowPlaying,
     RemoteRow,
+    RemoteRunningApp,
     RemoteState,
     RemoteTile,
     StateFeed,
@@ -119,6 +120,12 @@ def test_the_launchable_set_is_exactly_what_was_published() -> None:
     assert feed.tile_ids() == frozenset({"netflix"})
     feed.publish(RemoteState())
     assert feed.tile_ids() == frozenset()
+
+
+def test_running_app_artwork_is_authorized_while_the_app_is_shown() -> None:
+    feed = StateFeed()
+    feed.publish(RemoteState(running_apps=(RemoteRunningApp("youtube", "YouTube"),)))
+    assert feed.tile_ids() == frozenset({"youtube"})
 
 
 def test_the_payload_carries_everything_the_page_draws() -> None:
@@ -248,6 +255,42 @@ def test_app_and_volume_reach_the_phone() -> None:
     assert payload["muted"] is True
 
 
+def test_multiple_media_sources_and_running_apps_reach_the_phone() -> None:
+    spotify = RemoteNowPlaying(
+        source_id="org.mpris.MediaPlayer2.spotify",
+        identity="Spotify",
+        title="Nightcall",
+        detail="Kavinsky",
+        playing=True,
+        play_key=True,
+        position_ms=107_000,
+        duration_ms=258_000,
+    )
+    youtube = RemoteNowPlaying(
+        source_id="org.mpris.MediaPlayer2.chrome.instance1",
+        identity="YouTube",
+        title="Introducing GNOME 50",
+        detail="GNOME",
+        playing=False,
+    )
+    payload = RemoteState(
+        now_playing=spotify,
+        media=(spotify, youtube),
+        running_apps=(RemoteRunningApp("youtube", "YouTube", front=True),),
+        app="YouTube",
+        app_id="youtube",
+    ).to_dict()
+
+    assert [source["identity"] for source in payload["media"]] == ["Spotify", "YouTube"]
+    assert payload["media"][0]["playKey"] is True
+    assert payload["media"][0]["positionMs"] == 107_000
+    assert payload["media"][0]["durationMs"] == 258_000
+    assert payload["runningApps"] == [
+        {"id": "youtube", "title": "YouTube", "front": True, "closeable": True}
+    ]
+    assert payload["appId"] == "youtube"
+
+
 def test_volume_is_negative_when_the_sink_could_not_be_read() -> None:
     # -1 rather than 0: a slider parked at silence and a slider that does
     # not know are different things, and only one of them should be drawn.
@@ -295,3 +338,5 @@ def test_a_player_with_no_cover_says_so_both_ways() -> None:
     payload = RemoteNowPlaying(title="Something", detail="", playing=True).to_dict()
     assert payload["artUrl"] == ""
     assert payload["art"] is False
+    assert payload["positionMs"] == -1
+    assert payload["durationMs"] == 0

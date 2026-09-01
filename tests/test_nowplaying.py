@@ -9,7 +9,7 @@ play/pause key being broken, because it went to the wrong player.
 
 from __future__ import annotations
 
-from salon.core.nowplaying import PAUSED, PLAYING, STOPPED, Player, Selection, describe
+from salon.core.nowplaying import PAUSED, PLAYING, STOPPED, Player, Selection, describe, position_ms
 
 
 def _player(name: str, status: str, at: float, **kwargs: object) -> Player:
@@ -56,6 +56,18 @@ def test_stopped_players_are_not_candidates() -> None:
     assert selection.current() is None
 
 
+def test_every_active_player_is_available_for_independent_controls() -> None:
+    selection = Selection()
+    selection.update(_player("spotify", PLAYING, at=10.0))
+    selection.update(_player("youtube", PAUSED, at=20.0))
+    selection.update(_player("firefox", PLAYING, at=30.0))
+    selection.update(_player("vlc", STOPPED, at=40.0))
+
+    players = selection.active_players()
+    assert [player.identity for player in players] == ["Firefox", "Youtube", "Spotify"]
+    assert all(player.status != STOPPED for player in players)
+
+
 def test_a_player_that_quits_stops_being_current() -> None:
     """A closed browser sends no further properties, so without removal it
     would sit on the strip for ever."""
@@ -88,3 +100,12 @@ def test_status_can_be_left_to_the_home_screen_icon() -> None:
     )
     assert title == "Blue Monday"
     assert detail == "New Order · Firefox"
+
+
+def test_playing_position_advances_from_the_snapshot_and_stops_at_the_end() -> None:
+    player = _player(
+        "spotify", PLAYING, at=1.0, position_us=107_000_000,
+        length_us=112_000_000, position_at=50.0,
+    )
+    assert position_ms(player, at=53.0) == 110_000
+    assert position_ms(player, at=60.0) == 112_000

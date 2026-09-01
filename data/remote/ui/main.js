@@ -35,6 +35,7 @@ on("session-lost", dropSession);
 bindConnect();
 bindTabs((name) => {
   if (name === "type") focusTypeField(session.state);
+  if (name !== "remote") closeNowPlaying();
 });
 bindCatalog(openSheet);
 bindSearch(openSheet);
