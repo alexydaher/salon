@@ -16,6 +16,9 @@ class HomeNavigationController(ServiceComponent):
     def _set_nav_focused(self, focused: bool) -> None:
         self._owner._nav_focused = focused
         self._owner._status_bar.set_nav_focused(focused)
+        self._owner._apps_grid.set_top_bar_focused(
+            focused and self._owner._apps_grid.get_visible()
+        )
         self._publish_nav_detail()
         widget = self._owner._focused_widget()
         if widget is not None:

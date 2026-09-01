@@ -148,7 +148,9 @@ class TileSizeToken:
 
 
 TILE_SIZES: tuple[TileSizeToken, ...] = (
-    TileSizeToken("wide", 320.0, 180.0),
+    # The Aurora Console card is deliberately a little squarer than 16:9.
+    # At the shipped 55% scale this resolves to the mockup's 188 x 112du.
+    TileSizeToken("wide", 342.0, 204.0),
     TileSizeToken("square", 220.0, 220.0),
     TileSizeToken("poster", 200.0, 300.0),
 )
@@ -174,12 +176,12 @@ def scaled_type_size_du(name: str, size_scale: float) -> float:
 
 TILE_PADDING_DU: float = 20.0
 TILE_GAP_DU: float = 16.0
-ROW_GAP_DU: float = 20.0
+ROW_GAP_DU: float = 30.0
 CORNER_RADIUS_DU: float = 18.0
 ROW_HEADING_GAP_DU: float = 14.0
 STATUS_BAR_HEIGHT_DU: float = 76.0
 
-CONSOLE_WIDTH_DU: float = 404.0
+CONSOLE_WIDTH_DU: float = 336.0
 CONTENT_GUTTER_DU: float = 48.0
 ACTION_BAR_HEIGHT_DU: float = 88.0
 CONSOLE_GAP_DU: float = 18.0
@@ -222,7 +224,6 @@ REFERENCE_VIEWPORT_HEIGHT_PX: float = 1080.0
 # controls retain their television overscan protection while the two small
 # home-screen readouts use the otherwise empty bottom edge.
 BOTTOM_CHROME_MARGIN_DU: float = 22.0
-
 
 # Two lines of type plus the space around them: the bottom strip that says
 # what the cursor is on. Reserved in the home screen's bottom inset so the

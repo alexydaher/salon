@@ -83,7 +83,7 @@ class _AxisSpring:
         if value == self._value:
             # Nothing to apply, and this is not just a saving: setting a
             # child transform queues an allocation on the Gtk.Fixed, and
-            # `_layout_rows` puts every row back on its own column from
+            # `_layout_rows` puts every row back on its resting position from
             # *inside* an allocation. Without this the steady state would
             # ask for a fresh layout on every frame for as long as the
             # screen was on. `animate_to` has the same guard.

@@ -153,6 +153,7 @@ class HomeSurfaceSetup(ServiceComponent):
             tile_scale=self._owner._settings.get_double("tile-scale"),
             on_launch=self._owner._launch_tile,
             on_close=self._owner._on_global_surface_closed,
+            on_focus_top_bar=lambda: self._owner._set_nav_focused(True),
             on_count=self._owner._status_info.set_application_count,
         )
         self._owner._overlay.add_overlay(self._owner._apps_grid)

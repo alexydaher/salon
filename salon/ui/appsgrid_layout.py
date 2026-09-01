@@ -8,12 +8,19 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
-from salon.core.model import Tile  # noqa: E402
-from salon.ui.appsgrid_geometry import column_count, grid_metrics, horizontal_origin  # noqa: E402
+from salon.ui.appsgrid_alphabet import AppsGridAlphabet  # noqa: E402
+from salon.ui.appsgrid_geometry import (  # noqa: E402
+    column_count,
+    grid_metrics,
+    grouped_rows,
+    horizontal_origin,
+)
 from salon.ui.tile import TileMetrics, TileWidget  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
-class AppsGridLayout:
+
+
+class AppsGridLayout(AppsGridAlphabet):
     def _metrics(self) -> TileMetrics:
         return grid_metrics(self._scale, self._tile_scale)
 
@@ -53,13 +60,10 @@ class AppsGridLayout:
             self._scroll_to_focused(animate=False)
 
     def _row_lengths(self) -> list[int]:
-        rows, remainder = divmod(len(self._tiles), self._columns)
-        lengths = [self._columns] * rows
-        if remainder:
-            lengths.append(remainder)
-        return lengths
+        return [len(row) for row in self._grid_rows]
 
     def _rebuild(self) -> None:
+        focused_index = self._focused_index()
         child = self._grid.get_first_child()
         while child is not None:
             next_child = child.get_next_sibling()
@@ -68,44 +72,57 @@ class AppsGridLayout:
 
         metrics = self._metrics()
         self._widgets = []
-        for index, tile in enumerate(self._tiles):
-            row, col = divmod(index, self._columns)
-            artwork = self._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
-            widget = TileWidget(
-                tile,
-                artwork,
-                metrics,
-                self._scale,
-                show_subtitle=True,
-                horizontal_content=True,
+        self._item_tops: list[float] = [0.0] * len(self._tiles)
+        left, _ = self._origin(metrics)
+        y = 0.0
+        heading_height = self._scale.du(18.0)
+        heading_gap = self._scale.du(13.0)
+        group_gap = self._scale.du(26.0)
+        letters = self._letters()
+        self._grid_rows = grouped_rows(
+            len(self._tiles), self._columns, [start for _letter, start in letters]
+        )
+        self._index_positions = {
+            index: (row, col)
+            for row, indices in enumerate(self._grid_rows)
+            for col, index in enumerate(indices)
+        }
+        for group, (letter, start) in enumerate(letters):
+            end = letters[group + 1][1] if group + 1 < len(letters) else len(self._tiles)
+            count = end - start
+            rows = max(1, (count + self._columns - 1) // self._columns)
+            heading = self._group_heading(letter)
+            heading.set_size_request(
+                round(self._columns * metrics.step - metrics.gap), round(heading_height)
             )
-            click = Gtk.GestureClick()
-            click.connect("released", lambda *_, i=index: self._click(i))
-            widget.add_controller(click)
-            motion = Gtk.EventControllerMotion()
-            motion.connect("motion", lambda *_, i=index: self._hover(i))
-            widget.add_controller(motion)
-            # Never a negative coordinate: the widget's transparent bleed is
-            # what the bloom is drawn into, and a child placed above or left
-            # of the viewport's own origin has that half of its glow clipped
-            # away — which is the whole reason for _origin.
-            left, top = self._origin(metrics)
             self._grid.put(
-                widget,
-                left + col * metrics.step,
-                top + row * self._row_pitch(metrics),
+                heading,
+                left + metrics.bleed,
+                y + metrics.bleed - heading_height - heading_gap,
             )
-            self._widgets.append(widget)
+            for local, index in enumerate(range(start, end)):
+                row, col = divmod(local, self._columns)
+                widget = self._tile_widget(index, metrics)
+                top = y + row * self._row_pitch(metrics)
+                self._grid.put(widget, left + col * metrics.step, top)
+                self._item_tops[index] = top
+                self._widgets.append(widget)
+            y += (
+                heading_height
+                + heading_gap
+                + rows * metrics.height
+                + max(0, rows - 1) * metrics.gap
+                + group_gap
+            )
 
         lengths = self._row_lengths()
         self._focus.set_row_lengths(lengths)
-        left, top = self._origin(metrics)
+        if focused_index in self._index_positions:
+            self._focus.jump_to(*self._index_positions[focused_index])
+        self._grid_content_height = max(0.0, y - group_gap + metrics.bleed)
         self._grid.set_size_request(
             max(1, round(left + self._columns * metrics.step + metrics.bleed)),
-            # The trailing bleed is part of the content: without it the
-            # scroll clamps with the last row's card flush against the
-            # bottom edge and its bloom cut off there instead.
-            max(1, round(top + len(lengths) * self._row_pitch(metrics) + metrics.bleed)),
+            max(1, round(self._grid_content_height)),
         )
         self._update_legend()
         if not self._tiles:
@@ -113,100 +130,50 @@ class AppsGridLayout:
         self._rebuild_rail()
         self._update_selection(animate=False)
 
-    # --- the A-Z rail ----------------------------------------------------
+    def _tile_widget(self, index: int, metrics: TileMetrics) -> TileWidget:
+        tile = self._tiles[index]
+        artwork = self._artwork.resolve(tile, icon_size=round(self._scale.du(54.0)))
+        widget = TileWidget(
+            tile, artwork, metrics, self._scale, show_subtitle=True, horizontal_content=True
+        )
+        click = Gtk.GestureClick()
+        click.connect("released", lambda *_, i=index: self._click(i))
+        widget.add_controller(click)
+        motion = Gtk.EventControllerMotion()
+        motion.connect("motion", lambda *_, i=index: self._hover(i))
+        widget.add_controller(motion)
+        return widget
 
-    @staticmethod
-    def _initial(tile: Tile) -> str:
-        """The letter a tile files under. Everything that isn't A-Z shares
-        one bucket rather than getting a rail entry each — a rail with `0`,
-        `2`, `4`, `7` and `Ø` in it is not a rail."""
-        first = (tile.title or "?").strip()[:1].upper()
-        return first if "A" <= first <= "Z" else "#"
-
-    def _letters(self) -> list[tuple[str, int]]:
-        """Each present letter and the index of its first tile, in order."""
-        found: list[tuple[str, int]] = []
-        seen: set[str] = set()
-        for index, tile in enumerate(self._tiles):
-            letter = self._initial(tile)
-            if letter not in seen:
-                seen.add(letter)
-                found.append((letter, index))
-        return found
-
-    def _rebuild_rail(self) -> None:
-        child = self._rail.get_first_child()
-        while child is not None:
-            following = child.get_next_sibling()
-            self._rail.remove(child)
-            child = following
-        self._rail_labels = {}
-        present = dict(self._letters())
-        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-            label = Gtk.Label(label=letter)
-            label.add_css_class("salon-letter")
-            label.set_vexpand(True)
-            label.set_valign(Gtk.Align.CENTER)
-            if letter in present:
-                click = Gtk.GestureClick()
-                click.connect(
-                    "released", lambda *_, i=present[letter]: self._jump_to_index(i)
-                )
-                label.add_controller(click)
-            else:
-                label.add_css_class("unavailable")
-            self._rail.append(label)
-            self._rail_labels[letter] = label
-
-    def _update_rail(self) -> None:
-        tile = self.focused_tile
-        current = self._initial(tile) if tile is not None else ""
-        for letter, label in self._rail_labels.items():
-            if letter == current:
-                label.add_css_class("current")
-            else:
-                label.remove_css_class("current")
-
-    def _jump_letter(self, delta: int) -> None:
-        letters = self._letters()
-        if not letters:
-            return
-        index = self._focused_index()
-        # Which letter block the cursor is in right now.
-        position = 0
-        for i, (_letter, start) in enumerate(letters):
-            if start <= index:
-                position = i
-            else:
-                break
-        # Going back from anywhere but the top of a block means "the top of
-        # this block" — the same rule a music player's previous-track button
-        # follows, and for the same reason: it is what a second press of the
-        # button is for.
-        if delta < 0 and letters[position][1] != index:
-            target = position
-        else:
-            target = position + delta
-        if not (0 <= target < len(letters)):
-            distance = self._scale.du(_BUMP_DISTANCE_DU)
-            self._scroll.bump(distance if delta < 0 else -distance)
-            return
-        self._jump_to_index(letters[target][1])
+    def _group_heading(self, letter: str) -> Gtk.Widget:
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        box.add_css_class("salon-app-group-heading")
+        box.set_spacing(self._scale.px(16.0))
+        label = Gtk.Label(label=letter)
+        label.set_valign(Gtk.Align.CENTER)
+        box.append(label)
+        rule = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        rule.set_hexpand(True)
+        rule.set_valign(Gtk.Align.CENTER)
+        box.append(rule)
+        return box
 
     def _row_pitch(self, metrics: TileMetrics) -> float:
         # Enough vertical room for the label under each card plus the gap.
         return metrics.height + metrics.gap
 
     def _focused_index(self) -> int:
-        return self._focus.row * self._columns + self._focus.col
+        row, col = self._focus.position
+        if 0 <= row < len(self._grid_rows) and 0 <= col < len(self._grid_rows[row]):
+            return self._grid_rows[row][col]
+        return -1
 
     def _update_selection(self, *, animate: bool = True) -> None:
         index = self._focused_index()
         for i, widget in enumerate(self._widgets):
-            widget.set_focused(i == index)
+            widget.set_focused(not self._top_bar_focused and i == index)
         tile = self.focused_tile
         if tile is not None:
-            self._set_hint(f"{tile.title} · {tile.subtitle}" if tile.subtitle else tile.title)
+            self._bottom.set_selection(tile.title, tile.subtitle or "")
         self._update_rail()
         self._update_legend()
         if 0 <= index < len(self._widgets):
@@ -219,26 +186,18 @@ class AppsGridLayout:
         self._scroll_to_focused(animate=animate)
 
     def _update_legend(self) -> None:
-        if not self._tiles:
-            self._legend.set_label("")
-            return
-        index = max(0, min(self._focused_index(), len(self._tiles) - 1))
-        self._legend.set_label(
-            f"{index + 1} of {len(self._tiles)} · OK opens · OPTIONS shows actions · "
-            "LEFT/RIGHT jumps a letter · UP/DOWN walks apps · BACK returns"
-        )
+        return
 
     def _scroll_to_focused(self, *, animate: bool) -> None:
         if not self._widgets or self._viewport_height <= 0:
             return
         metrics = self._metrics()
         pitch = self._row_pitch(metrics)
-        _, origin_top = self._origin(metrics)
-        # In viewport coordinates, including the bleed above the first card
-        # and below the last, so a focused row is never scrolled to a
-        # position where its own bloom is the thing hanging off the edge.
-        top = origin_top + self._focus.row * pitch
-        content_height = origin_top + len(self._row_lengths()) * pitch + metrics.bleed
+        index = self._focused_index()
+        if not 0 <= index < len(self._item_tops):
+            return
+        top = self._item_tops[index]
+        content_height = self._grid_content_height
         offset = 0.0
         if top + pitch + metrics.bleed > self._viewport_height:
             offset = self._viewport_height - (top + pitch + metrics.bleed)

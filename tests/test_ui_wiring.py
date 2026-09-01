@@ -57,3 +57,26 @@ def test_top_bar_horizontal_edges_do_not_animate_an_app_row() -> None:
     ]
     assert "move" in calls
     assert "_rubber_band" not in calls
+
+
+def test_vertical_home_move_explicitly_suppresses_horizontal_reveal() -> None:
+    path = Path(__file__).resolve().parent.parent / "salon/ui/home_landing.py"
+    tree = ast.parse(path.read_text(), filename=str(path))
+    handler = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_move_focus"
+    )
+    update = next(
+        node
+        for node in ast.walk(handler)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_update_focus"
+    )
+    reveal = next(
+        keyword.value for keyword in update.keywords if keyword.arg == "reveal_horizontal"
+    )
+
+    assert isinstance(reveal, ast.UnaryOp)
+    assert isinstance(reveal.op, ast.Not)

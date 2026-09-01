@@ -3,6 +3,8 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
+from salon.ui.home_row_landing import revealed_scroll_position, row_scroll_offset
+from salon.ui.home_rows import _RowWidgets
 from salon.ui.home_shared import _FALLBACK_VIEWPORT_HEIGHT_PX, Bump, tokens
 
 
@@ -80,13 +82,11 @@ class HomeScrollController(ServiceComponent):
         content_height = self._owner._content_height()
 
         if content_height <= band_height:
-            # Measured without the last row's bleed. That padding is
-            # transparent room for the focus growth and the bloom, so
-            # counting it as content centres a box one bleed taller than
-            # anything anybody can see and leaves the rows sitting visibly
-            # high — 56 design units of it, which is plainly wrong on screen.
-            trailing = self._owner._rows[-1].metrics.bleed if self._owner._rows else 0.0
-            return (band_height - (content_height - trailing)) / 2.0
+            # The console composition is top-led: Home's first heading sits
+            # 30du below the title/button band. Centring a five-row catalogue
+            # added almost sixty blank pixels above it and broke the mockup's
+            # 110du first-row anchor.
+            return self._owner._scale.du(20.0)
 
         focused_center = (
             self._owner._row_tile_top(self._owner._focus.row)
@@ -102,6 +102,36 @@ class HomeScrollController(ServiceComponent):
         self._owner._row_anchor.animate_to(target) if animate else self._owner._row_anchor.jump_to(
             target
         )
+
+    def _row_scroll_x(self, row: _RowWidgets) -> float:
+        """The row's persisted step position as a clamped pixel offset."""
+        return row_scroll_offset(
+            row.scroll_position,
+            viewport_width=self._owner._viewport_width,
+            safe_margin=self._owner._safe_margin,
+            bleed=row.metrics.bleed,
+            step=row.metrics.step,
+            content_width=row.content_width,
+        )
+
+    def _update_row_scroll(self, row_index: int, col: int, *, animate: bool) -> None:
+        """Reveal `col` only if it has crossed one of the row's safe edges."""
+        if not (0 <= row_index < len(self._owner._rows)):
+            return
+        row = self._owner._rows[row_index]
+        column = max(0, min(col, len(row.tiles) - 1)) if row.tiles else 0
+        row.scroll_position = revealed_scroll_position(
+            column,
+            row.scroll_position,
+            viewport_width=self._owner._viewport_width,
+            safe_margin=self._owner._safe_margin,
+            bleed=row.metrics.bleed,
+            step=row.metrics.step,
+            width=row.metrics.width,
+            content_width=row.content_width,
+        )
+        target = self._row_scroll_x(row)
+        row.scroller.animate_to(target) if animate else row.scroller.jump_to(target)
 
     def _rubber_band(self, bump: Bump) -> None:
         distance = self._owner._bump_distance

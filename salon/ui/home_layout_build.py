@@ -67,6 +67,7 @@ class HomeLayoutBuilder(ServiceComponent):
             )
 
             tiles_box = Gtk.Fixed()
+            tiles_box.add_css_class("salon-tile-row")
             tiles: list[TileWidget] = []
             remote_tiles: list[RemoteTile] = []
             for col, tile in enumerate(row.tiles):
@@ -106,10 +107,9 @@ class HomeLayoutBuilder(ServiceComponent):
             row_viewport.put(tiles_box, 0, 0)
             self._owner._rows_content.put(row_viewport, 0, 0)
 
-            # Never wider than the safe-area margin: the focused tile rests
-            # exactly one margin from the left edge, and the last tile of a
-            # row rests one from the right, so a wider ramp would be fading
-            # the tile the cursor is on.
+            # Never wider than the safe-area margin: focused cards remain
+            # inside those navigation edges, so a wider ramp could fade the
+            # tile carrying the cursor.
             widgets = _RowWidgets(
                 heading,
                 row_viewport,
@@ -155,14 +155,11 @@ class HomeLayoutBuilder(ServiceComponent):
             # The window's width just changed, and the row's fades are a
             # function of it as well as of the scroll offset.
             row.visible_width = float(width)
-            # Each row back onto its own column, because the clamp that
-            # holds the end of a row against the right edge is a function
-            # of that width: a row parked at its end and then given a wider
-            # window would otherwise stay where it was, stranding empty
-            # space beside its last tile. Never animated — this runs from
-            # inside an allocation, and a row is not travelling here, it is
-            # being told where it already is.
-            self._owner._update_row_scroll(index, row.column, animate=False)
+            # Re-derive the row's pixel offset from its step position. The
+            # end clamp depends on this width, so preserving raw pixels
+            # would expose empty space after a resize. Never animated: this
+            # runs inside allocation and applies where the row already is.
+            row.scroller.jump_to(self._owner._row_scroll_x(row))
             row.update_fades()
         self._owner._rows_content.set_size_request(
             width, max(1, round(self._owner._content_height()))

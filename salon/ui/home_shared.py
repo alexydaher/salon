@@ -3,28 +3,25 @@
 """The home screen (§6.1, §6.2, §6.9): rows, anchoring, focus, launching.
 
 Layout is a stack of `Gtk.Fixed` viewports translated by springs, because
-what the brief asks for is not what a scrolled window does. A
-`Gtk.ScrolledWindow` scrolls to keep the focused child *visible*; §6.1 wants
-the focused row pinned at a fixed vertical anchor and the focused tile
-pinned at the left safe-area margin, with everything else moving around
-them. So each axis is a `Gtk.Fixed` clipping (`overflow=HIDDEN`) around
+what the brief asks for is not what a scrolled window does. Salon keeps GTK
+focus on one composite and moves its own spatial cursor, while §6.1 wants
+the focused row pinned at a fixed vertical anchor. Horizontally the ring
+crosses visible cards and the row reveals only a card that reaches a safe
+edge. So each axis is a `Gtk.Fixed` clipping (`overflow=HIDDEN`) around
 oversized content, translated by a `Gsk.Transform` that an
 `Adw.SpringAnimation` drives — the same mechanism `ui/tile.py` uses for
 scale, and the reason a direction reversal mid-scroll settles physically.
 
 Three geometry decisions here are worth knowing before changing anything:
 
-* **Row viewports span the full window width, not the safe area.** The
-  focused tile sits at the safe-area margin and the previous tile peeks
-  into the margin beside it, which only works if the clip boundary is the
-  screen edge. Clipping at the safe-area margin instead — which is what
-  this did originally — cut the focused tile's bloom off in a hard vertical
-  line partway across the screen.
+* **Row viewports span the full window width, not the safe area.** The safe
+  margin is a navigation boundary, while the real clip remains the screen
+  edge so a focused tile's bleed and bloom are not sliced by a hard vertical
+  line inside the screen.
 * **Scroll offsets are clamped to the content bounds on both axes.** A row
-  left-anchors its focused tile right up until doing so would strand empty
-  space at the right edge, and then it stops. Without that, focusing the
-  last tile of a short row leaves most of a 1920px screen empty, which is
-  what it did before.
+  moves only enough to reveal a focused card at either safe edge, and never
+  past its first or last card. Without the content clamp, focusing the last
+  tile of a short row leaves most of a 1920px screen empty.
 * **Rows are positioned by absolute y, not stacked in a box.** Every tile
   carries transparent bleed for its bloom to render into, so consecutive
   rows' footprints have to overlap. A box's non-negative spacing can't

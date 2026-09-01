@@ -3,7 +3,6 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
-from salon.ui.home_rows import _RowWidgets
 from salon.ui.home_shared import (
     Gtk,
     RemoteNowPlaying,
@@ -16,7 +15,9 @@ from salon.ui.home_shared import (
 
 
 class HomeFocusController(ServiceComponent):
-    def _update_focus(self, *, animate: bool = True) -> None:
+    def _update_focus(
+        self, *, animate: bool = True, reveal_horizontal: bool = True
+    ) -> None:
         menu_focused = (
             self._owner._system_menu.get_visible() or self._owner._tile_menu.get_visible()
         )
@@ -34,8 +35,10 @@ class HomeFocusController(ServiceComponent):
                 )
             if focused_row and not self._owner._nav_focused and not menu_focused:
                 row.heading.add_css_class("row-focused")
+                row.tiles_box.add_css_class("row-focused")
             else:
                 row.heading.remove_css_class("row-focused")
+                row.tiles_box.remove_css_class("row-focused")
 
         tile = self._owner._catalog.tile_at(self._owner._focus.row, self._owner._focus.col)
         self._owner._detail_bar.set_tile(tile)
@@ -45,14 +48,14 @@ class HomeFocusController(ServiceComponent):
             if focused_widget is not None and not menu_focused:
                 self._owner._backdrop.set_focus(focused_widget.artwork_accent)
                 self._publish_active_descendant(focused_widget)
+        # A vertical move explicitly suppresses this even though its landing
+        # geometry normally makes it a no-op. That keeps the no-sideways-
+        # motion contract true even in a viewport too narrow for one card.
+        if reveal_horizontal:
+            self._update_row_scroll(
+                self._owner._focus.row, self._owner._focus.col, animate=animate
+            )
         self._update_backdrop_position()
-        # Only the row the cursor is in. Every row used to be scrolled to
-        # the one column the focus model carried, which kept the grid
-        # aligned at the price of dragging a row nobody was in sideways
-        # across the screen — see `home_row_landing` for the measurement and
-        # for what lands the cursor now. The other rows are re-applied from
-        # their own `column` in `_layout_rows`.
-        self._update_row_scroll(self._owner._focus.row, self._owner._focus.col, animate=animate)
         self._owner._update_row_anchor(animate=animate)
         self._publish_remote_state()
 
@@ -230,33 +233,18 @@ class HomeFocusController(ServiceComponent):
             or self._owner._viewport_height <= 0
         ):
             return
-        metrics = self._owner._rows[min(self._owner._focus.row, len(self._owner._rows) - 1)].metrics
-        x = (self._owner._safe_margin + metrics.width / 2.0) / self._owner._viewport_width
+        row = self._owner._rows[min(self._owner._focus.row, len(self._owner._rows) - 1)]
+        col = max(0, min(self._owner._focus.col, len(row.tiles) - 1)) if row.tiles else 0
+        local_x = (
+            self._row_scroll_x(row)
+            + row.metrics.bleed
+            + col * row.metrics.step
+            + row.metrics.width / 2.0
+        )
+        backdrop_width = self._owner._backdrop.get_width()
+        if backdrop_width > 0:
+            x = (self._owner._viewport_host.get_margin_start() + local_x) / backdrop_width
+        else:
+            x = local_x / self._owner._viewport_width
         y = tokens.ROW_ANCHOR_FRACTION
         self._owner._backdrop.set_focus_position(x, y)
-
-    def _row_scroll_x(self, row: _RowWidgets, col: int) -> float:
-        """Left-anchor the focused tile's *card* at the safe-area margin, but
-        never scroll past the end of the row — stranding empty space at the
-        right edge looks broken, and the last screenful of a row reads better
-        flush-right than left-anchored with a void beside it.
-
-        Offsets are in tiles-box coordinates, where a tile's card sits one
-        bleed to the right of the tile widget's own origin.
-        """
-        bleed = row.metrics.bleed
-        max_offset = self._owner._safe_margin - bleed
-        desired = max_offset - col * row.metrics.step
-        min_offset = min(
-            max_offset,
-            self._owner._viewport_width - self._owner._safe_margin - bleed - row.content_width,
-        )
-        return max(min_offset, min(max_offset, desired))
-
-    def _update_row_scroll(self, row_index: int, col: int, *, animate: bool) -> None:
-        if not (0 <= row_index < len(self._owner._rows)):
-            return
-        row = self._owner._rows[row_index]
-        row.column = max(0, min(col, len(row.tiles) - 1)) if row.tiles else 0
-        target = self._row_scroll_x(row, row.column)
-        row.scroller.animate_to(target) if animate else row.scroller.jump_to(target)

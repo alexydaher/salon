@@ -87,10 +87,10 @@ def describe(tile: Tile) -> str:
 
 
 class DetailBar(Gtk.Box):
-    """A title line and a description line, pinned to the bottom-left."""
+    """A title and description on one baseline, pinned bottom-left."""
 
     def __init__(self, scale: Scale) -> None:
-        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
         self.add_css_class("salon-detail-bar")
         self.set_valign(Gtk.Align.END)
         self.set_halign(Gtk.Align.FILL)
@@ -110,6 +110,7 @@ class DetailBar(Gtk.Box):
         self._title.set_halign(Gtk.Align.START)
         self._title.set_xalign(0.0)
         self._title.set_ellipsize(Pango.EllipsizeMode.END)
+        self._title.set_valign(Gtk.Align.BASELINE)
         self.append(self._title)
 
         self._detail = Gtk.Label()
@@ -117,6 +118,7 @@ class DetailBar(Gtk.Box):
         self._detail.set_halign(Gtk.Align.START)
         self._detail.set_xalign(0.0)
         self._detail.set_ellipsize(Pango.EllipsizeMode.END)
+        self._detail.set_valign(Gtk.Align.BASELINE)
         self.append(self._detail)
 
         self._tile: Tile | None = None
@@ -133,8 +135,8 @@ class DetailBar(Gtk.Box):
         # the gap here means there is exactly one place that decides how
         # much room the strip takes. Without it the last row's title and
         # the strip's title touch, which reads as one broken paragraph.
-        self.set_margin_top(scale.px(28.0))
-        self.set_spacing(scale.px(3.0))
+        self.set_margin_top(0)
+        self.set_spacing(scale.px(16.0))
 
     def set_tile(self, tile: Tile | None) -> None:
         self._tile = tile

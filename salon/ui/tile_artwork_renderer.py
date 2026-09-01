@@ -92,28 +92,41 @@ class TileArtworkRenderer:
         )
 
     def snapshot_generated(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
-        """§7.4 levels 3 and 4: an icon (or the title's initial) on a
-        gradient derived from the tile's own colour. Generous padding, a
-        soft top-light, and the title below — this has to look designed,
-        because for most tiles it is what the user actually sees."""
-        accent = self._artwork.accent
-        top = _with_alpha(_mix(theme.color("surface-2"), accent, 0.10), 0.88)
-        bottom = _with_alpha(theme.color("surface-1"), 0.80)
+        """§7.4 levels 3 and 4: an icon (or the title's initial) on the
+        Aurora Console smoked-glass surface.
+
+        The old mostly-opaque, artwork-tinted gradient made every missing-
+        artwork tile look like a different kind of object.  The final
+        designs use one neutral translucent pane instead: the per-tile
+        colour belongs to the ambient backdrop and launch transition, while
+        the catalogue remains calm and scannable.
+        """
+        # Lift surface-2 just enough to retain an edge over a dark corner,
+        # then keep enough transparency for the ambient fields to show
+        # through.  This is the GTK/GSK counterpart of the mockup's
+        # rgba(52, 68, 92, .42) pane.
+        glass = _mix(theme.color("surface-2"), theme.color("text-primary"), 0.08)
+        top = _with_alpha(glass, 0.58)
+        bottom = _with_alpha(theme.color("surface-1"), 0.46)
         snapshot.append_linear_gradient(
             rect,
             _point(rect.get_x(), rect.get_y()),
-            _point(rect.get_x() + rect.get_width() * 0.35, rect.get_y() + rect.get_height()),
+            _point(rect.get_x() + rect.get_width() * 0.22, rect.get_y() + rect.get_height()),
             _stops((0.0, top), (1.0, bottom)),
         )
-        # A soft light from above — the room's lamp, not a UI highlight.
+        # A restrained glass sheen, kept broad enough that it never reads as
+        # a second focus indicator.
         snapshot.append_radial_gradient(
             rect,
-            _point(rect.get_x() + rect.get_width() / 2.0, rect.get_y()),
-            rect.get_width() * 0.85,
-            rect.get_height() * 0.75,
+            _point(rect.get_x() + rect.get_width() * 0.38, rect.get_y()),
+            rect.get_width(),
+            rect.get_height(),
             0.0,
             1.0,
-            _stops((0.0, _with_alpha(theme.color("text-primary"), 0.08)), (1.0, _TRANSPARENT)),
+            _stops(
+                (0.0, _with_alpha(theme.color("text-primary"), 0.055)),
+                (1.0, _TRANSPARENT),
+            ),
         )
 
         icon_box = self._icon_box(rect)
@@ -148,7 +161,10 @@ class TileArtworkRenderer:
             )
         title_band = self._metrics.title_size * 1.9
         available_height = rect.get_height() - title_band
-        size = min(available_height * 0.68, rect.get_width() * 0.34)
+        # 40/112 in the reference Home card.  The previous 0.68 share made
+        # generic icons about 25% larger than real app marks and caused the
+        # artwork to dominate the name at sofa distance.
+        size = min(rect.get_height() * 0.36, rect.get_width() * 0.24)
         return _rect(
             rect.get_x() + (rect.get_width() - size) / 2.0,
             rect.get_y() + (available_height - size) / 2.0,

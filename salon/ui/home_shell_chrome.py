@@ -24,6 +24,7 @@ class HomeShellChrome(ServiceComponent):
         self._owner._console_sidebar.set_visible(not full_surface)
         self._owner._home_title.set_visible(not full_surface and not apps)
         self._owner._status_bar.set_visible(not full_surface)
+        self._owner._status_bar.set_apps_active(apps)
         self._owner._bottom_bar.set_visible(not full_surface and not apps)
         self._owner._update_remote_hint()
 

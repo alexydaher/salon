@@ -198,18 +198,37 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         rect = _rect(metrics.bleed, metrics.bleed, metrics.width, metrics.height)
         rounded = _rounded(rect, metrics.radius)
 
+        # Give the pane physical separation from the ambient backdrop.  The
+        # focused state settles lower and softer, matching the grounded
+        # shadow in the final design.
+        shadow_offset = self._scale.du(4.0 + 12.0 * focus)
+        shadow_blur = self._scale.du(12.0 + 22.0 * focus)
+        shadow_alpha = 0.18 + 0.24 * focus
+        snapshot.append_outset_shadow(
+            rounded,
+            _with_alpha(theme.color("surface-0"), shadow_alpha),
+            0.0,
+            shadow_offset,
+            0.0,
+            shadow_blur,
+        )
+
         snapshot.push_rounded_clip(rounded)
         if self._artwork.texture is not None:
             self.snapshot_texture(snapshot, rect)
+            self.snapshot_vignette(snapshot, rect)
+            lift_alpha = 0.06
         else:
             self.snapshot_generated(snapshot, rect)
-        self.snapshot_vignette(snapshot, rect)
-        self.snapshot_labels(snapshot, rect)
+            lift_alpha = 0.13
         if focus > 0.01:
-            # A brightness lift, not just an outline — the focused tile is
-            # meant to read as lit, and this is what carries that when
-            # animations are off and the scale never happens.
-            snapshot.append_color(_with_alpha(theme.color("text-primary"), 0.07 * focus), rect)
+            # Paint the lift below the labels.  Drawing it last used to put
+            # a pale veil over the title as well as the pane, precisely when
+            # the selected title needs its strongest contrast.
+            snapshot.append_color(
+                _with_alpha(theme.color("text-primary"), lift_alpha * focus), rect
+            )
+        self.snapshot_labels(snapshot, rect)
         snapshot.pop()
 
         # A hairline edge so a dark tile still separates from a dark

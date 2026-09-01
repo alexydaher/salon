@@ -11,6 +11,5 @@ def test_home_mapping_keeps_every_action_after_time_away() -> None:
     assert HOME_ACTION_MEANINGS == (
         (Action.OK, "Open"),
         (Action.OPTIONS, "More"),
-        (Action.UP, "Shortcuts"),
         (Action.MENU, "System"),
     )

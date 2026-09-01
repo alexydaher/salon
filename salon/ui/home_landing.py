@@ -2,10 +2,9 @@
 # ruff: noqa: F403, F405
 """Where a direction press puts the cursor, and what it moves to get there.
 
-The rule this exists to serve is in `home_row_landing`: a row is scrolled
-only while the cursor is inside it, so a vertical press has to work out
-which tile of the destination is already under the ring rather than
-assuming every row is parked at the same column.
+The rule this exists to serve is in `home_row_landing`: a vertical press
+never scrolls its destination row, so it has to work out which visible tile
+is already under the ring rather than assuming column numbers line up.
 """
 
 from salon.services.component import ServiceComponent
@@ -19,14 +18,16 @@ class HomeLandingController(ServiceComponent):
         # Read before the model moves: it is the position the ring is
         # leaving, and the destination row lands whichever of its own tiles
         # is already under it. Only the vertical presses need it — LEFT and
-        # RIGHT stay inside one row, which owns its own column.
+        # RIGHT stay inside one row, which owns its own scroll position.
         vertical = action is Action.UP or action is Action.DOWN
         cursor_center = self._cursor_center_x() if vertical else None
         change = self._owner._focus.handle(action)
         if change.moved:
             if vertical:
                 self._land_in_row(change.row, cursor_center)
-            self._owner._update_focus()
+            self._owner._update_focus(
+                reveal_horizontal=not (vertical and cursor_center is not None)
+            )
         elif change.bump is Bump.UP:
             # The top of the tiles is not a wall: it's the top bar. This is
             # the whole reason Search/Settings/Power are reachable at all
@@ -50,7 +51,7 @@ class HomeLandingController(ServiceComponent):
         row = self._owner._rows[index]
         if not row.tiles:
             return None
-        offset = self._owner._row_scroll_x(row, self._owner._focus.col)
+        offset = self._owner._row_scroll_x(row)
         return (
             offset
             + row.metrics.bleed
@@ -72,10 +73,12 @@ class HomeLandingController(ServiceComponent):
             return
         column = landing_column(
             cursor_center,
-            offset=self._owner._row_scroll_x(row, row.column),
+            offset=self._owner._row_scroll_x(row),
             bleed=row.metrics.bleed,
             step=row.metrics.step,
             width=row.metrics.width,
             count=len(row.tiles),
+            viewport_width=self._owner._viewport_width,
+            safe_margin=self._owner._safe_margin,
         )
         self._owner._focus.jump_to(row_index, column)

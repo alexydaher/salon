@@ -3,24 +3,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+from salon.core import tokens
 from salon.ui.scale import Scale
 from salon.ui.tile_geometry import TileMetrics, metrics_for
 
 
 def grid_metrics(scale: Scale, tile_scale: float) -> TileMetrics:
-    """Wide cards, the same 16:9 shape the home screen uses.
+    """The All Apps card contract at the shipped 55% preference.
 
-    Square was chosen when the grid was thought of as an application
-    launcher and the card as a big icon. But it is the same `TileWidget`
-    drawing the same generated artwork, one screen away from the home rows,
-    and the shape was the only thing making the two read as different
-    surfaces. A wide card is also the better one for a name: it is the axis
-    a title runs along, so fewer of them truncate at the same card area.
+    These are not Home's cards enlarged: the mockup deliberately keeps the
+    four-column width while reducing the old 16:9 height to 138du.
     """
-    # All-app cards carry icon, title and subtitle on one horizontal axis.
-    # They therefore use a larger presentation scale than the compact Home
-    # tiles while following the same preference proportionally.
-    return metrics_for(scale, "wide", size_scale=min(1.35, tile_scale * 1.45))
+    factor = tile_scale / 0.55
+    base = metrics_for(scale, "wide", size_scale=tile_scale)
+    return TileMetrics(
+        width=scale.du(308.0 * factor),
+        height=scale.du(138.0 * factor),
+        bleed=base.bleed,
+        gap=scale.du(18.0),
+        radius=scale.du(tokens.CORNER_RADIUS_DU),
+        padding=scale.du(18.0 * factor),
+        title_size=scale.du(20.0 * factor),
+        subtitle_size=scale.du(14.0 * factor),
+        bloom_blur=base.bloom_blur,
+        bloom_offset=base.bloom_offset,
+    )
 
 
 def horizontal_origin(safe_margin: float, metrics: TileMetrics) -> float:
@@ -35,3 +44,25 @@ def column_count(viewport_width: int, safe_margin: float, metrics: TileMetrics) 
     # +gap because the last column needs no trailing gap; without it the
     # grid loses a column whenever the remainder is smaller than one.
     return max(1, int((usable + metrics.gap) // metrics.step))
+
+
+def grouped_rows(item_count: int, columns: int, group_starts: Sequence[int]) -> list[list[int]]:
+    """Return the rows users actually see when every A-Z group starts fresh."""
+    if item_count <= 0:
+        return []
+    columns = max(1, columns)
+    starts = sorted({start for start in group_starts if 0 <= start < item_count})
+    if not starts or starts[0] != 0:
+        starts.insert(0, 0)
+    ends = [*starts[1:], item_count]
+    return [
+        list(range(row_start, min(row_start + columns, end)))
+        for start, end in zip(starts, ends, strict=True)
+        for row_start in range(start, end, columns)
+    ]
+
+
+def linear_neighbor(index: int, item_count: int, delta: int) -> int | None:
+    """Move in reading order, including across the end of a visual row."""
+    target = index + delta
+    return target if 0 <= target < item_count else None

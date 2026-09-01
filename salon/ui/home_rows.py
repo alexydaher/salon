@@ -27,14 +27,13 @@ class _RowWidgets:
         self.fade = fade
         # The window's width, not the viewport's: see `_RowViewport`.
         self.visible_width = 0.0
-        # The column this row is parked on, which is *its own* and not the
-        # cursor's. Every row used to be scrolled to the column the focus
-        # model carried, so a row with the cursor nowhere near it slid
-        # sideways whenever a neighbour was walked along — see
-        # `home_row_landing`. Re-applied on every layout pass, so a resize
-        # or a scale change re-clamps each row where it stood instead of
-        # snapping the lot back to the left.
-        self.column = 0
+        # The row's resting horizontal position, measured in tile steps.
+        # It is independent of the focused column: the ring can cross cards
+        # that are already visible without dragging them underneath it, and
+        # a vertical landing can select a tile without moving its row.
+        # Step units survive resize and scale changes; `_layout_rows`
+        # re-derives the pixel offset with the new geometry.
+        self.scroll_position = 0.0
         # Per frame, not per settle: the fade is a function of how far the
         # row has actually travelled, and reading the target instead would
         # snap it to full strength while the tiles were still moving. The

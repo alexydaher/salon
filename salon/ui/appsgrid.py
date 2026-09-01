@@ -10,7 +10,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Pango", "1.0")
 
-from gi.repository import Gtk, Pango  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
 from salon.core.focus import Bump, FocusModel  # noqa: E402
@@ -19,6 +19,8 @@ from salon.input.actions import Action  # noqa: E402
 from salon.services import appinfo  # noqa: E402
 from salon.services.artwork import ArtworkResolver  # noqa: E402
 from salon.ui import motion  # noqa: E402
+from salon.ui.actionbar import SelectionActionBar  # noqa: E402
+from salon.ui.appsgrid_geometry import linear_neighbor  # noqa: E402
 from salon.ui.appsgrid_layout import AppsGridLayout  # noqa: E402
 from salon.ui.motion import AxisSpring, SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
@@ -26,8 +28,7 @@ from salon.ui.tile import TileWidget  # noqa: E402
 
 _BUMP_DISTANCE_DU = 26.0
 
-
-class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
+class AppsGrid(Gtk.Overlay, motion.FadesIn, AppsGridLayout):
     def __init__(
         self,
         scale: Scale,
@@ -36,9 +37,10 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         tile_scale: float,
         on_launch: Callable[[Tile], None],
         on_close: Callable[[], None],
+        on_focus_top_bar: Callable[[], None],
         on_count: Callable[[int], None] | None = None,
     ) -> None:
-        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        super().__init__()
         self._init_fade()
         self.add_css_class("salon-search")
         self.add_css_class("salon-apps-grid")
@@ -51,19 +53,23 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._artwork = artwork
         self._on_launch = on_launch
         self._on_close = on_close
+        self._on_focus_top_bar = on_focus_top_bar
         self._on_count = on_count
 
         self._tiles: list[Tile] = []
         self._widgets: list[TileWidget] = []
         self._columns = 1
+        self._grid_rows: list[list[int]] = []
+        self._index_positions: dict[int, tuple[int, int]] = {}
         self._focus = FocusModel([])
         self._pointer_active = False
+        self._top_bar_focused = False
         self._viewport_width = 0
         self._viewport_height = 0
         self._safe_margin = 0.0
 
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.append(self._content)
+        self.set_child(self._content)
 
         self._header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self._content.append(self._header)
@@ -76,17 +82,8 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._count.set_halign(Gtk.Align.START)
         self._header.append(self._count)
 
-        self._hint = Gtk.Label()
-        self._hint.add_css_class("salon-search-hint")
-        self._hint.set_halign(Gtk.Align.START)
-        self._hint.set_ellipsize(Pango.EllipsizeMode.END)
-
-        # The A–Z rail. Two hundred applications at seven columns is
-        # twenty-nine rows of D-pad; the shoulder buttons cross a letter at
-        # a time, and this is what says where that lands. Horizontal rather
-        # than a column down the side, because a side rail would narrow the
-        # viewport and the viewport has to reach the screen edge for the
-        # edge tiles' bloom to have somewhere to go.
+        # The rail floats beside the viewport, whose end margin reserves the
+        # same strip, so tiles and shortcuts cannot sit underneath it.
         self._rail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._rail.add_css_class("salon-letter-rail")
         self._rail.add_css_class("salon-letter-rail-vertical")
@@ -110,20 +107,19 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self._body.set_vexpand(True)
         self._body.append(self._viewport_host)
-        self._body.append(self._rail)
         self._content.append(self._body)
 
-        self._legend = Gtk.Label()
-        self._legend.add_css_class("salon-settings-legend")
-        self._legend.set_halign(Gtk.Align.START)
-        self._legend.set_ellipsize(Pango.EllipsizeMode.END)
-        self._legend.set_hexpand(False)
-        self._bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self._bottom.add_css_class("salon-bottom-bar")
-        self._hint.set_hexpand(True)
-        self._bottom.append(self._hint)
-        self._bottom.append(self._legend)
+        self._bottom = SelectionActionBar(
+            scale,
+            (
+                (Action.OK, "Open"),
+                (Action.OPTIONS, "More"),
+                ("D-PAD", "Browse"),
+                (Action.BACK, "Home"),
+            ),
+        )
         self._content.append(self._bottom)
+        self.add_overlay(self._rail)
 
         self.set_scale(scale)
 
@@ -140,6 +136,9 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self.set_visible(False)
         self._on_close()
 
+    def set_input_device(self, source: str, family: str) -> None:
+        self._bottom.set_input_device(source, family)
+
     def set_scale(self, scale: Scale, *, tile_scale: float | None = None) -> None:
         self._scale = scale
         if tile_scale is not None:
@@ -151,18 +150,15 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._header.set_margin_end(margin)
         self._header.set_margin_top(max(0, margin - scale.px(18.0)))
         self._header.set_spacing(scale.px(18.0))
-        self._hint.set_margin_start(margin)
-        self._hint.set_margin_end(scale.px(24.0))
-        self._legend.set_margin_start(margin)
-        self._legend.set_margin_end(margin)
-        self._rail.set_margin_start(scale.px(20.0))
-        self._rail.set_margin_end(scale.px(20.0))
-        self._rail.set_margin_top(scale.px(12.0))
-        self._rail.set_margin_bottom(scale.px(12.0))
+        self._rail.set_margin_start(0)
+        self._rail.set_margin_end(margin)
+        self._rail.set_margin_top(scale.px(104.0))
+        self._rail.set_margin_bottom(scale.px(112.0))
         self._rail.set_spacing(0)
-        self._rail.set_size_request(scale.px(92.0), -1)
-        self._bottom.set_size_request(-1, scale.px(tokens.ACTION_BAR_HEIGHT_DU))
-        self._bottom.set_spacing(scale.px(24.0))
+        self._rail.set_size_request(scale.px(52.0), -1)
+        self._body.set_margin_end(scale.px(104.0))
+        self._viewport_host.set_margin_top(scale.px(26.0))
+        self._bottom.set_scale(scale)
         self._content.set_margin_top(0)
         self._content.set_margin_bottom(0)
         self._content.set_spacing(scale.px(12.0))
@@ -170,6 +166,13 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
 
     def set_pointer_active(self, active: bool) -> None:
         self._pointer_active = active
+
+    def set_top_bar_focused(self, focused: bool) -> None:
+        """Give the shared shortcut bar the only strong focus highlight."""
+        if self._top_bar_focused == focused:
+            return
+        self._top_bar_focused = focused
+        self._update_selection(animate=False)
 
     @property
     def focused_tile(self) -> Tile | None:
@@ -190,9 +193,7 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         self._rebuild()
 
     def _set_hint(self, text: str) -> None:
-        self._hint.set_label(text)
-
-    # --- layout ----------------------------------------------------------
+        self._bottom.set_selection(text)
 
     # --- input -----------------------------------------------------------
 
@@ -209,12 +210,9 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
             self._jump_letter(-1 if action is Action.PREV_GROUP else 1)
             return
         if action in (Action.LEFT, Action.RIGHT):
-            self._jump_letter(-1 if action is Action.LEFT else 1)
-            return
-        if action in (Action.UP, Action.DOWN):
-            step = -1 if action is Action.UP else 1
-            target = self._focused_index() + step
-            if 0 <= target < len(self._tiles):
+            step = -1 if action is Action.LEFT else 1
+            target = linear_neighbor(self._focused_index(), len(self._tiles), step)
+            if target is not None:
                 self._jump_to_index(target)
             else:
                 distance = self._scale.du(_BUMP_DISTANCE_DU)
@@ -224,10 +222,11 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
         if change.moved:
             self._update_selection()
         elif change.bump is not Bump.NONE:
-            distance = self._scale.du(_BUMP_DISTANCE_DU)
             if change.bump is Bump.UP:
-                self._scroll.bump(distance)
-            elif change.bump is Bump.DOWN:
+                self._on_focus_top_bar()
+                return
+            distance = self._scale.du(_BUMP_DISTANCE_DU)
+            if change.bump is Bump.DOWN:
                 self._scroll.bump(-distance)
 
     def _click(self, index: int) -> None:
@@ -241,6 +240,9 @@ class AppsGrid(Gtk.Box, motion.FadesIn, AppsGridLayout):
             self._jump_to_index(index)
 
     def _jump_to_index(self, index: int) -> None:
-        row, col = divmod(index, self._columns)
+        position = self._index_positions.get(index)
+        if position is None:
+            return
+        row, col = position
         self._focus.jump_to(row, col)
         self._update_selection()

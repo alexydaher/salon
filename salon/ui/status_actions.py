@@ -41,6 +41,7 @@ class StatusBar(Gtk.Box):
         self.update_property([Gtk.AccessibleProperty.LABEL], ["Shortcuts"])
 
         self._buttons: list[Gtk.Button] = []
+        self._apps_button: Gtk.Button | None = None
         # What the detail strip says while the cursor is on each button.
         # A tooltip is a mouse affordance and the pill label is two words;
         # this is the sentence, and it is the only place a remote-holder is
@@ -61,6 +62,8 @@ class StatusBar(Gtk.Box):
             self._hints.append((tooltip, hint))
             button = self._make_button(icon_name, tooltip, handler)
             self.append(button)
+            if icon_name == "view-grid-symbolic":
+                self._apps_button = button
             if icon_name == "phone-symbolic":
                 self._phone_button = button
                 self._phone_badge = self._connection_badges[-1]
@@ -130,11 +133,10 @@ class StatusBar(Gtk.Box):
 
     def set_scale(self, scale: Scale) -> None:
         safe_margin = scale.safe_margin_px
-        top_margin = max(0, safe_margin - scale.px(24.0))
-        self.set_spacing(scale.px(12.0))
-        self.set_margin_top(top_margin)
+        self.set_spacing(scale.px(10.0))
+        self.set_margin_top(scale.px(34.0))
         self.set_margin_end(safe_margin)
-        size = scale.px(54.0)
+        size = scale.px(46.0)
         self._button_height = size
         for button in self._buttons:
             # Square at rest, so an icon-only button is a circle. The width
@@ -145,18 +147,23 @@ class StatusBar(Gtk.Box):
             button.set_size_request(size, size)
         for index, box in enumerate(self._button_boxes):
             box.set_spacing(scale.px(10.0))
-            self._button_images[index].set_pixel_size(scale.px(28.0))
+            self._button_images[index].set_pixel_size(scale.px(21.0))
             badge_size = scale.px(10.0)
             self._connection_badges[index].set_size_request(badge_size, badge_size)
         self._controller_icon.set_pixel_size(scale.px(26.0))
         self._update_selection()
 
+    def set_apps_active(self, active: bool) -> None:
+        if self._apps_button is not None:
+            self._apps_button.set_visible(not active)
+        self._ensure_visible_selection()
+        self._update_selection()
+
     def set_connection_state(self, *, controller: bool, phone: bool) -> None:
         """Show that at least one usable remote is already attached.
 
-        The phone action remains available so another phone can still scan
-        the code; the badge only answers the at-a-glance question of whether
-        Salon currently has something connected.
+        The button stays available for pairing another phone; the badge only
+        reports whether Salon already has something connected.
         """
         self._controller_icon.set_visible(controller)
         self._phone_badge.set_visible(phone)
@@ -170,8 +177,6 @@ class StatusBar(Gtk.Box):
             status = "Connect a phone"
         self._phone_button.set_tooltip_text(status)
         self._phone_button.update_property([Gtk.AccessibleProperty.LABEL], [status])
-
-    # --- focus ------------------------------------------------------------
 
     @property
     def nav_focused(self) -> bool:
@@ -194,22 +199,35 @@ class StatusBar(Gtk.Box):
         self._hover_enabled = enabled
 
     def set_nav_focused(self, focused: bool, *, index: int | None = None) -> None:
-        """Enter or leave the bar. `index` picks the landing button — the
-        home screen passes the last one so UP from the tiles lands on Power
-        only if that's where the cursor was left, and 0 otherwise."""
+        """Enter or leave the bar, optionally choosing the landing button."""
         self._nav_focused = focused
         if index is not None:
             self._selected = max(0, min(index, len(self._buttons) - 1))
+        self._ensure_visible_selection()
         self._update_selection()
 
     def move(self, delta: int) -> bool:
         """Returns False at either end so the caller can rubber-band."""
-        target = self._selected + delta
-        if not (0 <= target < len(self._buttons)):
+        visible = self._visible_indices()
+        if not visible:
             return False
-        self._selected = target
+        self._ensure_visible_selection()
+        position = visible.index(self._selected)
+        target = position + delta
+        if not (0 <= target < len(visible)):
+            return False
+        self._selected = visible[target]
         self._update_selection()
         return True
+
+    def _visible_indices(self) -> list[int]:
+        return [index for index, button in enumerate(self._buttons) if button.get_visible()]
+
+    def _ensure_visible_selection(self) -> None:
+        visible = self._visible_indices()
+        if not visible or self._selected in visible:
+            return
+        self._selected = min(visible, key=lambda index: (abs(index - self._selected), index))
 
     def activate(self) -> None:
         if 0 <= self._selected < len(self._actions):

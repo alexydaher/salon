@@ -78,6 +78,26 @@ def main() -> int:
             current = paintable.get_current_image()
             if current.get_intrinsic_width() <= 0 or current.get_intrinsic_height() <= 0:
                 raise AssertionError("mapped window did not produce a rendered frame")
+            home._open_apps()  # noqa: SLF001 - integration boundary
+            grid = home._apps_grid  # noqa: SLF001
+            first_tile = next(  # noqa: SLF001
+                tile for row in home._catalog.rows for tile in row.tiles
+            )
+            # Make the focus path deterministic instead of waiting for the
+            # asynchronous desktop-file scan a second time.
+            grid._on_scanned([first_tile])  # noqa: SLF001
+            home._handle_action(Action.UP)  # noqa: SLF001
+            if not home._nav_focused or grid._widgets[0]._focused:  # noqa: SLF001
+                raise AssertionError("UP did not move All Apps focus into the top toolbar")
+            home._handle_action(Action.RIGHT)  # noqa: SLF001 - Connect a phone
+            home._handle_action(Action.RIGHT)  # noqa: SLF001 - Settings
+            selected = home._status_bar.selected_button  # noqa: SLF001
+            if selected is None or selected.get_tooltip_text() != "Settings":
+                raise AssertionError("hidden All Apps shortcut blocked navigation to Settings")
+            home._handle_action(Action.OK)  # noqa: SLF001
+            if not home._settings_screen.get_visible() or grid.get_visible():  # noqa: SLF001
+                raise AssertionError("Settings was not reachable from All Apps")
+            home._settings_screen.close()  # noqa: SLF001
             home._handle_action(Action.MENU)  # noqa: SLF001 - integration boundary
             if not home._system_menu.get_visible():  # noqa: SLF001
                 raise AssertionError("MENU did not open the system menu")

@@ -12,11 +12,10 @@ class _RowViewport(Gtk.Fixed):
     The vertical twin of this is `_LayoutViewport` below and the reasoning
     is identical, but the horizontal case has two extra constraints.
 
-    The first is that the focused tile is left-anchored *at the safe-area
-    margin*, and the last tile of a row comes to rest flush against the
-    right one. So the ramp can never be wider than that margin, or the tile
-    the user is looking at is the one being faded. `_RowWidgets` passes the
-    smaller of the two.
+    The first is that focused tiles stay inside the safe-area margins and
+    the row itself is clamped to its content ends. So the ramp can never be
+    wider than a margin, or a tile at that navigation edge is the one being
+    faded. `_RowWidgets` passes the smaller of the two.
 
     The second is that **this widget is wider than the window.** A Gtk.Fixed
     measures to fit its children and its parent here is another Gtk.Fixed,
