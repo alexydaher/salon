@@ -19,15 +19,17 @@ silkscreened on it. A Nintendo pad's south button says B and an Xbox pad's
 says A, which is the same disagreement `core/bindings.py` exists to let a
 user settle by hand — this only picks a better default caption for it.
 
-Deliberately *not* glyphs. `data/fonts/` is empty and the system UI font is
-whatever the distribution ships, so a legend that renders ⓐ or ✕ renders a
-tofu box on the machine that does not have them. Words survive.
+The words remain the portable fallback, but recognised PlayStation and Xbox
+controllers also expose a small semantic glyph name.  The UI draws those marks
+itself instead of relying on controller-symbol Unicode characters that may be
+missing from the system font.
 """
 
 from __future__ import annotations
 
 from salon.core.actions import Action
 from salon.core.bindings import CEC, GAMEPAD, KEYBOARD
+from salon.core.controller_glyphs import glyph as glyph
 
 # The fourth source. Not in `bindings.SOURCES`, which is the set of things
 # that produce rebindable hardware codes — the phone sends action names
@@ -36,6 +38,7 @@ PHONE = "phone"
 
 GENERIC = "generic"
 PLAYSTATION = "playstation"
+XBOX = "xbox"
 NINTENDO = "nintendo"
 
 _KEYBOARD: dict[Action, str] = {
@@ -93,6 +96,15 @@ _GAMEPAD_FAMILIES: dict[str, dict[Action, str]] = {
         Action.PLAY_PAUSE: "Create",
         **_GAMEPAD_DIRECTIONS,
     },
+    XBOX: {
+        Action.OK: "A",
+        Action.BACK: "B",
+        Action.MENU: "Menu",
+        Action.OPTIONS: "X",
+        Action.SEARCH: "Y",
+        Action.PLAY_PAUSE: "View",
+        **_GAMEPAD_DIRECTIONS,
+    },
     NINTENDO: {
         # South and east are swapped relative to an Xbox pad, so the button
         # Salon binds to OK is the one printed B.
@@ -107,6 +119,7 @@ _GAMEPAD_FAMILIES: dict[str, dict[Action, str]] = {
 }
 
 _PLAYSTATION_NAMES = ("dualsense", "dualshock", "playstation", "sony", "ps3", "ps4", "ps5")
+_XBOX_NAMES = ("xbox", "x-box", "xinput", "microsoft")
 _NINTENDO_NAMES = ("nintendo", "switch", "joy-con", "joycon", "pro controller", "wii")
 
 
@@ -122,6 +135,8 @@ def gamepad_family(device_name: str) -> str:
     lowered = device_name.casefold()
     if any(name in lowered for name in _PLAYSTATION_NAMES):
         return PLAYSTATION
+    if any(name in lowered for name in _XBOX_NAMES):
+        return XBOX
     if any(name in lowered for name in _NINTENDO_NAMES):
         return NINTENDO
     return GENERIC
@@ -178,6 +193,8 @@ _PAD_NAMES: dict[str, dict[str, str]] = {
               "select": "View", "start": "Start"},
     PLAYSTATION: {"south": "Cross", "east": "Circle", "north": "Triangle", "west": "Square",
                   "select": "Create", "start": "Options"},
+    XBOX: {"south": "A", "east": "B", "north": "Y", "west": "X",
+           "select": "View", "start": "Menu"},
     NINTENDO: {"south": "B", "east": "A", "north": "X", "west": "Y",
                "select": "Minus", "start": "Plus"},
 }

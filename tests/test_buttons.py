@@ -30,6 +30,30 @@ def test_unknown_controllers_get_the_generic_letters() -> None:
     assert buttons.gamepad_family("") == buttons.GENERIC
 
 
+def test_xbox_controllers_get_xbox_prompts() -> None:
+    family = buttons.gamepad_family("Microsoft X-Box One pad")
+    assert family == buttons.XBOX
+    assert buttons.glyph(Action.OK, GAMEPAD, family=family) == "xbox-a"
+    assert buttons.glyph(Action.MENU, GAMEPAD, family=family) == "xbox-menu"
+
+
+def test_playstation_prompts_are_vector_marks_not_font_characters() -> None:
+    assert buttons.glyph(Action.BACK, GAMEPAD, family=buttons.PLAYSTATION) == (
+        "playstation-circle"
+    )
+    assert buttons.glyph(Action.OPTIONS, GAMEPAD, family=buttons.PLAYSTATION) == (
+        "playstation-square"
+    )
+    assert buttons.glyph(Action.MENU, GAMEPAD, family=buttons.PLAYSTATION) == (
+        "playstation-options"
+    )
+
+
+def test_non_controller_prompts_keep_their_text_fallback() -> None:
+    assert buttons.glyph(Action.OK, KEYBOARD) == ""
+    assert buttons.glyph(Action.OK, GAMEPAD, family=buttons.GENERIC) == ""
+
+
 def test_nintendo_pads_are_named_by_their_own_printing() -> None:
     """The south button is the one bound to OK, and Nintendo prints B on it."""
     assert buttons.gamepad_family("Nintendo Switch Pro Controller") == buttons.NINTENDO
@@ -44,7 +68,7 @@ def test_every_face_button_salon_binds_has_a_name_in_every_family() -> None:
     a bound button with no caption is a blank chip in the legend."""
     for code in (BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST):
         action = BUTTON_ACTIONS[code]
-        for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.NINTENDO):
+        for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.XBOX, buttons.NINTENDO):
             assert buttons.label(action, GAMEPAD, family=family), (action, family)
 
 
@@ -55,7 +79,7 @@ def test_select_is_play_pause_and_is_printed_differently_by_every_vendor() -> No
     assert BUTTON_ACTIONS[BTN_SELECT] is Action.PLAY_PAUSE
     captions = {
         family: buttons.label(Action.PLAY_PAUSE, GAMEPAD, family=family)
-        for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.NINTENDO)
+        for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.XBOX, buttons.NINTENDO)
     }
     assert all(captions.values()), captions
     assert len(set(captions.values())) == 3, captions

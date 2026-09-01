@@ -7,6 +7,7 @@ python_sources = [
   'catalog.py',
   'bindings.py',
   'buttons.py',
+  'controller_glyphs.py',
   'provider.py',
   'sandbox.py',
   'session.py',

@@ -16,6 +16,7 @@ python_sources = [
   'hardware_text.py',
   'home.py',
   'legend.py',
+  'controller_glyph.py',
   'nowplaying_status.py',
   'home_action_router.py',
   'home_bindings.py',

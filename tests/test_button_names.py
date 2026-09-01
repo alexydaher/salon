@@ -35,7 +35,7 @@ def test_the_two_tables_agree_about_every_action_they_share() -> None:
     reaches the same action and the row is naming one physical control.
     """
     directions = (Action.UP, Action.DOWN, Action.LEFT, Action.RIGHT)
-    for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.NINTENDO):
+    for family in (buttons.GENERIC, buttons.PLAYSTATION, buttons.XBOX, buttons.NINTENDO):
         for code, action in BUTTON_ACTIONS.items():
             if action in directions:
                 continue

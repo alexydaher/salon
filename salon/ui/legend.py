@@ -10,11 +10,11 @@ holds the cursor, or a menu is open, or the tiles do.
 
 Two things it does that the old line could not:
 
-* **It names the button rather than the intent.** "OPTIONS" is not printed
-  on anything anyone owns. `core/buttons.py` turns (action, source) into
-  the caption on the device that most recently sent a press, so the same
-  hint reads "Square" on a DualSense, "X" on an Xbox pad and "O" on a
-  keyboard. The source is tracked because a living room has more than one.
+* **It shows the button rather than the intent.** `core/buttons.py` turns
+  (action, source) into the control on the device that most recently sent a
+  press, so the same hint uses a square mark on a DualSense, a ringed X on
+  an Xbox pad and the letter O on a keyboard. The source is tracked because
+  a living room has more than one.
 * **It changes with the mode and nothing else**, so it holds still while a
   held direction races through a row.
 
@@ -30,11 +30,15 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
+from salon.core import buttons, tokens  # noqa: E402
+from salon.core.actions import Action  # noqa: E402
+from salon.core.bindings import CEC  # noqa: E402
+from salon.ui.controller_glyph import ControllerGlyph, ControllerGlyphWidget  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
-# One hint: the caption on the button, and what it does right now.
-Hint = tuple[str, str]
+# One hint: the button presentation, and what it does right now.
+LegendKey = str | Action | ControllerGlyph
+Hint = tuple[LegendKey, str]
 
 
 class Legend(Gtk.Box):
@@ -57,8 +61,18 @@ class Legend(Gtk.Box):
         self.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
 
         self._hints: tuple[Hint, ...] = ()
+        self._input_source = CEC
+        self._gamepad_family = buttons.GENERIC
         self._scale = scale
         self.set_scale(scale)
+
+    def set_input_device(self, source: str, family: str = buttons.GENERIC) -> None:
+        """Repaint semantic action keys for the device currently in use."""
+        state = (source, family)
+        if state == (self._input_source, self._gamepad_family):
+            return
+        self._input_source, self._gamepad_family = state
+        self._rebuild()
 
     def set_scale(self, scale: Scale) -> None:
         self._scale = scale
@@ -87,11 +101,28 @@ class Legend(Gtk.Box):
             self.append(self._make_hint(key, meaning))
         self.set_visible(bool(self._hints))
 
-    def _make_hint(self, key: str, meaning: str) -> Gtk.Widget:
+    def _present_key(self, key: LegendKey) -> str | ControllerGlyph:
+        if not isinstance(key, Action):
+            return key
+        label = buttons.label(key, self._input_source, family=self._gamepad_family)
+        glyph = buttons.glyph(key, self._input_source, family=self._gamepad_family)
+        if glyph:
+            return ControllerGlyph(glyph, label)
+        return label.upper() if self._input_source == CEC else label
+
+    def _make_hint(self, key: LegendKey, meaning: str) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         box.set_spacing(self._scale.px(8.0))
-        cap = Gtk.Label(label=key)
+        cap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         cap.add_css_class("salon-legend-key")
+        presented = self._present_key(key)
+        if isinstance(presented, ControllerGlyph) and ControllerGlyphWidget.supports(
+            presented.name
+        ):
+            cap.append(ControllerGlyphWidget(presented.name, self._scale))
+        else:
+            fallback = presented.fallback if isinstance(presented, ControllerGlyph) else presented
+            cap.append(Gtk.Label(label=fallback))
         box.append(cap)
         label = Gtk.Label(label=meaning)
         label.add_css_class("salon-legend-meaning")
