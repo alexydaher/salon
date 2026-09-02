@@ -49,7 +49,10 @@ class RemoteHintHost(Gtk.Widget):
             self._width = self._scale.px(tokens.CONSOLE_WIDTH_DU - 60.0)
             self._height = self._scale.px(_HOME_CARD_HEIGHT_DU)
             self.set_margin_start(self._scale.px(30.0))
-            self.set_margin_bottom(self._scale.px(34.0))
+            # Spend twelve of the rail's lower inset on the larger QR card;
+            # height and margin still total 386du, so its top edge stays
+            # aligned with the previous layout.
+            self.set_margin_bottom(self._scale.px(22.0))
         self.queue_resize()
 
     def refresh(self) -> bool:

@@ -44,12 +44,14 @@ from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui.qrcode import QrCode  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
-# A version-6 symbol plus its quiet zone is 49 modules wide. 196du gives
-# every module exactly four pixels at the reference size. The next useful
-# step is 245du, which cannot fit the console card after its quiet padding.
-_HOME_QR_DU = 196.0
+# A version-6 symbol plus its quiet zone is 49 modules wide, while the usual
+# pairing URL produces 41 modules including that zone. 246du gives the
+# usual code six pixels per module and still gives the longest supported
+# code five. Keep this near module boundaries: QrCode deliberately draws
+# whole-pixel modules, so most in-between sizes only add blank slack.
+_HOME_QR_DU = 246.0
 _SETTINGS_QR_DU = 102.0
-_HOME_CARD_HEIGHT_DU = 352.0
+_HOME_CARD_HEIGHT_DU = 364.0
 
 
 class RemoteHint(Gtk.Box):
@@ -124,7 +126,6 @@ class RemoteHint(Gtk.Box):
 
     def set_scale(self, scale: Scale) -> None:
         self._scale = scale
-        self.set_spacing(scale.px(12.0))
         self._row.set_spacing(scale.px(16.0))
         self._details.set_spacing(scale.px(2.0))
         self.set_settings_layout(self._settings_layout)
@@ -133,6 +134,7 @@ class RemoteHint(Gtk.Box):
         """Use the dedicated 540x123 card beneath Settings' sections pane."""
         self._settings_layout = settings
         self._repack(settings)
+        self.set_spacing(self._scale.px(12.0 if settings else 4.0))
         self._qr.set_size(
             self._scale.px(_SETTINGS_QR_DU if settings else _HOME_QR_DU)
         )

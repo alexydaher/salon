@@ -835,7 +835,7 @@ toast > label {
   background-color: alpha(@surface-1, 0.90);
   border-color: alpha(@accent, 0.42);
   border-radius: var(--radius);
-  padding: var(--console-block-pad);
+  padding: calc(var(--pad-s) / 2) var(--pad-s);
   opacity: 1;
 }
 

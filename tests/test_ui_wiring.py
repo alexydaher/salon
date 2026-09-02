@@ -81,7 +81,9 @@ def test_phone_pairing_hint_maximises_qr_inside_a_fixed_rail_card() -> None:
     # GTK includes the 30du leading margin in a widget's measured footprint;
     # the card itself is 276du and therefore ends at the 306du mark.
     assert minimum == natural == round(tokens.CONSOLE_WIDTH_DU - 30.0)
-    assert card._qr._size == 196  # noqa: SLF001
+    assert card._qr._size == 246  # noqa: SLF001
+    assert host._height == 364  # noqa: SLF001
+    assert host.get_margin_bottom() == 22
     assert card._title.get_label() == "Phone remote"  # noqa: SLF001
     assert card._instruction.get_label() == "Scan to connect"  # noqa: SLF001
 
