@@ -12,6 +12,7 @@ from gi.repository import Gio  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
 from salon.services import artwork  # noqa: E402
+from salon.ui import backdrop_wallpaper  # noqa: E402
 from salon.ui.settings import wallpaper  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
@@ -57,6 +58,29 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     keyed = Keyed(settings)
 
     def build() -> list[SettingsRow]:
+        background_has_image = backdrop_wallpaper.has_image(
+            settings.get_string("wallpaper-path").strip()
+        )
+        colour_treatment = keyed.choice(
+            "wallpaper-color-treatment",
+            "Background colours",
+            wallpaper.COLOR_TREATMENTS,
+            preview=True,
+        )
+        dimming = keyed.ranged(
+            "wallpaper-dim",
+            "Background dimming",
+            minimum=0.0,
+            maximum=1.0,
+            step=0.04,
+            fmt=lambda v: "Hidden" if v >= 0.999 else _percent(v),
+            preview=True,
+        )
+        if not background_has_image:
+            reason = "Only applies when a background image is selected"
+            colour_treatment.make_unavailable(reason)
+            dimming.make_unavailable(reason)
+
         return [
             GroupRow("Colour"),
             keyed.choice(
@@ -144,21 +168,8 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 "Choose a folder…",
                 lambda: wallpaper.choose(context, settings, folder=True),
             ),
-            keyed.choice(
-                "wallpaper-color-treatment",
-                "Background colours",
-                wallpaper.COLOR_TREATMENTS,
-                preview=True,
-            ),
-            keyed.ranged(
-                "wallpaper-dim",
-                "Background dimming",
-                minimum=0.0,
-                maximum=1.0,
-                step=0.04,
-                fmt=lambda v: "Hidden" if v >= 0.999 else _percent(v),
-                preview=True,
-            ),
+            colour_treatment,
+            dimming,
             opens_panel(
                 "Type a path…",
                 lambda: context.push(_background_path_panel(context, settings)),

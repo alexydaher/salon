@@ -34,10 +34,20 @@ TREATMENTS = (
 )
 
 
+def has_image(source: str) -> bool:
+    """Whether this setting names a backdrop image.
+
+    The empty setting still has one: it selects Salon's bundled ambient
+    artwork.  A dash is the explicit image-free state used by Appearance's
+    “Plain background” choice.
+    """
+    return source != "-"
+
+
 def resolve_source(source: str) -> str:
     """Empty is the designed Salon ambience. A single dash is the
     deliberate opt-out for people who want the palette's flat surface."""
-    if source == "-":
+    if not has_image(source):
         return ""
     return DEFAULT_WALLPAPER if not source else source
 

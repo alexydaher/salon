@@ -155,6 +155,22 @@ def test_every_section_has_navigation_identity() -> None:
         assert panel.panel_id, panel.title
 
 
+def test_plain_background_disables_image_only_controls() -> None:
+    settings = _settings()
+    settings.set_string("wallpaper-path", "-")
+    try:
+        rows = panels.appearance_panel(_context(), settings).build()
+        by_label = {row.label_text: row for row in rows}
+        for label in ("Background colours", "Background dimming"):
+            assert not by_label[label].available
+            assert "background image" in by_label[label].unavailable_reason
+        assert by_label["Background"].detail_text == (
+            "Solid theme colour with a subtle focus glow"
+        )
+    finally:
+        settings.reset("wallpaper-path")
+
+
 def test_section_ids_are_unique() -> None:
     ids = [panel.panel_id for panel in _sections()]
     assert len(set(ids)) == len(ids)

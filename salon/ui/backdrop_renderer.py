@@ -16,6 +16,7 @@ from salon.ui import backdrop_wallpaper, theme  # noqa: E402
 # Keep the positional glow restrained. It shows where focus currently sits
 # even when the user chooses to preserve a custom picture's original colours.
 _GLOW_ALPHA = 0.13
+_PLAIN_GLOW_ALPHA = 0.06
 _GLOW_RADIUS_FRACTION = 0.40
 
 # The final visual direction uses several broad pools of colour rather than
@@ -56,7 +57,9 @@ class BackdropRenderer:
         width = float(self.get_width())
         height = float(self.get_height())
         self.snapshot_wallpaper(snapshot, width, height)
-        self.snapshot_ambient(snapshot, width, height)
+        self.snapshot_ambient(
+            snapshot, width, height, plain=getattr(self, "_plain_background", False)
+        )
 
     def snapshot_wallpaper(self, snapshot: Gtk.Snapshot, width: float, height: float) -> None:
         """Paint the surface and full-resolution, cover-fitted picture."""
@@ -96,13 +99,20 @@ class BackdropRenderer:
             rgba(surface.red, surface.green, surface.blue, self._wallpaper_dim), bounds
         )
 
-    def snapshot_ambient(self, snapshot: Gtk.Snapshot, width: float, height: float) -> None:
+    def snapshot_ambient(
+        self, snapshot: Gtk.Snapshot, width: float, height: float, *, plain: bool = False
+    ) -> None:
         """Paint the broad gradients and focus light into a box.
 
         Sized by the caller rather than by `get_width()`/`get_height()`
         because `Backdrop` renders these detail-free effects into a reduced-
         resolution texture and blits that instead of painting them live.
         The photograph is painted separately at display resolution.
+
+        Plain mode deliberately keeps only a restrained focus light. Its
+        name promises the palette's own surface rather than Salon's four
+        coloured ambient fields, but a small response to focus stops the
+        home screen feeling disconnected from navigation.
         """
         if width <= 0 or height <= 0:
             return
@@ -110,10 +120,11 @@ class BackdropRenderer:
         bounds = Graphene.Rect()
         bounds.init(0.0, 0.0, width, height)
 
-        for x, y, radius_x, radius_y, value, alpha in _AMBIENT_FIELDS:
-            self._snapshot_ambient_field(
-                snapshot, bounds, x, y, radius_x, radius_y, _parse(value), alpha
-            )
+        if not plain:
+            for x, y, radius_x, radius_y, value, alpha in _AMBIENT_FIELDS:
+                self._snapshot_ambient_field(
+                    snapshot, bounds, x, y, radius_x, radius_y, _parse(value), alpha
+                )
 
         accent = self._current()
         center = Graphene.Point()
@@ -122,10 +133,11 @@ class BackdropRenderer:
 
         inner = Gsk.ColorStop()
         inner.offset = 0.0
-        inner.color = rgba(accent.red, accent.green, accent.blue, _GLOW_ALPHA)
+        glow_alpha = _PLAIN_GLOW_ALPHA if plain else _GLOW_ALPHA
+        inner.color = rgba(accent.red, accent.green, accent.blue, glow_alpha)
         mid = Gsk.ColorStop()
         mid.offset = 0.45
-        mid.color = rgba(accent.red, accent.green, accent.blue, _GLOW_ALPHA * 0.35)
+        mid.color = rgba(accent.red, accent.green, accent.blue, glow_alpha * 0.35)
         outer = Gsk.ColorStop()
         outer.offset = 1.0
         outer.color = _TRANSPARENT
@@ -134,9 +146,11 @@ class BackdropRenderer:
             bounds, center, radius, radius, 0.0, 1.0, [inner, mid, outer]
         )
 
-        # A dark veil keeps type and QR edges stable over every combination
-        # of ambient fields and user wallpaper.
-        snapshot.append_color(rgba(0.02, 0.03, 0.05, 0.34), bounds)
+        if not plain:
+            # A dark veil keeps type and QR edges stable over every combination
+            # of ambient fields and user wallpaper. Plain deliberately leaves
+            # the palette's surface colour unchanged outside the focus light.
+            snapshot.append_color(rgba(0.02, 0.03, 0.05, 0.34), bounds)
 
     @staticmethod
     def _snapshot_ambient_field(

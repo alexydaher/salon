@@ -14,7 +14,7 @@
     <key name="wallpaper-path" type="s">
       <default>''</default>
       <summary>Background image, or a folder of them</summary>
-      <description>Drawn behind everything, under the focused tile's ambient light. A folder is a slideshow, changing whenever the idle screen would have appeared. Empty means the palette's own surface colour, which is the design default.</description>
+      <description>Drawn behind everything, under the focused tile's ambient light. A folder is a slideshow, changing whenever the idle screen would have appeared. Empty selects Salon's bundled ambient artwork; a single dash selects the palette's surface colour with a subtle focus glow.</description>
     </key>
     <key name="wallpaper-dim" type="d">
       <range min="0.0" max="1.0"/>

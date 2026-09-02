@@ -51,6 +51,7 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         self._wallpaper_dim = 0.72
         self._wallpaper_source = ""
         self._wallpaper_treatment = backdrop_wallpaper.TREATMENT_FOCUS
+        self._plain_background = False
 
         # The soft ambient overlay, rendered small and blitted back up.
         # See `_refresh_texture`.
@@ -74,6 +75,7 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         `backdrop_wallpaper` owns what the string means; a folder is a
         slideshow and `next_wallpaper` is what advances it.
         """
+        self._plain_background = not backdrop_wallpaper.has_image(source)
         effective_source = backdrop_wallpaper.resolve_source(source)
         self._wallpaper_dim = backdrop_wallpaper.resolve_dim(source, dim)
         self._wallpaper_treatment = backdrop_wallpaper.resolve_treatment(source, treatment)
@@ -162,6 +164,7 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
             round(accent.blue * _TINT_STEPS),
             round(self._focus_x, 4),
             round(self._focus_y, 4),
+            self._plain_background,
         )
 
     def _refresh_texture(self) -> None:
@@ -190,7 +193,12 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         small_width = max(1, width // _TEXTURE_DIVISOR)
         small_height = max(1, height // _TEXTURE_DIVISOR)
         snapshot = Gtk.Snapshot()
-        self.snapshot_ambient(snapshot, float(small_width), float(small_height))
+        self.snapshot_ambient(
+            snapshot,
+            float(small_width),
+            float(small_height),
+            plain=self._plain_background,
+        )
         node = snapshot.to_node()
         if node is None:
             return
@@ -218,4 +226,4 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         # No ambient texture yet (or it is a frame out of date): draw the
         # gradients directly. Correct either way — this cache is only an
         # optimisation for broad, detail-free effects.
-        self.snapshot_ambient(snapshot, width, height)
+        self.snapshot_ambient(snapshot, width, height, plain=self._plain_background)
