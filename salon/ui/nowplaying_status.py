@@ -9,65 +9,12 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-gi.require_version("Gsk", "4.0")
-gi.require_version("Graphene", "1.0")
 gi.require_version("Pango", "1.0")
-from gi.repository import Gdk, Graphene, Gsk, Gtk, Pango  # noqa: E402
+from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
-from salon.core.nowplaying import PLAYING, Player  # noqa: E402
-from salon.ui.nowplaying_progress import MediaProgress, source_button  # noqa: E402
+from salon.core.nowplaying import PLAYING, Player, describe  # noqa: E402
+from salon.ui.nowplaying_progress import MediaProgress, SquareCover, source_button  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
-
-
-class _CircularCover(Gtk.Widget):
-    """A fixed-size, centre-cropped paintable that cannot resize its card."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._paintable: Gdk.Paintable | None = None
-        self._size = 1
-        self.set_visible(False)
-
-    def set_size(self, size: int) -> None:
-        self._size = max(1, size)
-        self.queue_resize()
-
-    def set_paintable(self, paintable: Gdk.Paintable | None) -> None:
-        self._paintable = paintable
-        self.set_visible(paintable is not None)
-        self.queue_draw()
-
-    def do_measure(self, orientation: Gtk.Orientation, for_size: int) -> tuple[int, int, int, int]:
-        return (self._size, self._size, -1, -1)
-
-    def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
-        paintable = self._paintable
-        width = float(self.get_width())
-        height = float(self.get_height())
-        if paintable is None or width <= 0 or height <= 0:
-            return
-
-        rect = Graphene.Rect()
-        rect.init(0.0, 0.0, width, height)
-        clip = Gsk.RoundedRect()
-        clip.init_from_rect(rect, min(width, height) / 2.0)
-        snapshot.push_rounded_clip(clip)
-
-        intrinsic_width = float(paintable.get_intrinsic_width())
-        intrinsic_height = float(paintable.get_intrinsic_height())
-        if intrinsic_width > 0 and intrinsic_height > 0:
-            scale = max(width / intrinsic_width, height / intrinsic_height)
-            drawn_width = intrinsic_width * scale
-            drawn_height = intrinsic_height * scale
-        else:
-            drawn_width, drawn_height = width, height
-        origin = Graphene.Point()
-        origin.init((width - drawn_width) / 2.0, (height - drawn_height) / 2.0)
-        snapshot.save()
-        snapshot.translate(origin)
-        paintable.snapshot(snapshot, drawn_width, drawn_height)
-        snapshot.restore()
-        snapshot.pop()
 
 
 class NowPlayingStatus(Gtk.Box):
@@ -103,12 +50,10 @@ class NowPlayingStatus(Gtk.Box):
         self.append(content)
         self._content = content
 
-        # The cover occupies the exact same slot as the transport glyph.
-        # Its intrinsic dimensions therefore cannot make this pill larger.
-        self._art = _CircularCover()
+        # Cover art stays clean — the play/pause state lives at the left of
+        # the progress timeline below, not on the artwork.
+        self._art = SquareCover()
         content.append(self._art)
-        self._icon = Gtk.Image.new_from_icon_name("media-playback-start-symbolic")
-        content.append(self._icon)
         labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         content.append(labels)
         self._title = Gtk.Label()
@@ -138,14 +83,14 @@ class NowPlayingStatus(Gtk.Box):
         self._extra.set_spacing(scale.px(4.0))
         icon_size = scale.px(50.0)
         self._art.set_size(icon_size)
-        self._icon.set_pixel_size(icon_size)
+        self._progress.set_state_size(scale.px(20.0))
+        # Secondary rows use the same cover size as the primary readout.
+        self._source_art_px = icon_size
         self.set_size_request(-1, scale.px(141.0))
         self.set_margin_top(0)
 
     def set_track(self, title: str, detail: str, *, playing: bool) -> None:
         state = "Playing" if playing else "Paused"
-        icon_name = "media-playback-pause-symbolic" if playing else "media-playback-start-symbolic"
-        self._icon.set_from_icon_name(icon_name)
         self._title.set_label(title)
         self._detail.set_label(detail)
         self._separator.set_visible(bool(detail))
@@ -157,8 +102,8 @@ class NowPlayingStatus(Gtk.Box):
         self.set_visible(True)
 
     def set_artwork(self, artwork: Gdk.Paintable | None) -> None:
+        # The state marker stays visible with or without a cover.
         self._art.set_paintable(artwork)
-        self._icon.set_visible(artwork is None)
 
     def clear(self) -> None:
         self.set_artwork(None)
@@ -190,11 +135,9 @@ class NowPlayingStatus(Gtk.Box):
         first = ordered[0]
         self._heading.set_label(f"NOW PLAYING · {len(ordered)}")
         self._active_source = first.bus_name
-        self.set_track(
-            first.title or first.identity or "Media",
-            first.identity or "Media",
-            playing=first.status == PLAYING,
-        )
+        # detail leads with the artist / channel, then the application.
+        title, detail = describe(first, include_status=False)
+        self.set_track(title, detail, playing=first.status == PLAYING)
         self._progress.set_snapshot(first.position_us, first.length_us, first.status == PLAYING)
         if artwork_for is not None:
             self.set_artwork(artwork_for(first.art_url))
@@ -205,7 +148,15 @@ class NowPlayingStatus(Gtk.Box):
             self._extra.remove(child)
             child = following
         for player in ordered[1:]:
-            self._extra.append(source_button(player, self._activate_source))
+            source_art = artwork_for(player.art_url) if artwork_for is not None else None
+            self._extra.append(
+                source_button(
+                    player,
+                    self._activate_source,
+                    artwork=source_art,
+                    art_px=self._source_art_px,
+                )
+            )
         self.set_visible(True)
 
     def _activate_source(self, source: str) -> None:

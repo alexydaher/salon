@@ -795,12 +795,26 @@ toast > label {
   background: transparent;
   border: 0;
   border-radius: var(--radius);
-  padding: calc(var(--pad-s) / 2);
+  /* No horizontal padding: the cover and timeline must line up with the
+     primary readout above, which sits flush against the block edge. */
+  padding: calc(var(--pad-s) / 2) 0;
   color: @text-secondary;
 }
 
 .salon-now-playing-source:hover {
   background-color: alpha(@text-primary, 0.08);
+}
+
+/* Play/pause marker beside the cover — never drawn over the artwork.
+   Muted while paused, accent-tinted while actually playing. */
+.salon-now-playing-state {
+  color: @text-secondary;
+  opacity: 0.85;
+}
+
+.salon-now-playing-state.playing {
+  color: @accent;
+  opacity: 1;
 }
 
 .salon-media-timeline {
