@@ -142,7 +142,7 @@ class DetailBar(Gtk.Box):
         self._tile = tile
         self._refresh()
 
-    def set_nav_target(self, title: str, detail: str) -> None:
+    def set_nav_target(self, title: str, _detail: str) -> None:
         """Describe the top bar's button instead of the tiles.
 
         Outranks both of the others while it is set, because it is the only
@@ -151,7 +151,7 @@ class DetailBar(Gtk.Box):
         left behind, which is a readout of the selection pointing at
         something that is no longer selected.
         """
-        self._nav = (title, detail)
+        self._nav = (title, "")
         self._refresh()
 
     def clear_nav_target(self) -> None:
@@ -171,10 +171,8 @@ class DetailBar(Gtk.Box):
             self._title.set_label("")
             self._detail.set_label("")
             return
-        # The title is here as well as on the card because the card
-        # ellipsizes at about twenty characters and this does not — that is
-        # the whole "Document Scanner"/"Document Viewer" case above. The
-        # subtitle is here *instead* of on the card.
-        self._title.set_label(tile.title)
+        # The subtitle is here instead of on the card. Repeat the title only
+        # when a compact card is likely to have truncated it.
+        self._title.set_label(tile.title if len(tile.title) > 22 else "")
         parts = [part for part in (tile.subtitle, describe(tile)) if part]
         self._detail.set_label(" · ".join(parts))

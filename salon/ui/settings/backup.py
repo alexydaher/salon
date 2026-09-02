@@ -67,7 +67,6 @@ def backup_panel(context: SettingsContext) -> Panel:
             ActionRow(
                 "Back up this layout now",
                 lambda: _save(context),
-                detail=f"Writes a dated copy into {backup_dir(context)}",
             ),
             GroupRow("Restore"),
         ]

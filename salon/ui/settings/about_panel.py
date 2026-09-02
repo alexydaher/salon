@@ -40,9 +40,8 @@ def about_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             InfoRow(
                 "Version",
                 context.version,
-                detail="A fullscreen launcher for a television, driven by a remote",
             ),
-            InfoRow("Licence", "GPL-3.0-or-later", detail="Free software; the source is public"),
+            InfoRow("Licence", "GPL-3.0-or-later"),
             GroupRow("The project"),
             opens_panel(
                 "Project page",
@@ -50,7 +49,7 @@ def about_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     qr_panel(
                         "Project page",
                         PROJECT_URL,
-                        "Point a phone camera at this to open the repository.",
+                        "",
                     )
                 ),
                 detail=PROJECT_URL,
@@ -61,7 +60,7 @@ def about_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     qr_panel(
                         "Report a problem",
                         _ISSUES_URL,
-                        "Please say what you pressed and what happened instead.",
+                        "Include what you pressed and what happened.",
                     )
                 ),
                 detail=_ISSUES_URL,
@@ -75,19 +74,18 @@ def about_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             InfoRow(
                 "Your tiles",
                 "tiles.json",
-                detail=f"{context.config_path} — edited by hand, it hot-reloads",
+                detail=context.config_path,
             ),
             InfoRow(
                 "Artwork drop folder",
                 "artwork",
-                detail=f"{_artwork_dir()} — drop <tile id>.png here",
+                detail=f"{_artwork_dir()} · <tile id>.png",
             ),
         ]
 
     return Panel(
         title="About",
         build=build,
-        subtitle="Version, licence and files",
         panel_id="about",
         icon_name="help-about-symbolic",
     )

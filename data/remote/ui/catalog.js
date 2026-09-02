@@ -96,9 +96,9 @@ export function renderMirror(data) {
   if (app) {
     // With an application covering the television there is no cursor to
     // mirror, and saying what *is* up there is the more useful sentence.
-    $("mirror-label").textContent = "Playing on the television";
+    $("mirror-label").textContent = "";
     $("mirror-title").textContent = app;
-    $("mirror-sub").textContent = "Close it from the top to get Salon back.";
+    $("mirror-sub").textContent = "";
     $("mirror-position").textContent = "Application open";
     $("mirror-prev").textContent = "";
     $("mirror-next").textContent = "";
@@ -107,7 +107,7 @@ export function renderMirror(data) {
     return;
   }
   if (!tile) return;
-  $("mirror-label").textContent = "On the television";
+  $("mirror-label").textContent = "";
   $("mirror-title").textContent = tile.title;
   $("mirror-sub").textContent = tile.subtitle || "";
   const [rowIndex, tileIndex] = data.focus;

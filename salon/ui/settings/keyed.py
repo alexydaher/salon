@@ -203,7 +203,6 @@ def restore_defaults_row(
     row = ActionRow(
         "Restore defaults",
         restore,
-        detail="Puts this section back the way Salon ships it",
         value=f"{count} changed" if count else "",
     )
     if not count:

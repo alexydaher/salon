@@ -93,7 +93,7 @@ export function bindConnect() {
   $("connect-go").addEventListener("click", () => {
     const code = $("code").value.trim();
     if (!/^[0-9]{4}$/.test(code)) {
-      $("connect-status").textContent = "Four digits, as shown on the television.";
+      $("connect-status").textContent = "Enter the 4-digit TV code.";
       return;
     }
     $("connect-status").textContent = "Connecting…";

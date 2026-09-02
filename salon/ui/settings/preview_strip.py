@@ -6,8 +6,7 @@ from __future__ import annotations
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Pango", "1.0")
-from gi.repository import Gtk, Pango  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from salon.ui.legend import Hint, Legend  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
@@ -26,44 +25,24 @@ class PreviewStrip(Gtk.Box):
         self.append(self._main)
         self._meta = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._main.append(self._meta)
-        eyebrow = Gtk.Label(label="APPEARANCE")
-        eyebrow.add_css_class("salon-settings-eyebrow")
-        eyebrow.set_halign(Gtk.Align.START)
-        self._meta.append(eyebrow)
         self._title = Gtk.Label()
         self._title.add_css_class("salon-preview-title")
         self._title.set_halign(Gtk.Align.START)
         self._meta.append(self._title)
-        self._detail = Gtk.Label()
-        self._detail.add_css_class("salon-settings-summary")
-        self._detail.set_halign(Gtk.Align.START)
-        self._detail.set_xalign(0.0)
-        self._detail.set_wrap(True)
-        self._detail.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
-        # A wrapping label otherwise advertises the full sentence as its
-        # natural width and steals space from the five preview cards.  The
-        # design gives this whole metadata block a fixed 300du column.
-        self._detail.set_width_chars(28)
-        self._detail.set_max_width_chars(28)
-        self._meta.append(self._detail)
         self.choices = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.choices.set_hexpand(True)
         self.choices.set_homogeneous(True)
         self._main.append(self.choices)
         self._footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.append(self._footer)
-        self._applies = Gtk.Label(label="Each value applies as you pass over it")
-        self._applies.add_css_class("salon-settings-legend")
-        self._applies.set_halign(Gtk.Align.START)
-        self._applies.set_hexpand(True)
-        self._footer.append(self._applies)
         self._controls = Legend(scale)
+        self._controls.set_halign(Gtk.Align.END)
+        self._controls.set_hexpand(True)
         self._footer.append(self._controls)
         self.set_scale(scale)
 
     def set_row(self, row: SettingsRow) -> None:
         self._title.set_label(row.label_text)
-        self._detail.set_label(row.detail_text)
 
     def set_controls(self, hints: tuple[Hint, ...]) -> None:
         self._controls.set_hints(hints)

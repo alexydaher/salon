@@ -50,11 +50,11 @@ from salon.ui.settings.widgets import (  # noqa: E402
 _GATED: dict[str, str] = {"games": "show-games-row", "apps": "show-apps-row"}
 
 _DESCRIPTIONS: dict[str, str] = {
-    "games": "Steam, Heroic, Lutris and RetroArch, with the cover art they downloaded",
-    "apps": "One row of everything installed. Long — the all-apps grid is easier.",
-    "recents": "What you opened most recently, newest first",
-    "favourites": "The tiles you have pinned",
-    "static": "The rows you have made yourself",
+    "games": "Steam, Heroic, Lutris, and RetroArch",
+    "apps": "",
+    "recents": "",
+    "favourites": "",
+    "static": "Your custom rows",
 }
 
 
@@ -94,7 +94,11 @@ def providers_panel(
             title,
             get,
             set_,
-            detail=_DESCRIPTIONS.get(provider_id) or _describe(outcome),
+            detail=(
+                _DESCRIPTIONS[provider_id]
+                if provider_id in _DESCRIPTIONS
+                else _describe(outcome)
+            ),
         )
 
     def build() -> list[SettingsRow]:
@@ -104,15 +108,13 @@ def providers_panel(
             if provider.id not in registry.builtin_ids:
                 continue
             rows.append(row_switch(provider.id, provider.title, by_id.get(provider.id)))
-        rows.append(GroupRow("Diagnostics"))
-        rows.extend(_outcome_rows(registry, by_id))
+        rows.append(GroupRow("Advanced"))
         rows.append(
             opens_panel(
                 "Developer providers",
                 lambda: context.push(
                     _developer_providers_panel(context, registry, outcomes, reload_catalog)
                 ),
-                detail="Local Python extensions that run code on this computer",
             )
         )
         return rows
@@ -120,7 +122,6 @@ def providers_panel(
     return Panel(
         title="Home screen",
         build=build,
-        subtitle="Which rows appear, and why",
         panel_id="providers",
         icon_name="view-grid-symbolic",
     )
@@ -158,7 +159,10 @@ def _developer_providers_panel(
                 "Local code",
                 "Use trusted files only",
                 detail="Provider files execute with the same access as Salon.",
-            )
+            ),
+            GroupRow("Diagnostics"),
+            *_outcome_rows(registry, by_id),
+            GroupRow("Local providers"),
         ]
         external = [
             provider
@@ -185,12 +189,10 @@ def _developer_providers_panel(
                 ActionRow(
                     "Reload developer providers",
                     lambda: _reload(context, registry, reload_catalog),
-                    detail=f"Re-imports every .py in {provider_dir()}",
                 ),
                 ActionRow(
                     "Open provider folder",
                     lambda: _open_folder(context),
-                    detail="Add only Python provider files you trust",
                 ),
             ]
         )

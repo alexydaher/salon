@@ -68,13 +68,12 @@ async function send() {
 export function renderTyping(data) {
   const hint = $("type-hint");
   if (data.wantsText) {
-    hint.textContent = "The television is waiting. Type below.";
+    hint.textContent = "Type below.";
   } else if (data.remoteInput) {
-    hint.textContent = "Use the pointer to select a field, then type here.";
+    hint.textContent = "Select a field with Pointer, then type here.";
   } else {
     hint.textContent =
-      "Nothing on the television is asking for text, and Salon isn't "
-      + "allowed to type into other apps yet.";
+      "Salon needs pointer permission to type into other apps.";
   }
   hint.style.color = data.wantsText ? "var(--accent)" : "";
 

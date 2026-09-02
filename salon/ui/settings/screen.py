@@ -130,10 +130,6 @@ class SettingsScreen(
         heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         heading.set_hexpand(True)
         self._header.append(heading)
-        eyebrow = Gtk.Label(label="SETTINGS")
-        eyebrow.add_css_class("salon-settings-eyebrow")
-        eyebrow.set_halign(Gtk.Align.START)
-        heading.append(eyebrow)
         self._title = Gtk.Label(label="Settings")
         self._title.add_css_class("salon-search-query")
         self._title.set_halign(Gtk.Align.START)
@@ -148,6 +144,7 @@ class SettingsScreen(
         self._summary.add_css_class("salon-settings-summary")
         self._summary.set_halign(Gtk.Align.END)
         self._summary.set_valign(Gtk.Align.END)
+        self._summary.set_visible(False)
         self._header.append(self._summary)
 
         body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)

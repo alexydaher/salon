@@ -42,17 +42,16 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     def build() -> list[SettingsRow]:
         return [
             GroupRow("This computer"),
-            gnome("Display and resolution", "display", "Resolution, refresh rate and scaling"),
-            gnome("Date and time", "datetime", "What the clock in the top bar shows"),
+            gnome("Display and resolution", "display"),
+            gnome("Date and time", "datetime"),
             gnome("Region and language", "region"),
-            gnome("Accessibility", "a11y", "Larger text, high contrast, screen reader"),
-            gnome("Power and screen blanking", "power", "When the display sleeps by itself"),
+            gnome("Accessibility", "a11y"),
+            gnome("Power and screen blanking", "power"),
             _updates_row(context),
             GroupRow("Salon"),
             opens_panel(
                 "Web tiles",
                 lambda: context.push(browser_panel(context, settings)),
-                detail="Which browser opens them, and the streaming quality it can reach",
             ),
             _autostart_row(context, settings),
             keyed.ranged(
@@ -63,13 +62,11 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 step=15,
                 fmt=lambda v: "Off" if v == 0 else f"{v:.0f} s",
                 off_at=0.0,
-                detail="Covers the gap before the app issues its own inhibit",
             ),
             GroupRow("Ending the session"),
             opens_panel(
                 "Power",
                 lambda: context.push(power_panel(context)),
-                detail="Suspend, log out, restart, shut down",
             ),
             GroupRow("This section"),
             restore_defaults_row(keyed, context.toast, context.rebuild),
@@ -78,7 +75,6 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     return Panel(
         title="System",
         build=build,
-        subtitle="The computer, and startup",
         panel_id="system",
         icon_name="preferences-system-symbolic",
     )
@@ -89,7 +85,6 @@ def _updates_row(context: SettingsContext) -> SettingsRow:
     row = opens_gnome(
         "Software updates",
         lambda: _open_updates(context),
-        detail="Opens GNOME Software",
     )
     if not installed:
         row.make_unavailable("GNOME Software isn't installed")
@@ -107,7 +102,6 @@ def _autostart_row(context: SettingsContext, settings: Gio.Settings) -> Settings
         "Start Salon at login",
         lambda: settings.get_boolean("autostart"),
         lambda value: _set_autostart(context, settings, value),
-        detail="Launches Salon inside your normal desktop session",
         default=bool(settings.get_default_value("autostart").unpack()),
     )
     if not sandbox.capabilities().autostart:

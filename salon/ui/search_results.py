@@ -67,7 +67,6 @@ class SearchResultsController:
         if self._results:
             count = len(self._results)
             status.append(f"{count} result{'s' if count != 1 else ''}")
-            status.append("RIGHT enters results · OPTIONS shows actions")
             self._hint_label.set_label(" · ".join(status))
             return
         if self._keyboard.text.strip():

@@ -63,14 +63,12 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 "theme",
                 "Theme",
                 _THEMES,
-                detail="What colour the surfaces and text are. The accent is separate.",
                 preview=True,
             ),
             keyed.choice(
                 "accent-color",
                 "Accent colour",
                 ACCENTS,
-                detail="Focus, selection and the glow behind the focused tile",
                 preview=True,
             ),
             GroupRow("Layout"),
@@ -81,7 +79,7 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=tokens.SAFE_AREA_MAX_PERCENT,
                 step=0.5,
                 fmt=lambda v: f"{v:.1f}%",
-                detail="Inset from the screen edges. Televisions still overscan.",
+                detail="Increase if screen edges are cropped",
                 preview=True,
             ),
             keyed.ranged(
@@ -91,7 +89,6 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=1.5,
                 step=0.05,
                 fmt=_percent,
-                detail="How large tiles are on the home screen and in All apps",
                 preview=True,
             ),
             keyed.ranged(
@@ -101,7 +98,7 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=1.6,
                 step=0.05,
                 fmt=_percent,
-                detail="Lower packs more rows onto the screen",
+                detail="Lower fits more rows",
                 preview=True,
             ),
             GroupRow("Motion"),
@@ -113,13 +110,12 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 step=0.25,
                 fmt=lambda v: "Off" if v == 0 else _percent(v),
                 off_at=0.0,
-                detail="How quickly focus, scrolling and overlays settle",
                 preview=True,
             ),
             keyed.toggle(
                 "reduced-motion",
                 "Reduced motion",
-                detail="Focus changes instantly; the highlight stays unmistakable",
+                detail="Instant focus changes",
                 preview=True,
             ),
             keyed.ranged(
@@ -130,7 +126,7 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 step=5,
                 fmt=lambda v: "Never" if v == 0 else f"After {v:.0f} min",
                 off_at=0.0,
-                detail="Fades to a drifting clock. Configure screen locking separately.",
+                detail="Drifting clock after inactivity; does not lock",
             ),
             GroupRow("Background"),
             keyed.choice(
@@ -143,18 +139,15 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             opens_picker(
                 "Choose a picture…",
                 lambda: wallpaper.choose(context, settings, folder=False),
-                detail="A single image behind the tiles",
             ),
             opens_picker(
                 "Choose a folder…",
                 lambda: wallpaper.choose(context, settings, folder=True),
-                detail="Rotate through the images in a folder",
             ),
             keyed.choice(
                 "wallpaper-color-treatment",
                 "Background colours",
                 wallpaper.COLOR_TREATMENTS,
-                detail="Preserve the picture or colour it from focus or the interface accent",
                 preview=True,
             ),
             keyed.ranged(
@@ -164,24 +157,21 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=1.0,
                 step=0.04,
                 fmt=lambda v: "Hidden" if v >= 0.999 else _percent(v),
-                detail="How far the background is pushed behind the tiles",
                 preview=True,
             ),
             opens_panel(
                 "Type a path…",
                 lambda: context.push(_background_path_panel(context, settings)),
-                detail="For a picture no file picker can reach",
+                detail="For paths the picker cannot reach",
             ),
             GroupRow("Tile artwork"),
             keyed.toggle(
                 "fetch-site-icons",
                 "Use each site's own icon",
-                detail="Web tiles ask their site for its icon, once. Off makes them all alike.",
             ),
             ActionRow(
                 "Forget fetched site icons",
                 lambda: _forget_site_icons(context),
-                detail="Ask every site again the next time its tile is drawn",
             ),
             GroupRow("This section"),
             restore_defaults_row(keyed, context.toast, context.rebuild),
@@ -195,7 +185,6 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     return Panel(
         title="Appearance",
         build=build,
-        subtitle="Colour, layout and motion",
         summary=summary,
         panel_id="appearance",
         icon_name="applications-graphics-symbolic",
@@ -218,12 +207,11 @@ def _background_path_panel(context: SettingsContext, settings: Gio.Settings) -> 
                 "Path",
                 lambda: wallpaper.edit_path(context, settings),
                 placeholder="Salon ambient",
-                detail="An image, a folder of images, or - for none",
+                detail="Image, folder, or - for none",
             ),
             ActionRow(
                 "Check this path",
                 lambda: context.toast(wallpaper.detail(settings)),
-                detail="Says whether the picture or folder can be found",
             ),
         ]
 

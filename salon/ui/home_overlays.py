@@ -37,7 +37,6 @@ class HomeOverlayController(ServiceComponent):
                     "Cancel",
                     self._owner._system_menu.back,
                     icon_name="process-stop-symbolic",
-                    detail="Return without making a change",
                     closes=False,
                 ),
                 SystemMenuItem(
@@ -45,7 +44,6 @@ class HomeOverlayController(ServiceComponent):
                     action,
                     danger=True,
                     icon_name="dialog-warning-symbolic",
-                    detail=f"Confirm {label.casefold()}",
                 ),
             ],
         )
@@ -108,11 +106,6 @@ class HomeOverlayController(ServiceComponent):
                 "Remove from Favourites" if pinned else "Add to Favourites",
                 lambda: self._toggle_favourite(tile),
                 icon_name=("starred-symbolic" if pinned else "non-starred-symbolic"),
-                detail=(
-                    "Remove the shortcut from Favourites"
-                    if pinned
-                    else "Add a shortcut to Favourites"
-                ),
             )
         ]
         located = self._owner._locate_in_config(tile.id)
@@ -121,7 +114,6 @@ class HomeOverlayController(ServiceComponent):
                 SystemMenuItem(
                     "Add to a row…",
                     icon_name="list-add-symbolic",
-                    detail=f"Choose from {len(self._owner._config.rows)} Home rows",
                     submenu=lambda: self._add_to_row_frame(tile),
                 )
             )
@@ -131,7 +123,6 @@ class HomeOverlayController(ServiceComponent):
                     f"Open {tile.title}",
                     lambda: self._owner._launch_tile(tile),
                     icon_name="media-playback-start-symbolic",
-                    detail="Launch this application",
                 )
             )
         if located is not None:
@@ -141,7 +132,6 @@ class HomeOverlayController(ServiceComponent):
                     f"Edit {tile.title}…",
                     lambda: self._owner._settings_screen_open_tile(row_id, tile_id),
                     icon_name="document-edit-symbolic",
-                    detail="Open this tile in Settings",
                 )
             )
             items.append(
@@ -149,7 +139,6 @@ class HomeOverlayController(ServiceComponent):
                     "Remove from Home…",
                     danger=True,
                     icon_name="user-trash-symbolic",
-                    detail="Remove this tile from its editable Home row",
                     submenu=lambda: self._remove_from_home_frame(tile, row_id, tile_id),
                 )
             )
@@ -159,19 +148,16 @@ class HomeOverlayController(ServiceComponent):
                     "Edit Tiles…",
                     lambda: self._owner._open_settings("tiles"),
                     icon_name="view-list-symbolic",
-                    detail="Open the complete Home layout editor",
                 )
             )
         # BACK, OPTIONS, or the scrim closes this; no redundant Cancel row.
         left = self._owner._scale.px(tokens.CONSOLE_WIDTH_DU)
         right = self._owner._scale.px(132.0) if from_grid else 0.0
         self._owner._tile_menu.set_content_insets(left, right)
-        destination = tile.launch.target
-        subtitle = " · ".join(part for part in (tile.subtitle or "", destination) if part)
         self._owner._tile_menu.set_items(
             items,
             title=tile.title,
-            subtitle=subtitle,
+            subtitle=tile.subtitle or "",
             icon_name=tile.icon_name or "",
             frame_id=f"tile-{tile.id}",
         )
@@ -186,7 +172,6 @@ class HomeOverlayController(ServiceComponent):
                     "Cancel",
                     self._owner._tile_menu.back,
                     icon_name="process-stop-symbolic",
-                    detail="Keep this tile on Home",
                     closes=False,
                 ),
                 SystemMenuItem(
@@ -194,7 +179,6 @@ class HomeOverlayController(ServiceComponent):
                     lambda: self._remove_tile_from_home(tile, row_id, tile_id),
                     danger=True,
                     icon_name="user-trash-symbolic",
-                    detail=f"Remove {tile.title} from Home",
                 ),
             ],
         )
@@ -229,7 +213,6 @@ class HomeOverlayController(ServiceComponent):
                     row.title or "Untitled row",
                     lambda r=row: self._add_tile_to_row(tile, r.id, r.title),
                     icon_name="list-add-symbolic",
-                    detail=f"Copy {tile.title} into this Home row",
                 )
                 for row in self._owner._config.rows
             ],

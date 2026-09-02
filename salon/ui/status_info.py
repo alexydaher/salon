@@ -43,10 +43,6 @@ class StatusInfo(Gtk.Box):
 
         system_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         system_card.add_css_class("salon-console-block")
-        heading = Gtk.Label(label="SYSTEM")
-        heading.add_css_class("salon-console-heading")
-        heading.set_halign(Gtk.Align.START)
-        system_card.append(heading)
         self._network = self._make_row(system_card, "network-wireless-symbolic", "Network")
         self._battery = self._make_row(system_card, "battery-symbolic", "Battery")
         self._applications = self._make_row(system_card, "view-grid-symbolic", "Applications")

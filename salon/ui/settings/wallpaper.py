@@ -60,9 +60,9 @@ def _describe(path: str) -> str:
 def detail(settings: Gio.Settings) -> str:
     current = settings.get_string(_KEY).strip()
     if not current:
-        return "Salon's own drifting backdrop"
+        return ""
     if current == NONE:
-        return "No picture behind the tiles"
+        return ""
     if not Path(current).exists():
         return f"Not found: {current}"
     return f"Rotating through {current}" if Path(current).is_dir() else current

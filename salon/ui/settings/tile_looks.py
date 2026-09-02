@@ -10,7 +10,6 @@ an on-screen keyboard, both judged by leaving Settings.
 from __future__ import annotations
 
 from salon.core.model import Tile
-from salon.services.artwork import artwork_drop_dir
 from salon.ui.settings.context import SettingsContext
 from salon.ui.settings.tile_edits import edit_field
 from salon.ui.settings.widgets import (
@@ -70,7 +69,7 @@ def custom_accent_row(context: SettingsContext, row_id: str, tile_id: str, tile:
         lambda: tile.accent or "",
         lambda: edit_field(context, "Accent colour, e.g. #E50914", tile.accent or "#", apply),
         placeholder="From the artwork",
-        detail="A hex colour, for a brand that has to be exact",
+        detail="Hex, e.g. #E50914",
     )
 
 
@@ -97,7 +96,6 @@ def artwork_rows(
         opens_picker(
             "Choose an image…",
             lambda: context.choose_path("Choose artwork for this tile", False, picked),
-            detail=f"Or drop one at {artwork_drop_dir()}/{tile.id}.png",
         ),
         TextRow(
             "Artwork path or URL",
@@ -109,7 +107,6 @@ def artwork_rows(
                 lambda text: setattr(tile, "artwork", text or None),
             ),
             placeholder="From the icon",
-            detail="A local file or an https:// address, fetched once and cached",
         ),
     ]
 

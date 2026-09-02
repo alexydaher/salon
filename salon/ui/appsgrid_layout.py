@@ -134,7 +134,7 @@ class AppsGridLayout(AppsGridAlphabet):
         tile = self._tiles[index]
         artwork = self._artwork.resolve(tile, icon_size=round(self._scale.du(54.0)))
         widget = TileWidget(
-            tile, artwork, metrics, self._scale, show_subtitle=True, horizontal_content=True
+            tile, artwork, metrics, self._scale, show_subtitle=False, horizontal_content=True
         )
         click = Gtk.GestureClick()
         click.connect("released", lambda *_, i=index: self._click(i))
@@ -173,7 +173,7 @@ class AppsGridLayout(AppsGridAlphabet):
             widget.set_focused(not self._top_bar_focused and i == index)
         tile = self.focused_tile
         if tile is not None:
-            self._bottom.set_selection(tile.title, tile.subtitle or "")
+            self._bottom.set_selection(tile.title)
         self._update_rail()
         self._update_legend()
         if 0 <= index < len(self._widgets):

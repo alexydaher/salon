@@ -37,7 +37,6 @@ def power_panel(context: SettingsContext) -> Panel:
                 ActionRow(
                     "Suspend",
                     lambda: power.suspend(fail("Suspend")),
-                    detail="Sleeps now; a button press wakes it",
                 )
             )
         if power.can_log_out():
@@ -49,7 +48,7 @@ def power_panel(context: SettingsContext) -> Panel:
                         "Log out",
                         lambda: power.log_out(fail("Log out")),
                     ),
-                    detail="Ends the session and returns to the login screen",
+                    detail="Returns to the login screen",
                     danger=True,
                 )
             )
@@ -85,7 +84,7 @@ def power_panel(context: SettingsContext) -> Panel:
                     # Different in kind from Log out, and the distinction is
                     # invisible unless it is written down: under the session
                     # unit's Restart=always, exiting gets you Salon again.
-                    detail="Leaves the launcher; the desktop stays logged in",
+                    detail="The desktop stays logged in",
                     danger=True,
                 )
             )

@@ -57,7 +57,6 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             InfoRow(
                 "Detected",
                 " ".join(detected) if detected else "None",
-                detail="Chrome, then Chromium, then the Flatpak, in that order",
             ),
             ActionRow(
                 "Test browser configuration",
@@ -66,7 +65,6 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                     if detected
                     else failure or "Browser check is still running."
                 ),
-                detail="Checks the command Salon would use without opening a window",
             ),
             GroupRow("Streaming"),
             InfoRow(
@@ -81,14 +79,12 @@ def browser_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             opens_panel(
                 "Custom command and flags",
                 lambda: context.push(_advanced_browser_panel(context, settings)),
-                detail="For a browser Salon does not detect, or flags a site needs",
             ),
         ]
 
     return Panel(
         title="Web tiles",
         build=build,
-        subtitle="Which browser opens them",
         panel_id="browser",
         icon_name="web-browser-symbolic",
     )
@@ -104,7 +100,6 @@ def _advanced_browser_panel(context: SettingsContext, settings: Gio.Settings) ->
                 "Browser command",
                 lambda: _edit_browser(context, settings),
                 placeholder="Autodetect",
-                detail="Leave empty to use Salon's detected browser",
             ),
             _flags_row(context, settings),
         ]
@@ -120,7 +115,6 @@ def _flags_row(context: SettingsContext, settings: Gio.Settings) -> SettingsRow:
         lambda: " ".join(settings.get_strv("browser-extra-flags")),
         lambda: _edit_flags(context, settings),
         placeholder="None",
-        detail="Appended after the flags Salon computes for each tile",
         default=" ".join(settings.get_default_value("browser-extra-flags").unpack()),
     )
 

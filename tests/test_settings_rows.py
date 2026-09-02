@@ -364,7 +364,7 @@ def test_a_list_with_nothing_resettable_keeps_no_gutter() -> None:
     assert not listing.rows[0]._content._dot.get_visible()
 
 
-def test_an_external_row_with_no_detail_still_says_something() -> None:
-    """"Region and language" drew a second line holding one arrow."""
-    row = opens_gnome("Region and language", lambda: None)
-    assert row._content._detail.get_label() == "Opens GNOME Settings ↗"
+def test_an_external_row_uses_a_compact_trailing_arrow() -> None:
+    row = opens_gnome("Region and language", lambda: None, detail="Advanced options")
+    assert row._content._detail.get_label() == "Advanced options"
+    assert row.value_text == "↗"

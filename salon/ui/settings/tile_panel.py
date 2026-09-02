@@ -66,7 +66,7 @@ def tile_panel(context: SettingsContext, row_id: str, tile_id: str) -> Panel:
                 lambda: tile.subtitle or "",
                 lambda: edit_subtitle(context, row_id, tile_id),
                 placeholder="None",
-                detail="Shown under the tile everywhere except the home screen",
+                detail="Hidden on Home",
             ),
             GroupRow("What it opens"),
             ChoiceRow(
@@ -87,13 +87,12 @@ def tile_panel(context: SettingsContext, row_id: str, tile_id: str) -> Panel:
                     "Open fullscreen",
                     lambda: tile.launch.fullscreen,
                     lambda value: _set_fullscreen(context, row_id, tile_id, value),
-                    detail="Starts the browser window with no chrome around the page.",
                 ),
                 ToggleRow(
                     "Spatial navigation",
                     lambda: tile.launch.spatial_nav,
                     lambda value: _set_spatial_nav(context, row_id, tile_id, value),
-                    detail="Arrow keys move to the nearest element. Off for sites it breaks.",
+                    detail="Turn off if arrow keys break the site",
                 ),
             ]
         rows += [
@@ -140,7 +139,6 @@ def _position_row(context: SettingsContext, row_id: str, tile_id: str) -> Settin
         [(str(index), f"{index + 1} of {len(tiles)}") for index in range(len(tiles))],
         lambda: str(current),
         move,
-        detail="Which tile it sits after, left to right",
     )
 
 
@@ -148,7 +146,7 @@ def _delete_row(context: SettingsContext, row_id: str, tile_id: str) -> Settings
     return ActionRow(
         "Delete this tile",
         lambda: delete_tile(context, row_id, tile_id),
-        detail="Asks first; the app itself is not touched",
+        detail="Does not uninstall the app",
         danger=True,
     )
 

@@ -73,7 +73,7 @@ def opens_panel(
 
 def opens_gnome(label: str, on_activate: Callable[[], None], *, detail: str = "") -> ActionRow:
     """A row that hands over to gnome-control-center (§1)."""
-    return ActionRow(label, on_activate, detail=detail, external=True)
+    return ActionRow(label, on_activate, detail=detail, value="↗", external=True)
 
 
 def opens_picker(label: str, on_activate: Callable[[], None], *, detail: str = "") -> ActionRow:

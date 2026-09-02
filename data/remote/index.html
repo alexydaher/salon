@@ -62,8 +62,7 @@
 </svg>
 <section id="connect">
   <h1>Salon</h1>
-  <p>Enter the four-digit code on the television, or scan the code there
-     with your camera to skip this.</p>
+  <p>Enter the 4-digit code shown on the TV.</p>
   <div id="code-entry">
     <input id="code" inputmode="numeric" autocomplete="one-time-code"
            maxlength="4" pattern="[0-9]*" aria-label="Pairing code">
@@ -141,15 +140,14 @@
     <div id="mirror">
       <div class="shot" id="mirror-art"></div>
       <div class="what">
-        <div class="label" id="mirror-label">On the television</div>
+        <div class="label" id="mirror-label"></div>
         <div class="name" id="mirror-title"></div>
         <div class="sub" id="mirror-sub"></div>
         <div class="position" id="mirror-position"></div>
       </div>
     </div>
     <div id="mirror-neighbours"><span id="mirror-prev"></span><span id="mirror-next"></span></div>
-    <p class="why">The D-pad drives Salon, and Salon is behind this app.
-       Use the Pointer tab, return to Salon, or explicitly close it from the top.</p>
+    <p class="why">Return to Salon or use Pointer.</p>
     <div class="bar secondary remote-tools">
       <button data-action="options" data-tv-only>Options</button>
       <button data-action="prev_group" data-tv-only aria-label="Previous group">&#8676;&#8202;<small>Group</small></button>
@@ -166,7 +164,7 @@
       <button data-action="down" data-repeat data-tv-only aria-label="Down">&#9660;</button>
       <button class="blank"></button>
     </div>
-    <p class="dpad-hint">Swipe anywhere on the pad to move&#8202;&middot;&#8202;tap the middle to select</p>
+    <p class="dpad-hint">Swipe to move&#8202;&middot;&#8202;tap to select</p>
     <!-- Back is directly under the pad, where the thumb already is. Play /
          Pause is *not* data-tv-only: it reaches the player over MPRIS, so
          it still works with Netflix in front. -->
@@ -206,11 +204,11 @@
       <div class="drawer-title"><b>Type on the television</b>
         <button id="type-close" aria-label="Close keyboard"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
-      <p class="subtle" id="type-hint">Tap a field on the television, then type here.</p>
+      <p class="subtle" id="type-hint">Select a field, then type here.</p>
       <p id="mirror-text">On screen: <b></b></p>
       <div class="send-row"><input id="text" autocomplete="off" autocapitalize="none"
              autocorrect="off" spellcheck="false" enterkeyhint="send"
-             placeholder="Type for the television" aria-label="Text">
+             placeholder="Type here" aria-label="Text">
         <button id="send" class="primary">Send</button></div>
       <div class="bar"><button id="key-back" aria-label="Backspace">
           <svg class="i" aria-hidden="true"><use href="#i-erase"/></svg></button>
@@ -221,7 +219,7 @@
        bottom tabs remain available, while the pane underneath becomes inert. -->
   <section id="np-full" role="region" aria-labelledby="media-title" tabindex="-1" hidden>
     <div class="media-toolbar">
-      <div><span class="media-eyebrow">Remote</span><h2 id="media-title">Media</h2></div>
+      <div><h2 id="media-title">Media</h2></div>
       <button id="np-close">Done</button>
     </div>
     <section class="television-state" aria-labelledby="television-title">
@@ -231,7 +229,7 @@
       <div id="television-current"></div>
       <div id="running-section" hidden>
         <div class="media-heading running-heading">
-          <h3>Running apps</h3><span>Close without affecting the others</span>
+          <h3>Running apps</h3>
         </div>
         <div id="running-apps"></div>
       </div>

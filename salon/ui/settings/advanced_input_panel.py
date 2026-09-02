@@ -18,12 +18,7 @@ from gi.repository import Gio  # noqa: E402
 from salon.core import sandbox  # noqa: E402
 from salon.input import cec_in  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
-from salon.ui.settings.widgets import (  # noqa: E402
-    ActionRow,
-    GroupRow,
-    Keyed,
-    SettingsRow,
-)
+from salon.ui.settings.widgets import ActionRow, GroupRow, Keyed, SettingsRow  # noqa: E402
 
 _TOKEN_KEY = "remote-desktop-restore-token"
 
@@ -48,13 +43,6 @@ def advanced_input_panel(context: SettingsContext, settings: Gio.Settings) -> Pa
                     else [("portal", "Ask the desktop")]
                 ),
                 detail=_injection_detail(context, settings),
-            ),
-            ActionRow(
-                "Check which route is live",
-                lambda: context.toast(
-                    f"Pointer backend: {context.pointer_backend() or 'not active yet'}"
-                ),
-                detail="Reports the backend currently controlling browser tiles",
             ),
             ActionRow(
                 "Forget remote-control permission",

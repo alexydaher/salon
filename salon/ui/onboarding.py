@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""First run (§6.11): five screens, then out of the way forever.
+"""First run (§6.11): three short screens, then out of the way forever.
 
 The problem onboarding solves here is narrow and real. Salon has no visible
 menu bar, no window controls and no text anywhere saying what the buttons
@@ -42,51 +42,23 @@ PAGES: tuple[Page, ...] = (
     Page(
         title="Welcome to Salon",
         body=(
-            "Everything here is built for a remote or a controller across a "
-            "room. Move with the direction pad, choose with OK, and use Back "
-            "to return. The labels stay the same whichever remote you use."
+            "Use the direction pad to move, OK to open, and Back to return."
         ),
         hint="Press OK to continue",
     ),
     Page(
-        title="The bar at the top",
+        title="Find your way around",
         body=(
-            "Press UP from the first row to reach search, all your apps, "
-            "Settings and power. Search looks through your tiles and every "
-            "application on this machine at once. Type with a keyboard, the "
-            "on-screen keys, or a phone connected from the top bar."
-        ),
-        hint="Press OK to continue",
-    ),
-    Page(
-        title="Getting back",
-        body=(
-            "When something you started is filling the screen, press Menu to "
-            "come back to Salon without closing it. On many controllers Menu "
-            "is the Start button. Salon can still hear it behind the app."
+            "Press Up from the first row for Search, All Apps, Settings, and Power. "
+            "Menu returns to Salon when another app fills the screen."
         ),
         hint="Press OK to continue",
     ),
     Page(
         title="Make it yours",
         body=(
-            "Options over any tile opens its actions: pin it, add it to Home, "
-            "or edit it. Menu opens system controls from Home, closes Settings, "
-            "and brings you back from an app while leaving it running. Settings is where you add "
-            "tiles, group them into rows, drop in your own artwork, and "
-            "change how big everything is — with the home screen live behind "
-            "you while you do it."
-        ),
-        hint="Press OK to continue",
-    ),
-    Page(
-        title="One more thing",
-        body=(
-            "Salon never asks for a password and never plays anything itself. "
-            "It starts the apps and sites you already have. The only thing it "
-            "ever fetches is the icon belonging to a site you added, from that "
-            "site — nothing is sent to anyone else, and Settings can turn even "
-            "that off."
+            "Options opens a tile's actions. Settings edits your rows, tiles, "
+            "artwork, and appearance."
         ),
         hint="Press OK to start",
     ),

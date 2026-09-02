@@ -42,26 +42,19 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             keyed.toggle(
                 "remote-hint",
                 "Show the pairing code when nothing is connected",
-                detail=(
-                    "A small code in the corner of the home screen, gone as soon as "
-                    "a controller or a phone turns up"
-                ),
             ),
             opens_panel(
                 "Pair a remote or controller",
                 lambda: context.push(_bluetooth_panel(context)),
-                detail="Bluetooth, without needing a mouse to do it",
             ),
             GroupRow("Buttons"),
             opens_panel(
                 "Change buttons",
                 lambda: context.push(bindings_panel(context)),
-                detail="Bind any button on a controller, keyboard or TV remote",
             ),
             opens_panel(
                 "Test a controller",
                 lambda: context.push(gamepad_panel(context)),
-                detail="Shows what Salon receives, live",
             ),
             GroupRow("Feel"),
             keyed.ranged(
@@ -71,7 +64,7 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=1000,
                 step=50,
                 fmt=lambda v: f"{v:.0f} ms",
-                detail="How long a direction is held before it starts repeating",
+                detail="Time before repeating starts",
             ),
             keyed.ranged(
                 "key-repeat-interval-ms",
@@ -80,26 +73,21 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=400,
                 step=10,
                 fmt=lambda v: f"{v:.0f} ms",
-                detail="How fast it repeats once it starts",
+                detail="Time between repeats",
             ),
             opens_panel(
                 "Try the repeat speed",
                 lambda: context.push(_repeat_practice_panel(context)),
-                detail="Hold a direction here and feel what these two settings do",
             ),
             keyed.toggle(
                 "gamepad-pointer",
                 "Gamepad cursor in web tiles",
-                detail=(
-                    "Right stick moves the pointer over a web tile. "
-                    "The desktop asks for permission once."
-                ),
+                detail="May ask for desktop permission once",
             ),
             GroupRow("This section"),
             opens_panel(
                 "Advanced input",
                 lambda: context.push(advanced_input_panel(context, settings)),
-                detail="Injection backend, permissions and HDMI-CEC",
             ),
             restore_defaults_row(keyed, context.toast, context.rebuild),
         ]
@@ -107,7 +95,6 @@ def input_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     return Panel(
         title="Input",
         build=build,
-        subtitle="Remotes, buttons and repeat",
         panel_id="input",
         icon_name="input-gaming-symbolic",
     )
@@ -126,7 +113,6 @@ def _repeat_practice_panel(context: SettingsContext) -> Panel:
             InfoRow(
                 "Hold UP or DOWN",
                 "",
-                detail="The cursor moves at exactly the delay and interval you have set",
             )
         ]
         rows.extend(ActionRow(f"Row {number}", lambda: None) for number in range(1, 21))
@@ -136,7 +122,7 @@ def _repeat_practice_panel(context: SettingsContext) -> Panel:
 
 
 def _phone_detail(context: SettingsContext) -> str:
-    return context.phone_remote_hint() if context.phone_remote_running() else "Not running"
+    return context.phone_remote_hint() if context.phone_remote_running() else ""
 
 
 def _set_phone_remote(context: SettingsContext, enabled: bool) -> None:

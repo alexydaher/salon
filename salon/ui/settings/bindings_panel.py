@@ -45,20 +45,6 @@ _GROUPS: tuple[tuple[str, tuple[Action, ...]], ...] = (
     ("Sound and playback", (Action.PLAY_PAUSE, Action.VOLUME_UP, Action.VOLUME_DOWN, Action.MUTE)),
 )
 
-_WHAT_IT_DOES: dict[Action, str] = {
-    Action.OK: "Opens the highlighted thing",
-    Action.BACK: "One step back",
-    Action.MENU: "System menu, and the way out of an app",
-    Action.OPTIONS: "The menu for the thing under the cursor",
-    Action.SEARCH: "Opens search",
-    Action.PLAY_PAUSE: "Pauses or resumes whatever is playing",
-    Action.PREV_GROUP: "Jumps back a letter or a row group",
-    Action.NEXT_GROUP: "Jumps on a letter or a row group",
-    Action.VOLUME_UP: "Louder",
-    Action.VOLUME_DOWN: "Quieter",
-    Action.MUTE: "Silence",
-}
-
 _SOURCE_NAMES = {GAMEPAD: "Controller", KEYBOARD: "Keyboard", CEC: "TV remote"}
 
 
@@ -104,20 +90,14 @@ def bindings_panel(context: SettingsContext) -> Panel:
     """
 
     def build() -> list[SettingsRow]:
-        rows: list[SettingsRow] = [
-            InfoRow(
-                "Choose an action, then press a button",
-                "",
-                detail="Any controller, keyboard or television remote",
-            )
-        ]
+        rows: list[SettingsRow] = []
         for heading, actions in _GROUPS:
             rows.append(GroupRow(heading))
             rows.extend(
                 opens_panel(
                     _ACTION_NAMES[action],
                     lambda a=action: context.push(_capture_panel(context, a)),
-                    detail=f"{_WHAT_IT_DOES[action]} · {_described(context, action)}",
+                    detail=_described(context, action),
                 )
                 for action in actions
             )
@@ -126,7 +106,6 @@ def bindings_panel(context: SettingsContext) -> Panel:
             ActionRow(
                 "Use Salon's defaults again",
                 lambda: _reset_bindings(context),
-                detail="Forgets every button you have changed",
             )
         )
         return rows
@@ -151,13 +130,13 @@ def _capture_panel(context: SettingsContext, action: Action) -> Panel:
         context.capture_binding(on_captured)
         return [
             InfoRow(
-                f"Press the button for {_ACTION_NAMES[action]}",
-                "Waiting…",
-                detail="Any controller, keyboard or TV remote. BACK cancels.",
+                "Press a button",
+                "",
+                detail="Back cancels",
             )
         ]
 
-    return Panel(title=f"Waiting for {_ACTION_NAMES[action]}", build=build)
+    return Panel(title=f"Change {_ACTION_NAMES[action]}", build=build)
 
 
 def _reset_bindings(context: SettingsContext) -> None:
@@ -179,7 +158,6 @@ def gamepad_panel(context: SettingsContext) -> Panel:
             InfoRow(
                 "Press anything on the controller",
                 "",
-                detail="Recent actions appear below, newest first",
             ),
             *(
                 InfoRow(_ACTION_NAMES.get(_action_of(entry), entry), "")

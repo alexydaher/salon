@@ -6,7 +6,7 @@ class PhonePairingActions:
     def _request_stop(self) -> None:
         self._confirming_stop = True
         self._address.set_label("Stop the phone remote?")
-        self._status.set_label("This phone will stop controlling Salon.")
+        self._status.set_label("")
         self._rows[0].set_label("Cancel")
         self._rows[1].set_label("Stop phone remote")
         self._select(0)

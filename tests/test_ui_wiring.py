@@ -85,7 +85,7 @@ def test_phone_pairing_hint_maximises_qr_inside_a_fixed_rail_card() -> None:
     assert host._height == 364  # noqa: SLF001
     assert host.get_margin_bottom() == 22
     assert card._title.get_label() == "Phone remote"  # noqa: SLF001
-    assert card._instruction.get_label() == "Scan to connect"  # noqa: SLF001
+    assert card._instruction.get_label() == ""  # noqa: SLF001
 
 
 def test_top_bar_horizontal_edges_do_not_animate_an_app_row() -> None:

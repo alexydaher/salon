@@ -16,7 +16,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from salon.ui.scale import Scale  # noqa: E402
-from salon.ui.settings.row_content import EXTERNAL_GLYPH, RowContent  # noqa: E402
+from salon.ui.settings.row_content import RowContent  # noqa: E402
 from salon.ui.settings.row_contract import RowContract  # noqa: E402
 
 _DENY_FLASH_MS = 220
@@ -24,9 +24,6 @@ _DENY_FLASH_MS = 220
 # the label and the value stay one readable pair at 1080p, and — because it
 # is in design units — the same pair at 4K rather than twice the distance.
 _MAX_CONTENT_DU = 1250.0
-# What an external row says when it says nothing else. Every one of them
-# goes to the same place, so the sentence is the same sentence.
-_EXTERNAL_DETAIL = "Opens GNOME Settings"
 
 
 class SettingsRow(Gtk.Button, RowContract):
@@ -69,12 +66,6 @@ class SettingsRow(Gtk.Button, RowContract):
 
         self._content = RowContent(label, detail, icon_name)
         self.set_child(self._content)
-        if external:
-            # Never the glyph on its own: a row that passed no detail drew a
-            # second line holding one arrow and nothing else ("Region and
-            # language"), which reads as a rendering fault rather than as an
-            # affordance. The words are the fallback the glyph decorates.
-            self._content.set_detail(f"{detail or _EXTERNAL_DETAIL} {EXTERNAL_GLYPH}")
         if not available:
             self.make_unavailable(unavailable_reason)
 

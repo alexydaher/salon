@@ -48,14 +48,12 @@ def rows_panel(context: SettingsContext) -> Panel:
             ActionRow(
                 "Add a row",
                 lambda: _add_row(context),
-                detail="A new band of tiles on the home screen",
                 value="+",
             ),
             GroupRow("This section"),
             opens_panel(
                 "Back up and restore",
                 lambda: context.push(backup_panel(context)),
-                detail="Save this layout, or put a saved one back",
             ),
         ]
         return rows
@@ -68,7 +66,6 @@ def rows_panel(context: SettingsContext) -> Panel:
     return Panel(
         title="Tiles",
         build=build,
-        subtitle="The rows on your home screen",
         summary=summary,
         panel_id="tiles",
         icon_name="view-grid-symbolic",
@@ -114,7 +111,7 @@ def row_panel(context: SettingsContext, row_id: str) -> Panel:
                 ASPECTS,
                 lambda: row.tile_aspect,
                 lambda value: _set_aspect(context, row_id, value),
-                detail="Wide for video, poster for films, square for apps",
+                detail="Wide, poster, or square",
             ),
             _position_row(context, row_id),
             GroupRow("Tiles in this row"),
@@ -133,14 +130,13 @@ def row_panel(context: SettingsContext, row_id: str) -> Panel:
             ActionRow(
                 "Add a tile",
                 lambda: add_tile_menu(context, row_id),
-                detail="An installed app, a web address, or a command",
                 value="+",
             ),
             GroupRow("Remove"),
             ActionRow(
                 "Delete this row",
                 lambda: _delete_row(context, row_id),
-                detail="Removes the row and every tile in it",
+                detail="Deletes every tile in this row",
                 danger=True,
             ),
         ]
@@ -167,7 +163,6 @@ def _position_row(context: SettingsContext, row_id: str) -> SettingsRow:
         [(str(index), f"{index + 1} of {len(all_rows)}") for index in range(len(all_rows))],
         lambda: str(current),
         move,
-        detail="Where it sits on the home screen, top to bottom",
     )
 
 

@@ -35,17 +35,15 @@ def add_tile_menu(context: SettingsContext, row_id: str) -> None:
             opens_panel(
                 "Installed app",
                 lambda: context.push(_installed_panel(context, row_id)),
-                detail="Pick from everything on this machine",
             ),
             ActionRow(
                 "Web address",
                 lambda: _add_url(context, row_id),
-                detail="Opens in its own browser profile",
+                detail="Uses a separate browser profile",
             ),
             ActionRow(
                 "Command",
                 lambda: _add_command(context, row_id),
-                detail="Runs an executable directly",
             ),
         ]
 
@@ -86,7 +84,7 @@ def _installed_panel(context: SettingsContext, row_id: str) -> Panel:
                 detail=(
                     f"{len(found)} applications installed"
                     if not query[0]
-                    else "OK to change it, or clear it to see everything"
+                    else ""
                 ),
                 value=query[0] or "",
             ),

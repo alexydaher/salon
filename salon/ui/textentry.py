@@ -121,7 +121,7 @@ class TextEntryOverlay(Gtk.Box, HardwareTextInput):
         # isn't pointed at look identical otherwise.
         self._value_label.set_label(f"{text}▏")
         self._hint_label.set_label(
-            self._keyboard.pairing_hint() or "Press Done when finished, or BACK to cancel."
+            self._keyboard.pairing_hint() or "Done saves · Back cancels"
         )
 
     def _finish(self, value: str | None) -> None:

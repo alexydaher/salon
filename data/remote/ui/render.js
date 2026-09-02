@@ -76,8 +76,7 @@ function renderHeader(data) {
 function renderPad(data) {
   $("pad").textContent = data.remoteInput
     ? "Move · tap to click · two fingers to scroll"
-    : "Salon isn't allowed to move the pointer. Settings → Input → "
-      + "Gamepad cursor.";
+    : "Pointer permission needed · Settings → Input";
   for (const node of document.querySelectorAll("#click-left, #click-right")) {
     node.disabled = !data.remoteInput;
   }

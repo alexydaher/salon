@@ -35,7 +35,6 @@ python_sources = [
   'navigation_policy.py',
   'preview_policy.py',
   'preview_strip.py',
-  'setup_panel.py',
   'system_panel.py',
   'tiles.py',
   'add_tile_panels.py',

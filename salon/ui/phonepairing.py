@@ -187,7 +187,7 @@ class PhonePairing(Gtk.Box, motion.FadesIn, PhonePairingActions):
             self._status.set_label("Connect it to Wi-Fi or Ethernet and try again.")
             return
 
-        self._address.set_label(f"Point a camera at the code, or open {url}")
+        self._address.set_label(str(url))
         if self._pairing.connected:
             self._status.set_label("A phone is connected.")
             # It worked; get out of the way. Leaving the card up means the
@@ -197,7 +197,7 @@ class PhonePairing(Gtk.Box, motion.FadesIn, PhonePairingActions):
             if self._dismiss_id is None:
                 self._dismiss_id = GLib.timeout_add(_CONNECTED_DWELL_MS, self._on_dismiss)
         else:
-            self._status.set_label(f"Typing it in? The code is {self._pairing.code}.")
+            self._status.set_label(f"Code {self._pairing.code}")
 
     def _on_dismiss(self) -> bool:
         self._dismiss_id = None

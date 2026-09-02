@@ -133,7 +133,7 @@ def _bluetooth_panel(context: SettingsContext) -> Panel:
                     detail="Hold the controller's pairing button until its light flashes",
                 )
             )
-        rows.append(ActionRow("Look again", rescan, detail="Scan for another few seconds"))
+        rows.append(ActionRow("Look again", rescan))
         # The full Bluetooth panel belongs *here*, not beside the row that
         # opens this one. Two adjacent rows in Input both said Bluetooth and
         # you had to read both to find out which was which; a device that
@@ -143,7 +143,7 @@ def _bluetooth_panel(context: SettingsContext) -> Panel:
             opens_gnome(
                 "Bluetooth, in detail",
                 lambda: context.open_control_center("bluetooth"),
-                detail="Devices needing a typed PIN, and everything else",
+                detail="PINs and advanced devices",
             )
         )
         return rows
@@ -202,17 +202,17 @@ def _bluetooth_device_panel(
                 ActionRow(
                     "Disconnect",
                     disconnect,
-                    detail="Stays paired, and reconnects on its own next time",
+                    detail="Stays paired",
                 )
             )
         else:
-            rows.append(ActionRow("Connect", connect, detail="Wake it up and connect to it now"))
+            rows.append(ActionRow("Connect", connect))
         rows.append(
             ActionRow(
                 "Forget this device",
                 confirm_forget,
                 danger=True,
-                detail="Unpair it completely — you'll have to pair it again to use it",
+                detail="You will need to pair it again",
             )
         )
         return rows

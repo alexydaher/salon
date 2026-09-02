@@ -78,8 +78,8 @@ class SettingsNavigationController(ServiceComponent):
         same = panel is self._owner._built_panel
         self._owner._built_panel = panel
         self._owner._panel_list.set_rows(panel.build(), keep_selection=same)
-        trail = " › ".join(_panel_name(p) for p in self._owner._stack)
-        self._owner._breadcrumb.set_label(trail if len(self._owner._stack) > 1 else "")
+        ancestors = " › ".join(_panel_name(p) for p in self._owner._stack[:-1])
+        self._owner._breadcrumb.set_label(ancestors)
         self._update_pane_style()
 
     def _update_pane_style(self) -> None:
@@ -89,8 +89,7 @@ class SettingsNavigationController(ServiceComponent):
         self._owner._title.set_label(
             "Settings" if sections else _panel_name(self._owner._stack[-1])
         )
-        panel = self._owner._stack[-1]
-        self._owner._summary.set_label(panel.subtitle)
+        self._owner._summary.set_label("")
         # The section list is orientation, and three levels into the tile
         # editor it is orienting you to somewhere you left: it kept saying
         # "Tiles" while the panel beside it was one tile's artwork. Past

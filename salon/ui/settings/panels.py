@@ -12,7 +12,6 @@ from salon.ui.settings.appearance_panel import appearance_panel
 from salon.ui.settings.audio_panel import audio_panel
 from salon.ui.settings.input_panel import input_panel
 from salon.ui.settings.network_panel import network_panel
-from salon.ui.settings.setup_panel import setup_panel
 from salon.ui.settings.system_panel import system_panel
 
 __all__ = [
@@ -21,6 +20,5 @@ __all__ = [
     "audio_panel",
     "input_panel",
     "network_panel",
-    "setup_panel",
     "system_panel",
 ]

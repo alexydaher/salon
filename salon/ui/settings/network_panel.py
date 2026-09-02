@@ -54,18 +54,16 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             opens_panel(
                 "Choose a network",
                 lambda: context.push(_wifi_panel(context)),
-                detail="Every network in range, and its password if it needs one",
             ),
             opens_gnome(
                 "Wi-Fi, in detail",
                 lambda: context.open_control_center("wifi"),
-                detail="Enterprise logins, hidden networks and static addresses",
+                detail="Hidden and enterprise networks",
             ),
             GroupRow("Everything else"),
             opens_gnome(
                 "Wired and VPN",
                 lambda: context.open_control_center("network"),
-                detail="Ethernet, VPN and proxy settings",
             ),
         ]
 
@@ -75,7 +73,6 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     return Panel(
         title="Network",
         build=build,
-        subtitle="Wi-Fi, wired and VPN",
         summary=summary,
         panel_id="network",
         icon_name="network-wireless-symbolic",
@@ -135,7 +132,7 @@ def _wifi_panel(context: SettingsContext) -> Panel:
             )
             for point in points
         ]
-        rows.append(ActionRow("Look again", rescan, detail="Scan for networks once more"))
+        rows.append(ActionRow("Look again", rescan))
         return rows
 
     return Panel(title="Wi-Fi", build=build)

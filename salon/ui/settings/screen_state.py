@@ -18,7 +18,7 @@ from salon.ui.settings.screen_shared import (
 
 
 def _section_detail(panel: Panel) -> str:
-    """The live summary if the panel offers one, else its fixed subtitle.
+    """The live summary, when the section has useful state to report.
 
     Guarded: a summary reads real state — an audio sink, a network — and
     the section list is built before any of those have answered. A section
@@ -31,7 +31,7 @@ def _section_detail(panel: Panel) -> str:
             live = ""
         if live:
             return live
-    return panel.subtitle
+    return ""
 
 
 class SettingsStateController(ServiceComponent):
@@ -39,7 +39,6 @@ class SettingsStateController(ServiceComponent):
         context = self._owner._context
         settings = self._owner._settings
         self._owner._section_panels = [
-            panel_builders.setup_panel(context, settings),
             tile_panels.rows_panel(context),
             provider_panels.providers_panel(
                 context,
@@ -61,10 +60,7 @@ class SettingsStateController(ServiceComponent):
                 lambda i=index: self._owner._enter_section(i),
                 value="›",
                 icon_name=panel.icon_name,
-                # What the section *is*, and what it is currently set to.
-                # Eight identical lines of one word each gave the eye
-                # nothing, and half the visits to Settings are answered by
-                # "Midnight · Lamplight amber" without entering at all.
+                # State, when the section has something useful to report.
                 detail=_section_detail(panel),
             )
             for index, panel in enumerate(self._owner._section_panels)

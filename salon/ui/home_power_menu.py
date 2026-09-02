@@ -39,7 +39,6 @@ class HomePowerMenuController(ServiceComponent):
                     "Suspend",
                     lambda: power.suspend(fail("Suspend")),
                     icon_name="media-playback-pause-symbolic",
-                    detail="Pause this session and enter low-power sleep",
                 )
             )
         # the way to get from Salon to another session — the desktop, a
@@ -64,7 +63,6 @@ class HomePowerMenuController(ServiceComponent):
                     "Restart",
                     danger=True,
                     icon_name="system-reboot-symbolic",
-                    detail="Restart the computer",
                     submenu=lambda: self._confirmation_frame(
                         "Restart", lambda: power.reboot(fail("Restart"))
                     ),
@@ -76,7 +74,6 @@ class HomePowerMenuController(ServiceComponent):
                     "Shut Down",
                     danger=True,
                     icon_name="system-shutdown-symbolic",
-                    detail="Turn the computer off",
                     submenu=lambda: self._confirmation_frame(
                         "Shut Down", lambda: power.power_off(fail("Shut down"))
                     ),

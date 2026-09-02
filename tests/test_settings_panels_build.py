@@ -113,7 +113,6 @@ def _sections() -> list[Panel]:
     context = _context()
     settings = _settings()
     return [
-        panels.setup_panel(context, settings),
         rows_panel(context),
         panels.appearance_panel(context, settings),
         panels.audio_panel(context, settings),
@@ -124,18 +123,12 @@ def _sections() -> list[Panel]:
     ]
 
 
-@pytest.mark.parametrize("index", range(8))
+@pytest.mark.parametrize("index", range(7))
 def test_every_section_builds(index: int) -> None:
     panel = _sections()[index]
     rows = panel.build()
     assert rows, panel.title
     assert all(hasattr(row, "hint") for row in rows)
-
-
-def test_setup_ends_after_its_fifth_step() -> None:
-    rows = _sections()[0].build()
-    assert rows[-1].label_text == "Use a phone as the remote"
-    assert all(row.label_text != "Everything else" for row in rows)
 
 
 def test_a_long_panel_says_where_its_groups_start() -> None:
@@ -156,11 +149,8 @@ def test_a_group_heading_never_ends_a_panel() -> None:
         assert not isinstance(rows[-1], GroupRow), panel.title
 
 
-def test_every_section_describes_itself_in_the_list() -> None:
-    """Eight identical lines of one word each gave the eye nothing to aim
-    at from a sofa; every section says what it is or what it is set to."""
+def test_every_section_has_navigation_identity() -> None:
     for panel in _sections():
-        assert panel.subtitle or panel.summary is not None, panel.title
         assert panel.icon_name, panel.title
         assert panel.panel_id, panel.title
 

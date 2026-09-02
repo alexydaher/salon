@@ -94,7 +94,6 @@ def audio_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=100,
                 step=5,
                 fmt=lambda v: f"{v:.0f}%",
-                detail="Changes as you walk the list, so you can set it by ear",
             ),
             ToggleRow("Mute", lambda: bool(state["muted"]), set_muted),
             keyed.ranged(
@@ -104,7 +103,6 @@ def audio_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 maximum=25,
                 step=1,
                 fmt=lambda v: f"{v:.0f}%",
-                detail="How far one press of the volume key moves it",
             ),
             GroupRow("This section"),
             restore_defaults_row(keyed, context.toast, context.rebuild),
@@ -117,7 +115,6 @@ def audio_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     return Panel(
         title="Audio",
         build=build,
-        subtitle="Output, volume and testing",
         summary=summary,
         panel_id="audio",
         icon_name="audio-speakers-symbolic",
@@ -160,7 +157,6 @@ def _test_row(context: SettingsContext) -> SettingsRow:
         lambda: testtone.play(
             lambda problem: context.toast(problem or "Playing a test sound on the current output.")
         ),
-        detail="Confirms the choice above without leaving Settings",
     )
     if not testtone.available():
         row.make_unavailable(testtone.unavailable_reason())

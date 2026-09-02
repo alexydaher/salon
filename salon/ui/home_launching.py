@@ -101,13 +101,11 @@ class HomeLaunchController(ServiceComponent):
                 "Search",
                 self._owner._open_search,
                 icon_name="system-search-symbolic",
-                detail="Find a tile or an installed application",
             ),
             SystemMenuItem(
                 "All Apps",
                 self._owner._open_apps,
                 icon_name="view-grid-symbolic",
-                detail="Browse every installed application, A to Z",
             ),
             # Named for its state, because this is the only place that says
             # whether the remote is running at all.
@@ -115,17 +113,11 @@ class HomeLaunchController(ServiceComponent):
                 "Phone" if self._owner.phone_remote_running() else "Connect a Phone",
                 self._owner._open_phone_pairing,
                 icon_name="phone-symbolic",
-                detail=(
-                    "Show the pairing code or manage the connected phone remote"
-                    if self._owner.phone_remote_running()
-                    else "Use a phone as the remote"
-                ),
             ),
             SystemMenuItem(
                 "Settings",
                 lambda: self._owner._open_settings(),
                 icon_name="emblem-system-symbolic",
-                detail="Tiles, appearance, input, and system settings",
             ),
         ]
         if self._power_menu_items():
@@ -133,7 +125,6 @@ class HomeLaunchController(ServiceComponent):
                 SystemMenuItem(
                     "Power",
                     icon_name="system-shutdown-symbolic",
-                    detail="Suspend, log out, restart, or shut down",
                     submenu=lambda: MenuFrame("power", "Power", self._power_menu_items()),
                 )
             )
@@ -142,7 +133,6 @@ class HomeLaunchController(ServiceComponent):
                 "About Salon",
                 lambda: self._owner._open_settings("about"),
                 icon_name="help-about-symbolic",
-                detail="Version, configuration path, and project information",
             )
         )
         return items
