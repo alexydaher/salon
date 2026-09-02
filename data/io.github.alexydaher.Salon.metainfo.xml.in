@@ -99,32 +99,38 @@
     <color type="primary" scheme_preference="dark">#E8A33D</color>
   </branding>
 
-  <!-- Pinned to the v0.4.0 tag rather than to main: a software centre
+  <!-- Pinned to the release tag rather than to main: a software centre
        showing this release should show the screenshots that release shipped
        with, and a moving branch would let them drift. Bump these with the
        version. -->
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.2/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.2/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.2/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.2/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.4.2" date="2026-09-02">
+      <description>
+        <p>Debian and Ubuntu installations can now update themselves. Salon publishes a signed APT archive beside its Flatpak repository, so adding it once means the package appears in Software Updater and in apt upgrade like any other.</p>
+        <p>There are no changes to the application itself.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-09-02">
       <description>
         <p>A maintenance release with no user-visible changes. It exists to exercise a release pipeline that was substantially reworked since 0.4.0.</p>

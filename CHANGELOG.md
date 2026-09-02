@@ -6,6 +6,21 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
+## 0.4.2 — 2026-09-02
+
+### Added
+
+- A signed APT archive at `https://alexydaher.github.io/salon/apt`, published
+  beside the Flatpak repository in the same GitHub Pages deployment. Adding it
+  once means Salon installs with `sudo apt install salon` and updates through
+  `apt upgrade` and Software Updater, instead of downloading a `.deb` from
+  each release by hand. The README carries the four one-time commands.
+
+### Changed
+
+- Nothing in the application. This release exists to publish the archive and
+  to exercise it end to end.
+
 ## 0.4.1 — 2026-09-02
 
 ### Changed
