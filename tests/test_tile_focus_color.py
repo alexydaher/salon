@@ -8,12 +8,12 @@ from pathlib import Path
 
 
 def test_focus_ring_uses_the_interface_accent() -> None:
-    path = Path(__file__).resolve().parent.parent / "salon/ui/tile.py"
+    path = Path(__file__).resolve().parent.parent / "salon/ui/tile_surface_renderer.py"
     tree = ast.parse(path.read_text(), filename=str(path))
     card_renderer = next(
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "_snapshot_card"
+        if isinstance(node, ast.FunctionDef) and node.name == "_snapshot_edge"
     )
     ring_assignment = next(
         node

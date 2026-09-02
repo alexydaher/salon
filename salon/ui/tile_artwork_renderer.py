@@ -40,7 +40,7 @@ class TileArtworkRenderer:
         # tile's own bounds is visible only as the few pixels of feather the
         # blur pushes past the edge. Spreading it wider is what turns the
         # effect from an outline into light spilling onto the neighbours.
-        spread = metrics.width * 0.03
+        spread = metrics.width * 0.02
 
         bounds = _rect(
             metrics.bleed - spread,
@@ -77,7 +77,7 @@ class TileArtworkRenderer:
             ),
         )
         # Scrim under the title, so a light image never swallows the text.
-        scrim_height = rect.get_height() * 0.55
+        scrim_height = rect.get_height() * 0.58
         scrim = _rect(
             rect.get_x(),
             rect.get_y() + rect.get_height() - scrim_height,
@@ -88,47 +88,34 @@ class TileArtworkRenderer:
             scrim,
             _point(scrim.get_x(), scrim.get_y()),
             _point(scrim.get_x(), scrim.get_y() + scrim_height),
-            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(theme.color("surface-0"), 0.92))),
+            _stops(
+                (0.0, _TRANSPARENT),
+                (0.46, _with_alpha(theme.color("surface-0"), 0.16)),
+                (1.0, _with_alpha(theme.color("surface-0"), 0.88)),
+            ),
         )
 
     def snapshot_generated(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
         """§7.4 levels 3 and 4: an icon (or the title's initial) on the
         Aurora Console smoked-glass surface.
 
-        The old mostly-opaque, artwork-tinted gradient made every missing-
-        artwork tile look like a different kind of object.  The final
-        designs use one neutral translucent pane instead: the per-tile
-        colour belongs to the ambient backdrop and launch transition, while
-        the catalogue remains calm and scannable.
+        Every missing-artwork tile uses the same neutral glass surface. The
+        icon provides identity; keeping colour out of the pane gives rows a
+        consistent rhythm and reserves the accent for focus.
         """
         # Lift surface-2 just enough to retain an edge over a dark corner,
         # then keep enough transparency for the ambient fields to show
         # through.  This is the GTK/GSK counterpart of the mockup's
         # rgba(52, 68, 92, .42) pane.
-        glass = _mix(theme.color("surface-2"), theme.color("text-primary"), 0.08)
-        top = _with_alpha(glass, 0.58)
-        bottom = _with_alpha(theme.color("surface-1"), 0.46)
+        glass = _mix(theme.color("surface-2"), theme.color("text-primary"), 0.06)
+        top = _with_alpha(glass, 0.66)
+        bottom = _with_alpha(theme.color("surface-1"), 0.54)
         snapshot.append_linear_gradient(
             rect,
             _point(rect.get_x(), rect.get_y()),
             _point(rect.get_x() + rect.get_width() * 0.22, rect.get_y() + rect.get_height()),
             _stops((0.0, top), (1.0, bottom)),
         )
-        # A restrained glass sheen, kept broad enough that it never reads as
-        # a second focus indicator.
-        snapshot.append_radial_gradient(
-            rect,
-            _point(rect.get_x() + rect.get_width() * 0.38, rect.get_y()),
-            rect.get_width(),
-            rect.get_height(),
-            0.0,
-            1.0,
-            _stops(
-                (0.0, _with_alpha(theme.color("text-primary"), 0.055)),
-                (1.0, _TRANSPARENT),
-            ),
-        )
-
         icon_box = self._icon_box(rect)
         if self._artwork.icon_texture is not None:
             self.snapshot_icon_texture(snapshot, icon_box)

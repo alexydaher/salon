@@ -59,6 +59,11 @@ def test_tile_bleed_covers_the_focus_growth_and_the_bloom() -> None:
         assert tokens.TILE_BLEED_DU * size_scale >= growth + bloom, size_scale
 
 
+def test_tile_focus_is_precise_instead_of_zooming_or_fogging() -> None:
+    assert 1.0 < tokens.FOCUS_SCALE_FOCUSED <= 1.05
+    assert 0.2 <= tokens.BLOOM_ALPHA <= 0.3
+
+
 def test_tile_type_scales_with_the_card() -> None:
     """The tile-size preference has to take the type with it. It did not,
     so a card at 0.8 kept a 30du title and ellipsized every name past

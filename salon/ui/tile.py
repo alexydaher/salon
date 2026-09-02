@@ -16,7 +16,7 @@ from gi.repository import Adw, Gdk, Gsk, Gtk  # noqa: E402
 from salon.core import tokens  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.services.artwork import Artwork  # noqa: E402
-from salon.ui import motion, theme  # noqa: E402
+from salon.ui import motion  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
 # Tighter than the brief's literal 0.82/320 — that combination read as
@@ -43,18 +43,16 @@ from salon.ui.tile_geometry import (  # noqa: E402
     DISPLAY_FAMILY,
     TileMetrics,
     _point,
-    _rect,
-    _rounded,
-    _with_alpha,
     font_description,
     metrics_for,  # noqa: F401 - compatibility re-export
 )
+from salon.ui.tile_surface_renderer import TileSurfaceRenderer  # noqa: E402
 from salon.ui.tile_text_renderer import TileTextRenderer  # noqa: E402
 
 
-class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
+class TileWidget(Gtk.Widget, TileSurfaceRenderer, TileArtworkRenderer, TileTextRenderer):
     """One tile. Focus drives a single 0..1 spring value; scale, bloom
-    intensity, ring opacity and the brightness lift are all derived from it,
+    intensity, shadow depth and edge lighting are all derived from it,
     so they can never disagree with each other mid-animation."""
 
     def __init__(
@@ -192,55 +190,3 @@ class TileWidget(Gtk.Widget, TileArtworkRenderer, TileTextRenderer):
         snapshot.transform(transform)
         self._snapshot_card(snapshot, focus)
         snapshot.restore()
-
-    def _snapshot_card(self, snapshot: Gtk.Snapshot, focus: float) -> None:
-        metrics = self._metrics
-        rect = _rect(metrics.bleed, metrics.bleed, metrics.width, metrics.height)
-        rounded = _rounded(rect, metrics.radius)
-
-        # Give the pane physical separation from the ambient backdrop.  The
-        # focused state settles lower and softer, matching the grounded
-        # shadow in the final design.
-        shadow_offset = self._scale.du(4.0 + 12.0 * focus)
-        shadow_blur = self._scale.du(12.0 + 22.0 * focus)
-        shadow_alpha = 0.18 + 0.24 * focus
-        snapshot.append_outset_shadow(
-            rounded,
-            _with_alpha(theme.color("surface-0"), shadow_alpha),
-            0.0,
-            shadow_offset,
-            0.0,
-            shadow_blur,
-        )
-
-        snapshot.push_rounded_clip(rounded)
-        if self._artwork.texture is not None:
-            self.snapshot_texture(snapshot, rect)
-            self.snapshot_vignette(snapshot, rect)
-            lift_alpha = 0.06
-        else:
-            self.snapshot_generated(snapshot, rect)
-            lift_alpha = 0.13
-        if focus > 0.01:
-            # Paint the lift below the labels.  Drawing it last used to put
-            # a pale veil over the title as well as the pane, precisely when
-            # the selected title needs its strongest contrast.
-            snapshot.append_color(
-                _with_alpha(theme.color("text-primary"), lift_alpha * focus), rect
-            )
-        self.snapshot_labels(snapshot, rect)
-        snapshot.pop()
-
-        # A hairline edge so a dark tile still separates from a dark
-        # backdrop; the app-coloured ring replaces it as focus comes up.
-        hairline = max(1.0, self._scale.du(1.0))
-        edge = _with_alpha(theme.color("text-primary"), 0.24 * (1.0 - focus))
-        snapshot.append_border(rounded, [hairline] * 4, [edge] * 4)
-
-        if focus > 0.01:
-            ring_width = self._scale.du(tokens.FOCUS_RING_DU)
-            # The ambient backdrop follows the artwork; the crisp cursor is
-            # the user's chosen interface accent and therefore stays stable
-            # while moving between differently coloured applications.
-            ring = _with_alpha(theme.accent(), focus)
-            snapshot.append_border(rounded, [ring_width] * 4, [ring] * 4)

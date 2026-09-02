@@ -104,5 +104,5 @@ class TileTextRenderer:
             rect.get_height() * 0.72,
             0.55,
             1.0,
-            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(theme.color("surface-0"), 0.45))),
+            _stops((0.0, _TRANSPARENT), (1.0, _with_alpha(theme.color("surface-0"), 0.32))),
         )

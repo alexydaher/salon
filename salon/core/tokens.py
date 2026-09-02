@@ -189,14 +189,14 @@ CONSOLE_GAP_DU: float = 18.0
 # the focus scale-up and the bloom have somewhere to render without the row
 # viewport's clip cutting into either. Has to comfortably exceed both the
 # scale growth (TILE_HEIGHT * (FOCUS_SCALE_FOCUSED - 1) / 2) and the bloom's
-# blur radius plus its downward offset — see ui/tile.py.
+# blur radius plus its downward offset — see ui/tile_surface_renderer.py.
 TILE_BLEED_DU: float = 56.0
 
 # The "light-fall" bloom (§7.1/§7.3 stage 2): a blurred, accent-tinted copy
 # of the focused tile's bounds rendered beneath its neighbours.
 BLOOM_BLUR_DU: float = 26.0
 BLOOM_OFFSET_DU: float = 10.0
-BLOOM_ALPHA: float = 0.42
+BLOOM_ALPHA: float = 0.28
 FOCUS_RING_DU: float = 3.0
 
 SAFE_AREA_DEFAULT_PERCENT: float = 4.5
@@ -209,7 +209,7 @@ SAFE_AREA_MAX_PERCENT: float = 8.0
 ROW_ANCHOR_FRACTION: float = 0.38
 
 FOCUS_SCALE_REST: float = 1.0
-FOCUS_SCALE_FOCUSED: float = 1.07
+FOCUS_SCALE_FOCUSED: float = 1.045
 
 # Chrome's --force-device-scale-factor is computed from the same du scale as
 # the UI and clamped to this range (§6.3): on a 4K TV a factor of 1.0 makes

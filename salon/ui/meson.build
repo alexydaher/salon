@@ -55,6 +55,7 @@ python_sources = [
   'fades.py',
   'home_viewport.py',
   'tile.py',
+  'tile_surface_renderer.py',
   'tile_artwork_renderer.py',
   'tile_geometry.py',
   'tile_text_renderer.py',
