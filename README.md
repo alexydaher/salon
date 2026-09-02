@@ -13,7 +13,7 @@ tiles. Control it with a gamepad, keyboard, mouse, HDMI-CEC remote or phone.
 
 <p align="center">
   <img src=".github/readme/settings.png" alt="Salon appearance settings" width="65%">
-  <img src=".github/readme/phone-remote.jpg" alt="Salon phone remote" width="32%">
+  <img src=".github/readme/phone-remote.jpg" alt="Salon phone remote" width="17%">
 </p>
 
 ## Install
