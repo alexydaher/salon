@@ -20,6 +20,11 @@ let openedForRequest = false;
 let wantsText = false;
 let flushTimer = null;
 let inFlight = false;
+// The last snapshot's idea of the television's own field: whether one is
+// asking for text and what it already holds. Kept so opening the drawer can
+// adopt that text straight away instead of waiting for the next render.
+let latestText = "";
+let latestWantsText = false;
 
 // Long enough that a fast burst of keys is a handful of small requests, not
 // one per key; short enough that the television keeps up with the thumb.
@@ -28,6 +33,14 @@ const FLUSH_MS = 120;
 export function openTypeDrawer({ focus = false } = {}) {
   $("type-drawer").classList.add("on");
   $("type-toggle").setAttribute("aria-expanded", "true");
+  // Adopt whatever the television's own field already holds, so opening the
+  // keyboard onto a half-typed search starts from that text rather than a
+  // blank box whose first edit would be diffed against the wrong thing. Only
+  // a field Salon draws itself is readable; otherwise this is "".
+  if (latestWantsText) {
+    farText = latestText;
+    $("text").value = latestText;
+  }
   if (focus) $("text").focus();
 }
 
@@ -108,13 +121,17 @@ export function renderTyping(data) {
   mirror.classList.toggle("on", Boolean(data.wantsText));
   const text = data.text || "";
   mirror.querySelector("b").textContent = text || "—";
+  latestText = text;
+  latestWantsText = Boolean(data.wantsText);
 
   // Switching in or out of "the TV is asking for text" is a change of
-  // target: start the field over rather than diff the next key against
-  // whatever the previous target held.
+  // target. Adopt the new field's contents outright — nothing has been
+  // typed against it yet — even if our own field is focused; the guard
+  // below is only for later divergence.
   if (Boolean(data.wantsText) !== wantsText) {
     wantsText = Boolean(data.wantsText);
-    resetField();
+    farText = wantsText ? text : "";
+    $("text").value = farText;
   }
   if (data.wantsText && text !== farText) {
     farText = text;
