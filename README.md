@@ -89,9 +89,6 @@ Minimums: Python 3.12, GTK 4.16.0, libadwaita 1.5.0, GLib 2.80.0,
 GdkPixbuf 2.42.0, libsoup 3.0.0 and libmanette 0.2.0. The source of truth is
 [minimum-versions.ini](build-aux/minimum-versions.ini).
 
-See the [development guide](docs/development.md) for the source workflow and
-the [session guide] for a system-wide source install.
-
 </details>
 
 ## Kiosk
@@ -99,13 +96,13 @@ the [session guide] for a system-wide source install.
 **Salon (Kiosk)** replaces the normal desktop for that login session. There is
 no panel, dock or overview, and launched applications are fullscreen.
 
-1. Install the Debian package above, or [install from source system-wide][session guide].
+1. Install the Debian package above. The session entries are installed
+   system-wide, which the package does and a Flatpak cannot.
 2. Install the compositor: `sudo apt install gnome-kiosk`
 3. Log out, open the login-screen gear menu and choose **Salon (Kiosk)**.
 
 This does not replace your normal desktop; the choice applies only to that
-login. Flatpak cannot add login-screen sessions. See the [session guide] for
-source installation and troubleshooting.
+login.
 
 ## Update
 
@@ -149,4 +146,3 @@ GPL-3.0-or-later. See [LICENSE](LICENSE).
 
 [flatpak.org/setup]: https://flatpak.org/setup/
 [latest release]: https://github.com/alexydaher/salon/releases/latest
-[session guide]: docs/sessions.md
