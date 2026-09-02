@@ -1,127 +1,127 @@
 # Salon
 
-A fullscreen launcher for GNOME, built for a television across a room and a
-controller in your hand.
+**A fullscreen GNOME launcher built for the sofa.**
 
-Salon does one job: it shows you the things you want to watch and play, and
-it starts them. Rows of large tiles sized to be read from three metres, driven
-entirely by a D-pad, OK and Back — or by a mouse, a TV remote over HDMI-CEC,
-or your phone. It is not a media player and not a media server; it launches
-the applications and web apps you already have.
+Salon opens your applications, games and websites as large television-friendly
+tiles. Control it with a gamepad, keyboard, mouse, HDMI-CEC remote or phone.
 
-![The home screen](docs/screenshots/home.png)
+![Salon home screen with favourites, recent items and installed apps](.github/readme/home.png)
+
+- Launch installed apps, web apps and commands
+- Search and configure everything without leaving the television
+- Run as an app or as a dedicated GNOME Kiosk session
+
+<p align="center">
+  <img src=".github/readme/settings.png" alt="Salon appearance settings" width="65%">
+  <img src=".github/readme/phone-remote.jpg" alt="Salon phone remote" width="32%">
+</p>
 
 ## Install
 
-**Flatpak — easiest, and updates itself.** Needs Flatpak 1.16+; see
-[flatpak.org/setup](https://flatpak.org/setup/) if `flatpak --version` fails.
+### Flatpak — recommended
+
+Requires Flatpak 1.16 or newer. See [flatpak.org/setup] if Flatpak is not yet
+installed.
 
 ```sh
 flatpak install --user https://alexydaher.github.io/salon/io.github.alexydaher.Salon.flatpakref
 ```
 
-Then launch **Salon** from your applications screen, or
-`flatpak run io.github.alexydaher.Salon`.
-
-**Debian package — adds the login-screen sessions.** Download
-`salon_0.4.0-1_all.deb` from the [latest release][latest-release] and let APT
-resolve the dependencies:
+Open **Salon** from the applications screen, or run:
 
 ```sh
-sudo apt install ~/Downloads/salon_0.4.0-1_all.deb
+flatpak run io.github.alexydaher.Salon
 ```
 
-It is `Architecture: all` and works on both AMD64 and ARM64.
+### Debian — Kiosk-ready
 
-**Offline Flatpak bundle.** `Salon-v0.4.0-x86_64.flatpak` or
-`-aarch64.flatpak` from the [latest release][latest-release] — run `uname -m`
-if you are unsure which:
+Download the `.deb` from the [latest release], then install it with APT:
 
 ```sh
-flatpak install --user ~/Downloads/<file>
+cd ~/Downloads
+sudo apt install ./salon_*-1_all.deb
 ```
 
-**From source.**
+The same package works on AMD64 and ARM64.
+
+<details>
+<summary>Offline bundle or source install</summary>
+
+For an offline installation, download the Flatpak bundle for your architecture
+from the [latest release], then run:
 
 ```sh
-git clone https://github.com/alexydaher/salon.git && cd salon
+cd ~/Downloads
+flatpak install --user ./Salon-*.flatpak
+```
+
+To run Salon from source:
+
+```sh
+git clone https://github.com/alexydaher/salon.git
+cd salon
 meson setup build
-./bin/salon                              # runs uninstalled, out of ./build
+./bin/salon
 ```
 
-`sudo meson install -C build` installs it; use `--prefix=/usr` if you want the
-login-screen sessions, since GDM's search paths are compiled in and absolute.
+Minimums: Python 3.12, GTK 4.16.0, libadwaita 1.5.0, GLib 2.80.0,
+GdkPixbuf 2.42.0, libsoup 3.0.0 and libmanette 0.2.0. The source of truth is
+[minimum-versions.ini](build-aux/minimum-versions.ini).
 
-This route is the only one that asks anything of you: GNOME on Wayland, with
-Python 3.12+, GTK 4.16.0+, libadwaita 1.5.0+, GLib 2.80.0+, GdkPixbuf 2.42.0+,
-libsoup 3.0.0+, PyGObject and libmanette 0.2.0+. The authoritative values live
-in `build-aux/minimum-versions.ini`, which Meson reads directly, so a missing
-one is named at `meson setup` rather than at startup. The other three routes
-carry or resolve their own dependencies.
+See the [development guide](docs/development.md) for the source workflow and
+the [session guide] for a system-wide source install.
 
-[latest-release]: https://github.com/alexydaher/salon/releases/latest
+</details>
 
-## The kiosk session
+## Kiosk
 
-**Salon (Kiosk)** is a login-screen session that runs Salon on
-[GNOME Kiosk][kiosk] instead of GNOME Shell — a compositor with no panel,
-dash, dock or overview. The reason to want it: GNOME Kiosk fullscreens every
-window it is handed, so native applications go fullscreen too, and not just
-web tiles.
+**Salon (Kiosk)** replaces the normal desktop for that login session. There is
+no panel, dock or overview, and launched applications are fullscreen.
 
-**1. Install Salon system-wide**, which is what puts the session entries in
-`/usr/share/wayland-sessions/`. The Debian package does this; so does a source
-build with `--prefix=/usr`. The Flatpak *cannot* — Flatpak does not export
-`wayland-sessions` or `gnome-session/sessions` out of the sandbox.
+1. Install the Debian package above, or [install from source system-wide][session guide].
+2. Install the compositor: `sudo apt install gnome-kiosk`
+3. Log out, open the login-screen gear menu and choose **Salon (Kiosk)**.
 
-**2. Install the compositor.** Salon does not pull it in — on a machine that
-already has GNOME Shell, the Debian package's dependency is satisfied without
-it:
-
-```sh
-sudo apt install gnome-kiosk      # or your distribution's equivalent
-```
-
-Then log out. **Salon (Kiosk)** is in the gear menu on the login screen,
-beside **Salon** (the same thing on GNOME Shell) and your normal desktop;
-picking one is a per-login choice and changes nothing else. If something
-misbehaves under Kiosk, log out and pick **Salon**.
-
-Neither entry replaces your desktop, and neither is needed to *use* Salon —
-it runs as an ordinary window otherwise. For a middle ground, Settings →
-System → **Start Salon at login** adds an autostart entry to your normal
-GNOME session.
-
-[kiosk]: https://gitlab.gnome.org/GNOME/gnome-kiosk
+This does not replace your normal desktop; the choice applies only to that
+login. Flatpak cannot add login-screen sessions. See the [session guide] for
+source installation and troubleshooting.
 
 ## Update
 
-```sh
-flatpak update io.github.alexydaher.Salon
-```
-
-The Debian package and the offline bundle do not update themselves — download
-the new one from the [latest release][latest-release] and install it the same
-way. From source, `git pull && meson install -C build`.
+| Installation | How to update |
+|---|---|
+| Flatpak | `flatpak update io.github.alexydaher.Salon` |
+| Debian or offline bundle | Download the new file from the [latest release] and install it again |
+| Source | `git pull` — the next `./bin/salon` launch rebuilds it |
 
 ## Uninstall
 
-```sh
-flatpak uninstall --user io.github.alexydaher.Salon
-flatpak remote-delete --user salon
-```
+| Installation | Command |
+|---|---|
+| Flatpak | `flatpak uninstall --user io.github.alexydaher.Salon` |
+| Debian | `sudo apt remove salon` |
+| Source | `sudo ninja -C build uninstall` |
 
-For the Debian package, `sudo apt remove salon`. For a source install,
-`sudo ninja -C build uninstall`.
+After uninstalling the Flatpak, `flatpak remote-delete --user salon` also
+removes its update source. Tiles and settings are kept by default.
 
-Your tiles and settings are left behind either way. To remove those too:
+<details>
+<summary>Also delete all tiles and settings</summary>
+
+This cannot be undone.
 
 ```sh
 rm -rf ~/.config/salon ~/.local/share/salon ~/.cache/salon
-rm -rf ~/.var/app/io.github.alexydaher.Salon        # Flatpak
+rm -rf ~/.var/app/io.github.alexydaher.Salon
 dconf reset -f /io/github/alexydaher/Salon/
 ```
+
+</details>
 
 ## Licence
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+[flatpak.org/setup]: https://flatpak.org/setup/
+[latest release]: https://github.com/alexydaher/salon/releases/latest
+[session guide]: docs/sessions.md
