@@ -1,12 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# One tag-triggered run owns the complete release: quality gates first,
-# followed by metadata validation, packaging, repository deployment and
-# publication. Pull requests exercise the same gates without entering any
-# tag-only release job.
+# One workflow owns both continuous integration and release. Every push to
+# main and every pull request runs the quality gates and the metadata check
+# and stops there; a v* tag additionally runs packaging, repository
+# deployment and publication.
+#
+# The gates used to live in a second workflow (checks.yml) that triggered on
+# a bare `push:`, so `git push origin main vVERSION` produced three runs.
+# Folding them in here removed the duplication but also dropped the branch
+# trigger, which left main untested between 0.3.2 and 0.4.0 — the tag was
+# the first thing CI ever saw. The branch trigger is back; the release
+# procedure now pushes main, waits for green, and tags after.
 name: Salon release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   pull_request:
@@ -22,10 +31,11 @@ concurrency:
 jobs:
   gates:
     name: Quality gates
+    timeout-minutes: 30
     runs-on: ubuntu-24.04
     container: fedora:41
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install system dependencies
         run: |
@@ -60,7 +70,7 @@ jobs:
 
       - name: Upload Wayland smoke frame
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wayland-smoke-frame
           path: build/meson-logs/wayland-smoke.png
@@ -74,15 +84,16 @@ jobs:
 
   version:
     name: Check release metadata
+    timeout-minutes: 10
     needs: gates
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Check version consistency
-        run: python3 scripts/prepare-flatpak-release.py
+        run: python3 scripts/prepare-flatpak-release.py --require-changelog
 
       - name: Prepare the commit-pinned Flathub manifest
         if: startsWith(github.ref, 'refs/tags/v')
@@ -95,7 +106,7 @@ jobs:
 
       - name: Upload the prepared Flathub manifest
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: flathub-manifest-${{ github.ref_name }}
           path: release/io.github.alexydaher.Salon.yaml
@@ -103,6 +114,7 @@ jobs:
 
   flatpak:
     name: Build Flatpak (${{ matrix.variant.arch }})
+    timeout-minutes: 60
     if: startsWith(github.ref, 'refs/tags/v')
     needs: version
     strategy:
@@ -118,12 +130,26 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # The checked-in manifest names `tag:` with no `commit:`, because no
+      # commit can contain its own hash. Left alone, flatpak-builder would
+      # re-resolve that tag when it clones, so a tag moved between the trigger
+      # and the clone would ship code this run never gated. Pin it to the
+      # triggering commit instead. build-manifest/ matches the `build-*/` rule
+      # in .gitignore, so the working tree stays clean.
+      - name: Pin the manifest to the triggering commit
+        run: |
+          python3 scripts/prepare-flatpak-release.py \
+            --tag "$GITHUB_REF_NAME" \
+            --commit "$GITHUB_SHA" \
+            --output build-manifest/io.github.alexydaher.Salon.yaml
+          grep -q "commit: $GITHUB_SHA" build-manifest/io.github.alexydaher.Salon.yaml
 
       - name: Build and bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6
         with:
-          manifest-path: io.github.alexydaher.Salon.yaml
+          manifest-path: build-manifest/io.github.alexydaher.Salon.yaml
           bundle: Salon-${{ github.ref_name }}-${{ matrix.variant.arch }}.flatpak
           arch: ${{ matrix.variant.arch }}
           cache-key: flatpak-builder-${{ github.sha }}
@@ -139,6 +165,7 @@ jobs:
 
   debian:
     name: Build Debian package
+    timeout-minutes: 30
     if: startsWith(github.ref, 'refs/tags/v')
     needs: version
     runs-on: ubuntu-24.04
@@ -157,7 +184,7 @@ jobs:
             libgdk-pixbuf-2.0-dev libglib2.0-dev libmanette-0.2-dev \
             desktop-file-utils appstream
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build and inspect the package
         run: |
@@ -169,7 +196,7 @@ jobs:
           lintian --fail-on error release/salon_*.deb
 
       - name: Upload Debian package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: salon-deb-${{ github.ref_name }}
           path: release/*.deb
@@ -177,6 +204,7 @@ jobs:
 
   flatpak-repository:
     name: Prepare signed Flatpak repository
+    timeout-minutes: 20
     if: startsWith(github.ref, 'refs/tags/v')
     needs: flatpak
     runs-on: ubuntu-24.04
@@ -190,10 +218,10 @@ jobs:
           apt-get install -y --no-install-recommends \
             ca-certificates git flatpak gnupg ostree python3
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download Flatpak bundles
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: Salon-${{ github.ref_name }}-*.flatpak
           path: bundles
@@ -251,12 +279,12 @@ jobs:
             --output-dir site
 
       - name: Upload Pages repository
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
 
       - name: Upload installer metadata
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: flatpak-repository-metadata-${{ github.ref_name }}
           path: |
@@ -265,10 +293,18 @@ jobs:
             site/salon.gpg
           if-no-files-found: error
 
+  # Deployed last, and deliberately after the GitHub release. Pages is the
+  # only irreversible, user-visible step here: once the signed repository is
+  # live, every installed copy takes the update on its next `flatpak update`.
+  # Deploying it first meant a failure in the release job shipped new code to
+  # existing users with no release behind it. This way round the bad outcome
+  # is a release whose .flatpakref still serves the previous version, which
+  # leaves users on a working build and is fixed by re-running one job.
   pages:
     name: Publish Flatpak repository
+    timeout-minutes: 15
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: flatpak-repository
+    needs: release
     runs-on: ubuntu-24.04
     permissions:
       pages: write
@@ -279,29 +315,29 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   release:
     name: Publish GitHub release
+    timeout-minutes: 15
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - version
       - flatpak
       - debian
       - flatpak-repository
-      - pages
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Download prepared manifest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: flathub-manifest-${{ github.ref_name }}
           path: release
 
       - name: Download Flatpak bundles
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           # flatpak-builder@v6 names each artifact from the bundle and adds
           # the architecture, for example
@@ -311,13 +347,13 @@ jobs:
           merge-multiple: true
 
       - name: Download Debian package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: salon-deb-${{ github.ref_name }}
           path: release
 
       - name: Download Flatpak repository installer
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: flatpak-repository-metadata-${{ github.ref_name }}
           path: release

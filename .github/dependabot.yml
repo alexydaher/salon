@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The release workflow pins every third-party action to a commit hash rather
+# than a floating major tag, so a compromised or retagged action cannot change
+# what a release builds. A pin that nobody updates is its own hazard, which is
+# what this is for: Dependabot opens the update as a pull request, and a pull
+# request runs the quality gates before anything is merged.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
