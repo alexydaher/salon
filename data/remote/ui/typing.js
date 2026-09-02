@@ -180,13 +180,9 @@ export function bindTyping() {
     buzz(6);
     flush();
   });
-  // Sent as the control characters the television maps to BackSpace and
-  // Return, so the whole path is the one /type already takes.
-  $("key-back").addEventListener("click", () => {
-    buzz(8);
-    field.value = field.value.slice(0, -1);
-    flush();
-  });
+  // Return, sent as the control character the television maps to it. There
+  // is no backspace key here: the phone's own keyboard has one, and editing
+  // the field streams the deletion like any other change.
   $("key-enter").addEventListener("click", async () => {
     buzz(8);
     // Anything typed but not yet across goes first, so Return acts on what
