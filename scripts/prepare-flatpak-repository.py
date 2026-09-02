@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the public installer files for Salon's signed Flatpak repository."""
+"""Write the public installer files for Salon's signed download repositories."""
 
 from __future__ import annotations
 
@@ -21,9 +21,37 @@ def public_key_text(path: Path) -> str:
     return base64.b64encode(key).decode("ascii")
 
 
+def apt_setup(site_url: str) -> str:
+    """The one-time commands that add the APT archive to a machine."""
+
+    return "\n".join(
+        (
+            "sudo install -d -m 0755 /etc/apt/keyrings",
+            f"curl -fsSL {site_url}apt/salon-archive-keyring.gpg \\",
+            "  | sudo tee /etc/apt/keyrings/salon-archive-keyring.gpg >/dev/null",
+            "sudo tee /etc/apt/sources.list.d/salon.sources >/dev/null <<'EOF'",
+            "Types: deb",
+            f"URIs: {site_url}apt",
+            "Suites: stable",
+            "Components: main",
+            "Signed-By: /etc/apt/keyrings/salon-archive-keyring.gpg",
+            "EOF",
+            "sudo apt update",
+            "sudo apt install salon",
+        )
+    )
+
+
 def write_installers(output: Path, repository_url: str, key: str) -> None:
     if not repository_url.startswith("https://") or not repository_url.endswith("/"):
         raise ValueError("repository URL must be an HTTPS URL ending in a slash")
+
+    # The Flatpak repository is one directory inside the published site; the
+    # APT archive is its sibling. Deriving the site root here keeps the two
+    # from drifting apart when --repository-url points somewhere else.
+    if not repository_url.endswith("repo/"):
+        raise ValueError("repository URL must name the repo/ directory of the site")
+    site_url = repository_url.removesuffix("repo/")
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "salon.flatpakrepo").write_text(
@@ -71,7 +99,12 @@ def write_installers(output: Path, repository_url: str, key: str) -> None:
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<h1>Salon</h1>\n"
         "<p>A fullscreen living-room launcher for GNOME.</p>\n"
+        "<h2>Flatpak</h2>\n"
         f'<p><a href="{escaped_ref}">Install Salon with Flatpak</a></p>\n'
+        "<h2>Debian and Ubuntu</h2>\n"
+        "<p>Add the signed APT archive once. Salon then updates with the "
+        "rest of the system.</p>\n"
+        f"<pre>{html.escape(apt_setup(site_url))}</pre>\n"
         f'<p><a href="{HOMEPAGE}">Source code and other downloads</a></p>\n'
     )
 

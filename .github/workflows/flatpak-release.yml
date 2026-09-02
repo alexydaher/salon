@@ -202,21 +202,25 @@ jobs:
           path: release/*.deb
           if-no-files-found: error
 
-  flatpak-repository:
-    name: Prepare signed Flatpak repository
+  repository:
+    name: Prepare signed repositories
     timeout-minutes: 20
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: flatpak
+    needs:
+      - flatpak
+      - debian
     runs-on: ubuntu-24.04
     container: ubuntu:26.04
     env:
       FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
     steps:
       - name: Install repository tools
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git flatpak gnupg ostree python3
+            ca-certificates git flatpak gnupg ostree python3 \
+            apt-utils dpkg-dev gzip
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -278,6 +282,63 @@ jobs:
             --public-key site/salon.gpg \
             --output-dir site
 
+      # APT can be given its own key, but does not need one: the same
+      # publisher signs both archives from the same job, so a second key
+      # buys no isolation and doubles what has to be backed up. Setting
+      # APT_GPG_PRIVATE_KEY switches to a dedicated one without a code
+      # change; leaving it unset reuses the release key. Which one was used
+      # is printed, because a signing key is not a thing to guess about.
+      - name: Choose the APT archive signing key
+        id: apt-signing-key
+        shell: bash
+        env:
+          FLATPAK_FINGERPRINT: ${{ steps.signing-key.outputs.fingerprint }}
+        run: |
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            install -d -m 0700 "$RUNNER_TEMP/apt-gnupg"
+            printf '%s' "$APT_GPG_PRIVATE_KEY" \
+              | base64 --decode \
+              | gpg --homedir "$RUNNER_TEMP/apt-gnupg" --batch --import
+            fingerprint="$({
+              gpg --homedir "$RUNNER_TEMP/apt-gnupg" \
+                --batch --with-colons --list-secret-keys
+            } | awk -F: '$1 == "sec" { primary = 1; next } primary && $1 == "fpr" { print $10; exit }')"
+            test -n "$fingerprint"
+            homedir="$RUNNER_TEMP/apt-gnupg"
+            echo 'Signing the APT archive with the dedicated APT key.'
+          else
+            fingerprint="$FLATPAK_FINGERPRINT"
+            homedir="$RUNNER_TEMP/flatpak-gnupg"
+            echo 'No APT_GPG_PRIVATE_KEY secret: signing the APT archive with the release key.'
+          fi
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          echo "homedir=$homedir" >> "$GITHUB_OUTPUT"
+
+      - name: Download Debian package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: salon-deb-${{ github.ref_name }}
+          path: debian-package
+
+      # The script ends by running a real apt against what it just wrote, in
+      # a private apt tree trusting this keyring alone. Generated archive
+      # metadata looks correct whether or not a client accepts it.
+      - name: Build the signed APT archive
+        env:
+          APT_GPG_HOMEDIR: ${{ steps.apt-signing-key.outputs.homedir }}
+          APT_FINGERPRINT: ${{ steps.apt-signing-key.outputs.fingerprint }}
+        run: |
+          package="$(find debian-package -maxdepth 1 -name 'salon_*_all.deb' -print -quit)"
+          test -n "$package"
+          scripts/build-apt-repository.sh \
+            --deb "$package" \
+            --output site/apt \
+            --gpg-homedir "$APT_GPG_HOMEDIR" \
+            --fingerprint "$APT_FINGERPRINT"
+
+      # One artifact, one deployment. A second upload-pages-artifact or a
+      # second deploy-pages replaces the whole site rather than adding to
+      # it, which would take the Flatpak repository off the air.
       - name: Upload Pages repository
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -301,7 +362,7 @@ jobs:
   # is a release whose .flatpakref still serves the previous version, which
   # leaves users on a working build and is fixed by re-running one job.
   pages:
-    name: Publish Flatpak repository
+    name: Publish download repositories
     timeout-minutes: 15
     if: startsWith(github.ref, 'refs/tags/v')
     needs: release
@@ -325,7 +386,7 @@ jobs:
       - version
       - flatpak
       - debian
-      - flatpak-repository
+      - repository
     runs-on: ubuntu-24.04
     permissions:
       contents: write

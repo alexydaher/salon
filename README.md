@@ -33,19 +33,40 @@ Open **Salon** from the applications screen, or run:
 flatpak run io.github.alexydaher.Salon
 ```
 
-### Debian — Kiosk-ready
+### Debian and Ubuntu — Kiosk-ready
 
-Download the `.deb` from the [latest release], then install it with APT:
+Add Salon's signed APT archive once. Salon then installs and updates like any
+other package, including through Software Updater.
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://alexydaher.github.io/salon/apt/salon-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/salon-archive-keyring.gpg >/dev/null
+sudo tee /etc/apt/sources.list.d/salon.sources >/dev/null <<'EOF'
+Types: deb
+URIs: https://alexydaher.github.io/salon/apt
+Suites: stable
+Components: main
+Signed-By: /etc/apt/keyrings/salon-archive-keyring.gpg
+EOF
+sudo apt update
+sudo apt install salon
+```
+
+The same package works on AMD64 and ARM64. The archive carries the current
+release only, which is what upgrades need; older versions stay on the
+[latest release] page.
+
+<details>
+<summary>Offline bundle, single package or source install</summary>
+
+To install the package without adding the archive, download the `.deb` from
+the [latest release] and install that file. Updates are then manual.
 
 ```sh
 cd ~/Downloads
 sudo apt install ./salon_*-1_all.deb
 ```
-
-The same package works on AMD64 and ARM64.
-
-<details>
-<summary>Offline bundle or source install</summary>
 
 For an offline installation, download the Flatpak bundle for your architecture
 from the [latest release], then run:
@@ -91,7 +112,8 @@ source installation and troubleshooting.
 | Installation | How to update |
 |---|---|
 | Flatpak | `flatpak update io.github.alexydaher.Salon` |
-| Debian or offline bundle | Download the new file from the [latest release] and install it again |
+| Debian or Ubuntu | `sudo apt update && sudo apt upgrade`, or Software Updater |
+| Single package or offline bundle | Download the new file from the [latest release] and install it again |
 | Source | `git pull` — the next `./bin/salon` launch rebuilds it |
 
 ## Uninstall
@@ -99,11 +121,14 @@ source installation and troubleshooting.
 | Installation | Command |
 |---|---|
 | Flatpak | `flatpak uninstall --user io.github.alexydaher.Salon` |
-| Debian | `sudo apt remove salon` |
+| Debian or Ubuntu | `sudo apt remove salon` |
 | Source | `sudo ninja -C build uninstall` |
 
 After uninstalling the Flatpak, `flatpak remote-delete --user salon` also
-removes its update source. Tiles and settings are kept by default.
+removes its update source; the APT equivalent is deleting
+`/etc/apt/sources.list.d/salon.sources` and
+`/etc/apt/keyrings/salon-archive-keyring.gpg`. Tiles and settings are kept by
+default.
 
 <details>
 <summary>Also delete all tiles and settings</summary>
