@@ -44,6 +44,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         art_for: Callable[[str], Path | None] | None = None,
         pointer_ready: Callable[[], bool] | None = None,
         on_remote_text: Callable[[str], bool] | None = None,
+        on_clear_text: Callable[[], bool] | None = None,
         on_search: Callable[[str], list[RemoteTile]] | None = None,
         on_tile_action: Callable[[str, str], str] | None = None,
         on_volume: Callable[[float], None] | None = None,
@@ -68,6 +69,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         self._art_for = art_for
         self._pointer_ready = pointer_ready
         self._on_remote_text = on_remote_text
+        self._on_clear_text = on_clear_text
         self._on_search = on_search
         self._on_tile_action = on_tile_action
         self._on_volume = on_volume

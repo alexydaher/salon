@@ -633,12 +633,15 @@ def injecting():
     granted Salon its input devices: no Salon field is asking for text, but
     there is a launched application to type into."""
     typed: list[str] = []
+    cleared: list[bool] = []
     instance = PairingServer(
         port=_free_port(),
         on_remote_text=lambda text: bool(typed.append(text)) or True,
+        on_clear_text=lambda: bool(cleared.append(True)) or True,
     )
     if not instance.start():
         pytest.skip("could not bind a local port for the pairing server")
+    instance._clear_calls = cleared  # noqa: SLF001 - for the tests below
     yield instance, typed
     instance.stop()
 
@@ -650,6 +653,30 @@ def test_text_with_no_salon_field_goes_to_the_focused_application(injecting) -> 
     port = server._port  # noqa: SLF001
     assert _run(server, lambda: _post(port, server.token, "blue monday")) == 200
     assert typed == ["blue monday"]
+
+
+def test_clear_wipes_the_focused_application_field(injecting) -> None:
+    """The phone cannot read a launched app's text box, so "Clear field"
+    asks the server for a select-all-and-delete rather than backing over
+    characters it would have to guess at."""
+    server, typed = injecting
+    port = server._port  # noqa: SLF001
+    status = _run(server, lambda: _send(port, "/type", {"key": server.token, "clear": True}))
+    assert status == 200
+    assert server._clear_calls == [True]  # noqa: SLF001
+    assert typed == []
+
+
+def test_clear_with_a_salon_field_is_left_to_the_page(injecting) -> None:
+    """A field Salon draws is mirrored on the phone, which clears it with
+    its own backspaces; the injected select-all must not also fire."""
+    server, _typed = injecting
+    into_salon: list[str] = []
+    server.set_text_sink(into_salon.append)
+    port = server._port  # noqa: SLF001
+    status = _run(server, lambda: _send(port, "/type", {"key": server.token, "clear": True}))
+    assert status == 200
+    assert server._clear_calls == []  # noqa: SLF001
 
 
 def test_a_salon_field_still_wins_over_the_application(injecting) -> None:

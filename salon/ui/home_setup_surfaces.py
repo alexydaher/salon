@@ -50,6 +50,7 @@ class HomeSurfaceSetup(ServiceComponent):
             art_for=self._owner._art_for_phone,
             pointer_ready=lambda: self._owner._pointer.ready,
             on_remote_text=self._owner._type_remotely,
+            on_clear_text=self._owner._clear_remote_field,
             on_search=self._owner._search_for_phone,
             on_tile_action=self._owner._on_phone_tile_action,
             on_volume=self._owner._on_phone_volume,

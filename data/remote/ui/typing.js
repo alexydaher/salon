@@ -195,4 +195,22 @@ export function bindTyping() {
     post("/type", { text: "\n" });
     pollSoon();
   });
+  // Empty the field at the far end. For a box Salon draws itself that is
+  // backspaces over what we know is there; for a launched app it is a
+  // select-all-and-delete the server injects, since its contents cannot be
+  // read back.
+  $("key-clear").addEventListener("click", async () => {
+    buzz(8);
+    clearTimeout(flushTimer);
+    flushTimer = null;
+    field.value = "";
+    field.focus();
+    if (latestWantsText) {
+      await flush();
+    } else {
+      farText = "";
+      await post("/type", { clear: true });
+      pollSoon();
+    }
+  });
 }

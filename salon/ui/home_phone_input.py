@@ -73,6 +73,18 @@ class HomePhoneInputController(ServiceComponent):
         self._owner.wake()
         return self._owner._pointer.type_text(text)
 
+    def _clear_remote_field(self) -> bool:
+        """Wipe the focused field of a launched app: select all, then delete.
+
+        The phone offers this because it cannot see what a launched app's
+        text box already holds and so cannot back over it a character at a
+        time the way it can for a field Salon draws itself.
+        """
+        if not self._owner._pointer.ready:
+            return False
+        self._owner.wake()
+        return self._owner._pointer.clear_field()
+
     def _open_phone_pairing(self) -> None:
         self._owner._clear_global_surfaces("phone")
         if not self._owner._phone_pairing.open():

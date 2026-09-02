@@ -36,8 +36,12 @@ class PhoneRemoteInput(PhoneRemoteComponent):
         if fields is None:
             return
         text = str(fields.get("text", ""))
+        want_clear = bool(fields.get("clear"))
         sink = self._owner._text_sink
         if sink is not None:
+            # A field Salon draws itself: the phone knows what is in it and
+            # clears it with its own backspaces, so `clear` needs nothing
+            # here beyond delivering whatever text came with it.
             GLib.idle_add(lambda: _deliver(sink, text))
             self._owner._ok(message)
             return
@@ -46,7 +50,16 @@ class PhoneRemoteInput(PhoneRemoteComponent):
         # same RemoteDesktop grant the trackpad uses — a phone keyboard
         # that only works on Salon's own screens is a phone keyboard that
         # stops working exactly when a search box appears in Netflix.
-        if self._owner._on_remote_text is not None and self._owner._on_remote_text(text):
+        if want_clear:
+            # There is no reading the far field to back over it, so this is
+            # select-all-and-delete: best effort, and the one clear a text
+            # box of any toolkit understands.
+            if self._owner._on_clear_text is not None and self._owner._on_clear_text():
+                if text and self._owner._on_remote_text is not None:
+                    self._owner._on_remote_text(text)
+                self._owner._ok(message)
+                return
+        elif self._owner._on_remote_text is not None and self._owner._on_remote_text(text):
             self._owner._ok(message)
             return
         # Said plainly rather than swallowed: silence here looks exactly

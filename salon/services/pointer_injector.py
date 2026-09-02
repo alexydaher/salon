@@ -42,10 +42,8 @@ __all__ = [
 
 class PointerInjector:
     """Lazily negotiates a RemoteDesktop portal session, then injects
-    relative pointer motion and clicks system-wide.
-
-    start() is idempotent and safe to call repeatedly (e.g. every time
-    pointer mode is entered) — it only does the handshake once.
+    relative pointer motion and clicks system-wide. start() is idempotent
+    and safe to call every time pointer mode is entered.
     """
 
     def __init__(
@@ -106,6 +104,9 @@ class PointerInjector:
 
     def type_text(self, value: str) -> bool:
         return self._events.type_text(value)
+
+    def clear_field(self) -> bool:
+        return self._events.clear_field()
 
     def switch_window(self) -> bool:
         """Ask the compositor for its most-recent-window switch."""

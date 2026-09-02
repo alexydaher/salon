@@ -18,6 +18,9 @@ from salon.services.pointer_shared import (  # noqa: E402
 
 _XK_TAB = 0xFF09
 _XK_ALT_L = 0xFFE9
+_XK_CTRL_L = 0xFFE3
+_XK_A = 0x0061
+_XK_DELETE = 0xFFFF
 
 
 class PointerEventInjection(ServiceComponent):
@@ -110,6 +113,25 @@ class PointerEventInjection(ServiceComponent):
             return not text
         for index, keysym in enumerate(keysyms):
             GLib.timeout_add(index * _KEY_GAP_MS * 2, self._tap_keysym, keysym)
+        return True
+
+    def clear_field(self) -> bool:
+        """Best-effort "empty the focused text box": Ctrl+A, then Delete.
+
+        The input grant is write-only — a phone typing into a launched app
+        cannot read back what is already in its field to back over it. Select
+        all and delete is the one clear that a GTK entry, a Qt one, a browser
+        and an Electron app all understand, and selecting nothing in an empty
+        field then pressing Delete is harmless. Same modifier-held-across-a-
+        tap shape as `switch_window`.
+        """
+        if not self._owner.ready:
+            return False
+        self._notify_keysym(_XK_CTRL_L, _PRESSED)
+        GLib.timeout_add(_KEY_GAP_MS, self._notify_keysym, _XK_A, _PRESSED)
+        GLib.timeout_add(_KEY_GAP_MS * 2, self._notify_keysym, _XK_A, _RELEASED)
+        GLib.timeout_add(_KEY_GAP_MS * 3, self._notify_keysym, _XK_CTRL_L, _RELEASED)
+        GLib.timeout_add(_KEY_GAP_MS * 4, self._tap_keysym, _XK_DELETE)
         return True
 
     def switch_window(self) -> bool:
