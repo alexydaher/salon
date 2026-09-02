@@ -11,6 +11,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Effectively no cap. Dependabot's default is five open pull requests per
+    # ecosystem, which silently withholds the sixth: the workflow pins six
+    # actions and only five updates appeared the first time this ran, which
+    # looked exactly like the cap even though it wasn't (flatpak-builder@v6
+    # was genuinely current). There is no "unlimited" value — a large number
+    # is the way to express it, and **0 does not mean unlimited, it disables
+    # version updates altogether** and leaves only security ones.
+    open-pull-requests-limit: 99
     commit-message:
       prefix: "ci"
     labels:
