@@ -64,8 +64,24 @@ def test_every_active_player_is_available_for_independent_controls() -> None:
     selection.update(_player("vlc", STOPPED, at=40.0))
 
     players = selection.active_players()
-    assert [player.identity for player in players] == ["Firefox", "Youtube", "Spotify"]
+    assert [player.identity for player in players] == ["Spotify", "Youtube", "Firefox"]
     assert all(player.status != STOPPED for player in players)
+
+
+def test_active_players_keep_their_slot_across_play_pause() -> None:
+    """The phone's now-playing page draws one card per source; toggling
+    play/pause on any of them must not reshuffle the list."""
+    selection = Selection()
+    selection.update(_player("spotify", PLAYING, at=10.0))
+    selection.update(_player("firefox", PAUSED, at=20.0))
+    selection.update(_player("mpv", PLAYING, at=30.0))
+    before = [player.bus_name for player in selection.active_players()]
+
+    selection.update(_player("spotify", PAUSED, at=40.0))
+    selection.update(_player("firefox", PLAYING, at=50.0))
+    after = [player.bus_name for player in selection.active_players()]
+
+    assert before == after
 
 
 def test_a_player_that_quits_stops_being_current() -> None:

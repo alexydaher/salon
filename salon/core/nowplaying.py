@@ -82,26 +82,17 @@ class Selection:
         return max(pool, key=lambda p: (p.changed_at, p.bus_name))
 
     def active_players(self) -> tuple[Player, ...]:
-        """Every controllable player, in a stable and useful display order.
+        """Every controllable player, in the order they were discovered.
 
-        The play key's current target comes first. The remaining sources are
-        ordered by their most recent change, so a player does not jump around
-        merely because its identity reply arrived after its metadata reply.
-        Stopped players are deliberately absent: they have no transport state
-        for a remote to control.
+        Discovery order and nothing else: pausing one source or starting
+        another playing must not shuffle the cards on the phone's
+        now-playing page, where each source carries its own transport
+        controls and the one the play key targets is called out in place.
+        A player keeps its slot from the moment it registers until it
+        quits. Stopped players are deliberately absent: they have no
+        transport state for a remote to control.
         """
-        active = [player for player in self.players.values() if player.active]
-        chosen = self.current()
-        return tuple(
-            sorted(
-                active,
-                key=lambda player: (
-                    player != chosen,
-                    -player.changed_at,
-                    player.bus_name,
-                ),
-            )
-        )
+        return tuple(player for player in self.players.values() if player.active)
 
 
 def position_ms(player: Player, *, at: float | None = None) -> int:
