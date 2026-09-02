@@ -1,3 +1,12 @@
+salon (0.4.0-1) unstable; urgency=medium
+
+  * Aurora Console redesign of the shell, overlays, tiles, and settings.
+  * Name the connected controller in on-screen button prompts.
+  * Keep launched apps running and expose every now-playing source.
+  * Stream phone-remote keystrokes and rework the now-playing card.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Wed, 02 Sep 2026 12:00:00 +0200
+
 salon (0.3.8-1) unstable; urgency=medium
 
   * Let the browser own the phone remote's live viewport height.
