@@ -18,13 +18,26 @@ __pycache__/
 .pytest_cache/
 
 # Working notes, kept on disk and out of the published repository.
-# CLAUDE.md is agent orientation; DECISIONS.md is the design journal;
-# the docs/ files are maintainer-only release procedure and QA status;
-# CONTRIBUTING.md and CHANGELOG.md are house rules and release history
-# for a repository that has no outside contributors yet.
+# CLAUDE.md is agent orientation and DECISIONS.md is the design journal:
+# both are written for whoever is editing the tree, not for whoever is
+# using it. CONTRIBUTING.md stays out while there are no outside
+# contributors to address. docs/ is maintainer-only release procedure and
+# QA status — docs/release-checklist.md in particular is a frank account of
+# what has never been physically tested, and publishing it is a decision
+# about the project rather than about backups.
+#
+# CHANGELOG.md was here too and is not any more (2026-09-02). It is not a
+# working note, it is a release gate: scripts/prepare-flatpak-release.py
+# checks it, that check was `if path.exists()`, and ignoring the file made
+# the gate a silent no-op in every CI run while docs/publishing.md went on
+# listing the changelog among the things it verifies. Tracking it and
+# passing --require-changelog closes both halves.
+#
+# Note this leaves docs/publishing.md — the release runbook — and
+# docs/release-checklist.md living on one machine with no backup. That risk
+# is accepted, not solved; a private operations repository is the way to
+# take it back without publishing them.
 CLAUDE.md
 DECISIONS.md
-docs/
-docs/settings-review.md
 CONTRIBUTING.md
-CHANGELOG.md
+docs/

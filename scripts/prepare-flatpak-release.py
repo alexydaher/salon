@@ -43,7 +43,9 @@ def salon_source_lines(manifest: str) -> tuple[list[str], int, int]:
     return lines, url_index, tag_index
 
 
-def checked_version(root: Path, requested_tag: str | None) -> tuple[str, str]:
+def checked_version(
+    root: Path, requested_tag: str | None, require_changelog: bool = False
+) -> tuple[str, str]:
     meson = (root / "meson.build").read_text()
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
     metainfo_path = root / "data" / f"{APP_ID}.metainfo.xml.in"
@@ -79,8 +81,14 @@ def checked_version(root: Path, requested_tag: str | None) -> tuple[str, str]:
         fail(f"manifest tag is {manifest_tag!r}; expected {expected_tag!r}")
     if requested_tag is not None and requested_tag != expected_tag:
         fail(f"pushed tag is {requested_tag!r}; expected {expected_tag!r}")
-    # CHANGELOG.md is kept on disk and out of the repository (see .gitignore),
-    # so a clean checkout has nothing to check here.
+    # This check used to be silently optional, because CHANGELOG.md was kept
+    # out of the repository: CI ran against a clean checkout, the file was
+    # absent, and the gate became a no-op while docs/publishing.md went on
+    # claiming the changelog was verified. The file is tracked now, and
+    # --require-changelog makes its absence a failure rather than a skip, so
+    # the gate cannot quietly disappear a second time.
+    if require_changelog and not changelog_path.exists():
+        fail("CHANGELOG.md is missing; the release notes gate cannot run")
     if changelog_path.exists():
         changelog = changelog_path.read_text()
         if not re.search(rf"^## {re.escape(version)}(?:\s|$)", changelog, re.MULTILINE):
@@ -121,6 +129,11 @@ def main() -> int:
     parser.add_argument("--tag", help="release tag received from GitHub")
     parser.add_argument("--commit", help="commit to pin in the prepared Flathub manifest")
     parser.add_argument("--output", type=Path, help="path for the prepared manifest")
+    parser.add_argument(
+        "--require-changelog",
+        action="store_true",
+        help="fail when CHANGELOG.md is absent instead of skipping its check",
+    )
     args = parser.parse_args()
 
     if (args.commit is None) != (args.output is None):
@@ -128,7 +141,7 @@ def main() -> int:
 
     root = Path(__file__).resolve().parent.parent
     try:
-        version, manifest = checked_version(root, args.tag)
+        version, manifest = checked_version(root, args.tag, args.require_changelog)
         if args.commit is not None and args.output is not None:
             write_pinned_manifest(root, manifest, args.commit, args.output)
             print(f"Prepared {args.output} for Salon {version} at {args.commit}")
