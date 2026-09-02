@@ -11,10 +11,10 @@ gi.require_version("Graphene", "1.0")
 gi.require_version("Gsk", "4.0")
 from gi.repository import Gdk, Graphene, Gsk, Gtk  # noqa: E402
 
-from salon.ui import theme  # noqa: E402
+from salon.ui import backdrop_wallpaper, theme  # noqa: E402
 
-# Keep the positional glow restrained: the wallpaper now carries the accent
-# across the display, while this layer only shows where focus currently sits.
+# Keep the positional glow restrained. It shows where focus currently sits
+# even when the user chooses to preserve a custom picture's original colours.
 _GLOW_ALPHA = 0.13
 _GLOW_RADIUS_FRACTION = 0.40
 
@@ -53,21 +53,13 @@ def same_color(a: Gdk.RGBA, b: Gdk.RGBA) -> bool:
 
 class BackdropRenderer:
     def snapshot(self, snapshot: Gtk.Snapshot) -> None:
-        self.snapshot_layers(snapshot, float(self.get_width()), float(self.get_height()))
+        width = float(self.get_width())
+        height = float(self.get_height())
+        self.snapshot_wallpaper(snapshot, width, height)
+        self.snapshot_ambient(snapshot, width, height)
 
-    def snapshot_layers(self, snapshot: Gtk.Snapshot, width: float, height: float) -> None:
-        """Paint the ambient layers into a box of the given size.
-
-        Sized by the caller rather than by `get_width()`/`get_height()`
-        because `Backdrop` renders this into a reduced-resolution texture
-        and blits that instead of painting it live: this is five or six
-        full-screen passes — a fill, a cover-fitted photo, both halves of a
-        `COLOR` blend, the dim and the glow — and on a 5K display that alone
-        was costing about fifteen milliseconds of every frame while the rows
-        were moving underneath it. Nothing here reads the widget's own size,
-        so the same code draws the cheap small copy and the full-size
-        fallback.
-        """
+    def snapshot_wallpaper(self, snapshot: Gtk.Snapshot, width: float, height: float) -> None:
+        """Paint the surface and full-resolution, cover-fitted picture."""
         if width <= 0 or height <= 0:
             return
 
@@ -78,20 +70,45 @@ class BackdropRenderer:
         # own black level and exaggerates near-black banding on OLED.
         snapshot.append_color(theme.color("surface-0"), bounds)
 
-        if self._wallpaper is not None and self._wallpaper_dim < 1.0:
-            # COLOR takes hue and saturation from the focused app's accent,
-            # but luminosity from the wallpaper. The photo therefore keeps
-            # all of its texture and lighting while visibly belonging to the
-            # app under the cursor; no app logo is painted into the backdrop.
+        if self._wallpaper is None or self._wallpaper_dim >= 1.0:
+            return
+
+        treatment = self._wallpaper_treatment
+        if treatment == backdrop_wallpaper.TREATMENT_ORIGINAL:
+            self.snapshot_art(snapshot, bounds, self._wallpaper, 1.0)
+        else:
+            # COLOR takes hue and saturation from the selected colour, but
+            # luminosity from the wallpaper. The full-resolution photograph
+            # remains the blend's source; only its colour treatment changes.
+            tint = (
+                theme.accent()
+                if treatment == backdrop_wallpaper.TREATMENT_ACCENT
+                else self._current()
+            )
             snapshot.push_blend(Gsk.BlendMode.COLOR)
             self.snapshot_art(snapshot, bounds, self._wallpaper, 1.0)
             snapshot.pop()
-            snapshot.append_color(self._current(), bounds)
+            snapshot.append_color(tint, bounds)
             snapshot.pop()
-            surface = theme.color("surface-0")
-            snapshot.append_color(
-                rgba(surface.red, surface.green, surface.blue, self._wallpaper_dim), bounds
-            )
+
+        surface = theme.color("surface-0")
+        snapshot.append_color(
+            rgba(surface.red, surface.green, surface.blue, self._wallpaper_dim), bounds
+        )
+
+    def snapshot_ambient(self, snapshot: Gtk.Snapshot, width: float, height: float) -> None:
+        """Paint the broad gradients and focus light into a box.
+
+        Sized by the caller rather than by `get_width()`/`get_height()`
+        because `Backdrop` renders these detail-free effects into a reduced-
+        resolution texture and blits that instead of painting them live.
+        The photograph is painted separately at display resolution.
+        """
+        if width <= 0 or height <= 0:
+            return
+
+        bounds = Graphene.Rect()
+        bounds.init(0.0, 0.0, width, height)
 
         for x, y, radius_x, radius_y, value, alpha in _AMBIENT_FIELDS:
             self._snapshot_ambient_field(

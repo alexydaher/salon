@@ -50,7 +50,11 @@ class HomeFoundationSetup(ServiceComponent):
         self._owner._backdrop = Backdrop()
         self._owner._overlay.set_child(self._owner._backdrop)
         self._owner._apply_wallpaper()
-        for key in ("changed::wallpaper-path", "changed::wallpaper-dim"):
+        for key in (
+            "changed::wallpaper-path",
+            "changed::wallpaper-dim",
+            "changed::wallpaper-color-treatment",
+        ):
             self._owner._settings.connect(key, lambda *_: self._owner._apply_wallpaper())
         self._owner._viewport = _LayoutViewport()
         self._owner._viewport.set_overflow(Gtk.Overflow.HIDDEN)

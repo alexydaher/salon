@@ -22,6 +22,7 @@ def test_only_settings_the_television_can_show_you_are_offered() -> None:
         "tile-scale",
         "row-spacing-scale",
         "safe-area-percent",
+        "wallpaper-color-treatment",
         "wallpaper-dim",
     }
 
@@ -47,6 +48,8 @@ def test_a_choice_outside_its_own_options_is_refused() -> None:
     assert rs.coerce("theme", "midnight") is not None
     assert rs.coerce("theme", "hot-pink") is None
     assert rs.coerce("accent-color", "#000000") is None
+    assert rs.coerce("wallpaper-color-treatment", "original") is not None
+    assert rs.coerce("wallpaper-color-treatment", "sepia") is None
 
 
 def test_a_range_takes_a_number_and_nothing_else() -> None:

@@ -28,6 +28,13 @@ AMBIENT = ""
 NONE = "-"
 _KEY = "wallpaper-path"
 
+COLOR_TREATMENTS: tuple[tuple[str, str], ...] = (
+    ("automatic", "Automatic"),
+    ("original", "Original colours"),
+    ("focus", "Focused tile"),
+    ("accent", "Interface accent"),
+)
+
 
 def choices(settings: Gio.Settings) -> list[tuple[str, str]]:
     """Salon's own backdrop, nothing at all, and the picture in use.

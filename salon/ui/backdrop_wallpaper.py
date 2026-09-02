@@ -22,6 +22,17 @@ WALLPAPER_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".avif")
 DEFAULT_WALLPAPER = "resource:///io/github/alexydaher/Salon/backgrounds/salon-ambient.png"
 DEFAULT_WALLPAPER_DIM = 0.38
 
+TREATMENT_AUTOMATIC = "automatic"
+TREATMENT_ORIGINAL = "original"
+TREATMENT_FOCUS = "focus"
+TREATMENT_ACCENT = "accent"
+TREATMENTS = (
+    TREATMENT_AUTOMATIC,
+    TREATMENT_ORIGINAL,
+    TREATMENT_FOCUS,
+    TREATMENT_ACCENT,
+)
+
 
 def resolve_source(source: str) -> str:
     """Empty is the designed Salon ambience. A single dash is the
@@ -37,6 +48,20 @@ def resolve_dim(source: str, dim: float) -> float:
     if not source:
         return DEFAULT_WALLPAPER_DIM
     return max(0.0, min(1.0, dim))
+
+
+def resolve_treatment(source: str, treatment: str) -> str:
+    """Turn the user's policy into the treatment for this picture.
+
+    The bundled image is interface artwork and was made to accept the
+    focused tile's colour. A picture somebody chose is already a finished
+    composition, so Automatic leaves its colours alone.
+    """
+    if treatment not in TREATMENTS:
+        treatment = TREATMENT_AUTOMATIC
+    if treatment == TREATMENT_AUTOMATIC:
+        return TREATMENT_FOCUS if not source else TREATMENT_ORIGINAL
+    return treatment
 
 
 def load(source: str) -> Gdk.Texture | None:

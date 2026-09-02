@@ -104,6 +104,13 @@ _ACCENTS = (
     ("#B77BE8", "Violet"),
 )
 
+_WALLPAPER_COLOR_TREATMENTS = (
+    ("automatic", "Automatic"),
+    ("original", "Original colours"),
+    ("focus", "Focused tile"),
+    ("accent", "Interface accent"),
+)
+
 FIELDS: tuple[SettingField, ...] = (
     SettingField(
         key="accent-color",
@@ -149,6 +156,13 @@ FIELDS: tuple[SettingField, ...] = (
         step=0.5,
         format="decimal",
         unit="%",
+    ),
+    SettingField(
+        key="wallpaper-color-treatment",
+        label="Background colours",
+        kind=CHOICE,
+        detail="Preserve the picture or colour it from focus or the interface accent",
+        options=_WALLPAPER_COLOR_TREATMENTS,
     ),
     SettingField(
         key="wallpaper-dim",

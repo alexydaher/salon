@@ -12,6 +12,7 @@ class HomeIdleController(ServiceComponent):
         self._owner._backdrop.set_wallpaper(
             self._owner._settings.get_string("wallpaper-path"),
             self._owner._settings.get_double("wallpaper-dim"),
+            self._owner._settings.get_string("wallpaper-color-treatment"),
         )
 
     def _apply_screensaver_setting(self) -> None:

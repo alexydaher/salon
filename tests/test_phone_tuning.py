@@ -41,6 +41,7 @@ def tuned():
         "tile-scale": 0.55,
         "row-spacing-scale": 0.5,
         "safe-area-percent": 4.5,
+        "wallpaper-color-treatment": "automatic",
         "wallpaper-dim": 0.5,
     }
     written: list[tuple[str, object]] = []

@@ -150,6 +150,13 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 lambda: wallpaper.choose(context, settings, folder=True),
                 detail="Rotate through the images in a folder",
             ),
+            keyed.choice(
+                "wallpaper-color-treatment",
+                "Background colours",
+                wallpaper.COLOR_TREATMENTS,
+                detail="Preserve the picture or colour it from focus or the interface accent",
+                preview=True,
+            ),
             keyed.ranged(
                 "wallpaper-dim",
                 "Background dimming",

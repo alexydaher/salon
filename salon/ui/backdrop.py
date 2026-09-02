@@ -18,13 +18,10 @@ from salon.ui.backdrop_renderer import BackdropRenderer, rgba, same_color  # noq
 
 _FADE_MS = 280
 _DEBOUNCE_MS = 80
-# The ambient layers are rendered into a texture this many times smaller
-# than the widget and blitted back up. Four, because the wallpaper is
-# 1672px wide and already being upscaled on any television — a quarter of a
-# 5K screen is 1280px, which is still more than the source has to give —
-# while the rest of what this draws is a flat fill, a dim and one very wide
-# radial gradient, none of which carry detail a quarter-resolution copy
-# could lose.
+# The soft ambient layers are rendered into a texture this many times
+# smaller than the widget and blitted back up. The wallpaper is deliberately
+# not in that cache: it is sampled directly from its source texture at the
+# display size, so a custom 4K or 5K picture keeps the detail it has.
 _TEXTURE_DIVISOR = 4
 # The tint is quantised before it becomes part of the texture's identity,
 # so a 280ms cross-fade re-renders the small texture a dozen times rather
@@ -53,15 +50,12 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         self._wallpaper: Gdk.Texture | None = None
         self._wallpaper_dim = 0.72
         self._wallpaper_source = ""
+        self._wallpaper_treatment = backdrop_wallpaper.TREATMENT_FOCUS
 
-        # The composed ambient layers, rendered small and blitted back up.
+        # The soft ambient overlay, rendered small and blitted back up.
         # See `_refresh_texture`.
         self._texture: Gdk.Texture | None = None
         self._texture_key: tuple[object, ...] | None = None
-        # Counted rather than compared: a slideshow's next picture arrives
-        # under the same source string, and identity is not a safe key for
-        # an object the previous one has just been freed to make room for.
-        self._wallpaper_serial = 0
 
         target = Adw.CallbackAnimationTarget.new(self._on_tick)
         self._animation = Adw.TimedAnimation.new(self, 0.0, 1.0, _FADE_MS, target)
@@ -69,7 +63,12 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
 
     # --- wallpaper -------------------------------------------------------
 
-    def set_wallpaper(self, source: str, dim: float) -> None:
+    def set_wallpaper(
+        self,
+        source: str,
+        dim: float,
+        treatment: str = backdrop_wallpaper.TREATMENT_AUTOMATIC,
+    ) -> None:
         """A file, a folder to pick from, or "" for none.
 
         `backdrop_wallpaper` owns what the string means; a folder is a
@@ -77,6 +76,7 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         """
         effective_source = backdrop_wallpaper.resolve_source(source)
         self._wallpaper_dim = backdrop_wallpaper.resolve_dim(source, dim)
+        self._wallpaper_treatment = backdrop_wallpaper.resolve_treatment(source, treatment)
         if effective_source != self._wallpaper_source:
             self._wallpaper_source = effective_source
             self._set_wallpaper_texture(backdrop_wallpaper.load(effective_source))
@@ -91,7 +91,6 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
 
     def _set_wallpaper_texture(self, texture: Gdk.Texture | None) -> None:
         self._wallpaper = texture
-        self._wallpaper_serial += 1
 
     def set_focus_position(self, x: float, y: float) -> None:
         x = max(0.0, min(1.0, x))
@@ -158,9 +157,6 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         return (
             self.get_width(),
             self.get_height(),
-            self._wallpaper_source,
-            self._wallpaper_serial,
-            round(self._wallpaper_dim, 3),
             round(accent.red * _TINT_STEPS),
             round(accent.green * _TINT_STEPS),
             round(accent.blue * _TINT_STEPS),
@@ -194,7 +190,7 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
         small_width = max(1, width // _TEXTURE_DIVISOR)
         small_height = max(1, height // _TEXTURE_DIVISOR)
         snapshot = Gtk.Snapshot()
-        self.snapshot_layers(snapshot, float(small_width), float(small_height))
+        self.snapshot_ambient(snapshot, float(small_width), float(small_height))
         node = snapshot.to_node()
         if node is None:
             return
@@ -210,12 +206,16 @@ class Backdrop(Gtk.Widget, BackdropRenderer):
     def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
         width = float(self.get_width())
         height = float(self.get_height())
+        # The photograph stays out of the reduced-resolution cache. GSK
+        # samples the original texture straight into its cover-fitted screen
+        # rectangle, only scaling when the source and display actually differ.
+        self.snapshot_wallpaper(snapshot, width, height)
         if self._texture is not None and self._texture_key == self._texture_key_now():
             bounds = Graphene.Rect()
             bounds.init(0.0, 0.0, width, height)
             snapshot.append_scaled_texture(self._texture, Gsk.ScalingFilter.LINEAR, bounds)
             return
-        # No texture yet (or it is a frame out of date): draw the real
-        # thing. Correct either way — the texture is an optimisation, not a
-        # different picture.
-        BackdropRenderer.snapshot(self, snapshot)
+        # No ambient texture yet (or it is a frame out of date): draw the
+        # gradients directly. Correct either way — this cache is only an
+        # optimisation for broad, detail-free effects.
+        self.snapshot_ambient(snapshot, width, height)

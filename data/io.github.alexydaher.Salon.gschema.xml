@@ -22,6 +22,17 @@
       <summary>How far the background image is dimmed</summary>
       <description>1.0 hides it entirely. The default leaves enough to feel like a room and not enough to compete with the tiles, which are the thing on screen that has to be read.</description>
     </key>
+    <key name="wallpaper-color-treatment" type="s">
+      <choices>
+        <choice value="automatic"/>
+        <choice value="original"/>
+        <choice value="focus"/>
+        <choice value="accent"/>
+      </choices>
+      <default>'automatic'</default>
+      <summary>How the background image is coloured</summary>
+      <description>Automatic lets Salon's bundled ambience follow the focused tile while preserving the original colours of custom pictures. Original always preserves the image, focus recolours it from the focused tile, and accent recolours it from the chosen interface accent.</description>
+    </key>
     <key name="safe-area-percent" type="d">
       <range min="2.0" max="8.0"/>
       <default>4.5</default>
