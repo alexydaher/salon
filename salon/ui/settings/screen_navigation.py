@@ -90,12 +90,10 @@ class SettingsNavigationController(ServiceComponent):
             "Settings" if sections else _panel_name(self._owner._stack[-1])
         )
         self._owner._summary.set_label("")
-        # The section list is orientation, and three levels into the tile
-        # editor it is orienting you to somewhere you left: it kept saying
-        # "Tiles" while the panel beside it was one tile's artwork. Past
-        # the first level the breadcrumb is the thing that knows where you
-        # are, and the column steps back to being a place, not a cursor.
-        self._owner._sections_host.set_visible(len(self._owner._stack) <= 1)
+        # Keep the section list as a stable landmark at every depth.  The
+        # breadcrumb identifies the nested row or tile, while the selected
+        # section still answers which part of Settings it belongs to.
+        self._owner._sections_host.set_visible(True)
         self._update_legend()
 
     def _update_legend(self) -> None:

@@ -142,3 +142,26 @@ def test_vertical_home_move_explicitly_suppresses_horizontal_reveal() -> None:
 
     assert isinstance(reveal, ast.UnaryOp)
     assert isinstance(reveal.op, ast.Not)
+
+
+def test_settings_section_pane_stays_visible_in_nested_panels() -> None:
+    path = Path(__file__).resolve().parent.parent / "salon/ui/settings/screen_navigation.py"
+    tree = ast.parse(path.read_text(), filename=str(path))
+    update = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_update_pane_style"
+    )
+    visibility = next(
+        node
+        for node in ast.walk(update)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "set_visible"
+        and isinstance(node.func.value, ast.Attribute)
+        and node.func.value.attr == "_sections_host"
+    )
+
+    assert len(visibility.args) == 1
+    assert isinstance(visibility.args[0], ast.Constant)
+    assert visibility.args[0].value is True
