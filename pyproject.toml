@@ -1,6 +1,6 @@
 [project]
 name = "salon"
-version = "0.4.0"
+version = "0.4.1"
 description = "Launch apps from the sofa"
 requires-python = ">=3.12"
 

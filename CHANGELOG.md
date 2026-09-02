@@ -6,7 +6,7 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
-## Unreleased
+## 0.4.1 — 2026-09-02
 
 ### Changed
 
@@ -24,6 +24,14 @@ Notable changes per release. Dates are ISO. This project follows
 - Release tags are protected against being moved or deleted.
 - Every third-party GitHub Action is pinned to a commit hash, with Dependabot
   opening the updates as pull requests, and every job has a timeout.
+- Dependabot's open pull request cap is lifted. Its default of five per
+  ecosystem withholds the sixth without saying so, and six actions are
+  pinned here.
+- Every pinned action is updated to its current release: `checkout` 7.0.1,
+  `upload-artifact` 7.0.1, `download-artifact` 8.0.1,
+  `upload-pages-artifact` 5.0.0 and `deploy-pages` 5.0.0. All but the last
+  were exercised against their real call sites before merging, including the
+  ones the release workflow only reaches on a tag.
 - This changelog is tracked in the repository. It was ignored, which quietly
   turned the changelog release gate into a no-op in every CI run, since the
   check only ran when the file existed and a clean checkout never had it.

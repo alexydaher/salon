@@ -106,25 +106,32 @@
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.0/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.0/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.0/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.0/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.1/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.4.1" date="2026-09-02">
+      <description>
+        <p>A maintenance release with no user-visible changes. It exists to exercise a release pipeline that was substantially reworked since 0.4.0.</p>
+        <p>The quality gates run on every push to the main branch again rather than only on a release tag, Flatpak bundles are built from a manifest pinned to the exact commit that triggered the run, and the signed Flatpak repository is published after the GitHub release rather than before it.</p>
+        <p>Every third-party build action is pinned to a commit hash and updated to its current release.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-09-02">
       <description>
         <p>The Aurora Console redesign reworks the home shell, overlays, tile focus treatment, backgrounds, and settings preview controls into one visual language, trims repetitive on-screen copy, and enlarges the standing phone-pairing QR code.</p>
