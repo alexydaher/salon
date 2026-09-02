@@ -27,7 +27,7 @@ def test_readme_and_meson_share_the_authoritative_minimums() -> None:
 
 
 def test_ci_installs_every_native_dependency_family() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "flatpak-release.yml").read_text()
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
     for package in (
         "gtk4-devel",
         "libadwaita-devel",
@@ -56,7 +56,7 @@ def test_debian_package_tracks_native_minimums_and_is_architecture_independent()
 
 
 def test_release_ci_builds_and_publishes_native_package() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "flatpak-release.yml").read_text()
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
     assert "dpkg-buildpackage --build=binary --no-sign" in workflow
     assert "lintian --fail-on error" in workflow
     assert "salon-deb-${{ github.ref_name }}" in workflow

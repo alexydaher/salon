@@ -42,4 +42,11 @@ scripts/wayland-smoke.sh
 echo "== meson test (metadata validation) =="
 meson test -C build --print-errorlogs
 
+# The same call CI makes. pytest already checks that the version locations
+# agree, but without --require-changelog, so an absent CHANGELOG.md was a
+# skip here and a failure there — the one gate that has already disappeared
+# once by being optional.
+echo "== release metadata =="
+python3 scripts/prepare-flatpak-release.py --require-changelog
+
 echo "All gates passed."
