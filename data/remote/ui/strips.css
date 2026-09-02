@@ -267,7 +267,7 @@ nav button.on { color: var(--accent); background: var(--s1); }
   #pane-pad > .bar { grid-column: 2; flex-direction: column; margin: 0; }
   #pane-pad > .pad-actions { grid-row: 1; }
   #pane-pad > .bar:not(.pad-actions) { grid-row: 2; }
-  #type-drawer { max-height: 100%; overflow-y: auto; padding-top: 0.5rem; }
+  #type-card { padding-top: 0.5rem; }
   #type-drawer .subtle { display: none; }
 
   nav button { flex-direction: row; gap: 0.4rem; padding: 0.35rem; }

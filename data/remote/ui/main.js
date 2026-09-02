@@ -21,7 +21,7 @@ import { bindSheet, openSheet } from "./sheet.js";
 import { bindKeys } from "./keys.js";
 import { bindDpad } from "./dpad.js";
 import { bindPad } from "./pad.js";
-import { bindTyping, focusTypeField } from "./typing.js";
+import { bindTyping, closeTypeDrawer, focusTypeField } from "./typing.js";
 import { bindVolume, closeVolume } from "./volume.js";
 import { bindNowPlaying, closeNowPlaying } from "./nowplaying.js";
 import { bindTune } from "./tune.js";
@@ -36,6 +36,9 @@ bindConnect();
 bindTabs((name) => {
   if (name === "type") focusTypeField(session.state);
   if (name !== "remote") closeNowPlaying();
+  // The keyboard drawer belongs to Pointer; leaving that pane closes it
+  // rather than leaving it to reappear the next time Pointer is opened.
+  if (name !== "pad") closeTypeDrawer();
 });
 bindCatalog(openSheet);
 bindSearch(openSheet);
@@ -52,7 +55,10 @@ bindDpad();
 bindPad($("pad"));
 bindTyping();
 bindVolume(closeNowPlaying);
-bindNowPlaying(closeVolume);
+bindNowPlaying(() => {
+  closeVolume();
+  closeTypeDrawer();
+});
 bindTune();
 
 $("retry").addEventListener("click", () => {

@@ -129,6 +129,7 @@ export function measureStrips() {
 }
 
 let measuredViewport = "";
+let measuredKeyboard = "";
 let viewportSettleFrame = 0;
 let viewportSettleUntil = 0;
 
@@ -154,6 +155,18 @@ export function measureViewport() {
   if (`${top}` !== measuredViewport) {
     measuredViewport = `${top}`;
     document.documentElement.style.setProperty("--viewport-y", `${top}px`);
+  }
+  // The bottom counterpart: how much of the layout viewport is below the
+  // visible area, which on a phone with an open keyboard that overlays the
+  // page rather than resizing it is that keyboard's height. The Type drawer
+  // sits its card this far up so the field stays in sight while you type.
+  const covered = Math.max(
+    0,
+    Math.round(document.documentElement.clientHeight - viewport.height - offset),
+  );
+  if (`${covered}` !== measuredKeyboard) {
+    measuredKeyboard = `${covered}`;
+    document.documentElement.style.setProperty("--kb", `${covered}px`);
   }
   // This shell has its own scrollports. A restored document scroll only
   // moves the whole remote under the browser chrome and exposes its root.

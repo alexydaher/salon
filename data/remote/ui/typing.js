@@ -2,19 +2,28 @@
 //
 // The Type pane. Two quite different jobs behind one field: filling a text
 // box Salon is showing on the television, and typing into whatever a
-// launched application has focused.
+// launched application has focused. Either way the field syncs as you type
+// — Send and Enter are an explicit "push now", not the only way across.
 
 import { $, buzz } from "./dom.js";
 import { post } from "./transport.js";
 import { pollSoon } from "./feed.js";
 
-// What the television's own field currently holds. Mirrored so the two
-// keyboards pointed at one box agree about what is in it: type "netfli" on
-// the television, pick up the phone, and the phone used to show an empty
-// field whose Send would append a second copy of everything.
-let onScreen = "";
+// What the far side already holds as a result of what has been sent: the
+// television's own field in mirror mode, the launched app's field otherwise.
+// Every update is expressed as a diff against this, so typing streams across
+// a character at a time instead of resending the whole box.
+let farText = "";
 let editing = false;
+let composing = false;
 let openedForRequest = false;
+let wantsText = false;
+let flushTimer = null;
+let inFlight = false;
+
+// Long enough that a fast burst of keys is a handful of small requests, not
+// one per key; short enough that the television keeps up with the thumb.
+const FLUSH_MS = 120;
 
 export function openTypeDrawer({ focus = false } = {}) {
   $("type-drawer").classList.add("on");
@@ -24,9 +33,19 @@ export function openTypeDrawer({ focus = false } = {}) {
 
 export function closeTypeDrawer() {
   openedForRequest = false;
+  clearTimeout(flushTimer);
+  flushTimer = null;
+  resetField();
   $("type-drawer").classList.remove("on");
   $("type-toggle").setAttribute("aria-expanded", "false");
   $("text").blur();
+}
+
+// A clean slate: the field and our idea of the far side go back to empty
+// together, so the next thing typed is never diffed against a stale prefix.
+function resetField() {
+  farText = "";
+  $("text").value = "";
 }
 
 function sharedPrefix(before, after) {
@@ -41,34 +60,42 @@ function sharedPrefix(before, after) {
 // has to be expressed as a run of edits. A shared prefix costs only the
 // tail; anything else costs one backspace per character that has to go.
 function editsTo(target) {
-  if (target === onScreen) return "";
-  if (target.startsWith(onScreen)) return target.slice(onScreen.length);
-  const shared = sharedPrefix(onScreen, target);
-  return "\b".repeat(onScreen.length - shared) + target.slice(shared);
+  if (target === farText) return "";
+  if (target.startsWith(farText)) return target.slice(farText.length);
+  const shared = sharedPrefix(farText, target);
+  return "\b".repeat(farText.length - shared) + target.slice(shared);
 }
 
-async function send() {
-  const field = $("text");
-  const mirroring = Boolean($("mirror-text").classList.contains("on"));
-  const text = mirroring ? editsTo(field.value) : field.value;
-  if (!text) return;
-  const result = await post("/type", { text: text });
+function scheduleFlush() {
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flush, FLUSH_MS);
+}
+
+// Send whatever the field has gained or lost since the last acknowledged
+// state. One request in flight at a time: two overlapping ones diff against
+// the same `farText` and land the tail twice.
+async function flush() {
+  clearTimeout(flushTimer);
+  flushTimer = null;
+  if (composing) return;
+  if (inFlight) { scheduleFlush(); return; }
+  const target = $("text").value;
+  const delta = editsTo(target);
+  if (!delta) return;
+  inFlight = true;
+  const result = await post("/type", { text: delta });
+  inFlight = false;
   if (!result) return;
-  buzz(10);
-  if (mirroring) {
-    // The field goes on showing what the television now shows, rather than
-    // emptying itself: this is one box seen from two places.
-    onScreen = field.value;
-  } else {
-    field.value = "";
-  }
+  farText = target;
   pollSoon();
+  // More was typed while that was on the wire.
+  if ($("text").value !== farText) scheduleFlush();
 }
 
 export function renderTyping(data) {
   const hint = $("type-hint");
   if (data.wantsText) {
-    hint.textContent = "Type below.";
+    hint.textContent = "Type below — it appears on the TV as you go.";
   } else if (data.remoteInput) {
     hint.textContent = "Select a field with Pointer, then type here.";
   } else {
@@ -81,16 +108,22 @@ export function renderTyping(data) {
   mirror.classList.toggle("on", Boolean(data.wantsText));
   const text = data.text || "";
   mirror.querySelector("b").textContent = text || "—";
-  if (data.wantsText && text !== onScreen) {
-    onScreen = text;
+
+  // Switching in or out of "the TV is asking for text" is a change of
+  // target: start the field over rather than diff the next key against
+  // whatever the previous target held.
+  if (Boolean(data.wantsText) !== wantsText) {
+    wantsText = Boolean(data.wantsText);
+    resetField();
+  }
+  if (data.wantsText && text !== farText) {
+    farText = text;
     // Not while a thumb is in the box: writing the television's value back
     // mid-word is the same mistake as moving the volume slider under a
     // finger already holding it.
     if (!editing) $("text").value = text;
   }
-  if (!data.wantsText) onScreen = "";
   if (!data.wantsText && openedForRequest) closeTypeDrawer();
-
 }
 
 export function focusTypeField(data) {
@@ -110,25 +143,39 @@ export function bindTyping() {
     else openTypeDrawer();
   });
   $("type-close").addEventListener("click", closeTypeDrawer);
+  $("type-drawer").addEventListener("click", (event) => {
+    // The scrim only; a tap on the card is a tap on one of its controls.
+    if (event.target === $("type-drawer")) closeTypeDrawer();
+  });
   field.addEventListener("focus", () => { editing = true; });
-  field.addEventListener("blur", () => { editing = false; });
-  $("send").addEventListener("click", send);
+  field.addEventListener("blur", () => { editing = false; flush(); });
+  // The stream. `beforeinput`/`input` fire mid-composition on a phone
+  // keyboard's predictive text and accents, so hold off until it settles.
+  field.addEventListener("compositionstart", () => { composing = true; });
+  field.addEventListener("compositionend", () => { composing = false; scheduleFlush(); });
+  field.addEventListener("input", () => { if (!composing) scheduleFlush(); });
+  // Send and Enter are the same push, just now — and the only ones that
+  // buzz, so a live stream is not a continuous vibration.
+  $("send").addEventListener("click", () => { buzz(6); flush(); });
   field.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    send();
+    buzz(6);
+    flush();
   });
   // Sent as the control characters the television maps to BackSpace and
   // Return, so the whole path is the one /type already takes.
-  for (const [id, character] of [["key-back", "\b"], ["key-enter", "\n"]]) {
-    $(id).addEventListener("click", async () => {
-      buzz(8);
-      // Anything typed but not yet sent goes first, so Enter submits what
-      // you can see rather than whatever was sent before it.
-      if (id === "key-enter" && field.value) await send();
-      if (id === "key-back" && onScreen) onScreen = onScreen.slice(0, -1);
-      post("/type", { text: character });
-      pollSoon();
-    });
-  }
+  $("key-back").addEventListener("click", () => {
+    buzz(8);
+    field.value = field.value.slice(0, -1);
+    flush();
+  });
+  $("key-enter").addEventListener("click", async () => {
+    buzz(8);
+    // Anything typed but not yet across goes first, so Return acts on what
+    // you can see rather than on whatever was last acknowledged.
+    await flush();
+    post("/type", { text: "\n" });
+    pollSoon();
+  });
 }

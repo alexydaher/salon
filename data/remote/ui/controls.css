@@ -194,20 +194,35 @@ body.in-app .dpad-hint { visibility: hidden; }
 
 /* --- keyboard ----------------------------------------------------------- */
 
+/* A full-page scrim with the card pinned to the bottom, so a tap outside
+   dismisses it and it is not left stranded under the now-playing card or
+   behind the phone's own keyboard. Above the header (z 5) and the volume
+   popover (z 9), below the long-press sheet (z 20). `--kb` is how much of
+   the page a soft keyboard is covering; it is zero on a phone that resizes
+   itself for its keyboard and the keyboard's height on one that does not. */
 #type-drawer {
-  position: absolute;
-  z-index: 6;
-  inset: auto 0 0;
+  position: fixed;
+  z-index: 12;
+  inset: 0;
   display: none;
   flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: var(--kb, 0px);
+  background: rgba(0, 0, 0, 0.55);
+}
+#type-drawer.on { display: flex; }
+#type-card {
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
+  max-height: 100%;
+  overflow-y: auto;
   padding: 0.8rem var(--pad) max(0.8rem, var(--safe-b));
   border-radius: 20px 20px 0 0;
   background: var(--s1);
   border-top: 1px solid var(--s2);
   box-shadow: 0 -1rem 2rem rgba(0, 0, 0, 0.4);
 }
-#type-drawer.on { display: flex; }
 .drawer-title { display: flex; min-height: var(--touch); align-items: center; justify-content: space-between; }
 .drawer-title button { width: var(--touch); height: var(--touch); border-radius: 50%; display: grid; place-items: center; background: var(--s2); }
 #type-hint { margin: 0; }

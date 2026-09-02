@@ -200,19 +200,25 @@
         <svg class="i" aria-hidden="true"><use href="#i-back"/></svg>Back
       </button>
     </div>
+    <!-- A dim scrim with the keyboard card at the bottom, like #sheet: a tap
+         outside closes it, and it floats above the now-playing card rather
+         than under it. `--kb` lifts the card clear of a phone keyboard that
+         overlays the page instead of resizing it. -->
     <section id="type-drawer" aria-label="Type on television">
-      <div class="drawer-title"><b>Type on the television</b>
-        <button id="type-close" aria-label="Close keyboard"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <div id="type-card">
+        <div class="drawer-title"><b>Type on the television</b>
+          <button id="type-close" aria-label="Close keyboard"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+        </div>
+        <p class="subtle" id="type-hint">Select a field, then type here.</p>
+        <p id="mirror-text">On screen: <b></b></p>
+        <div class="send-row"><input id="text" autocomplete="off" autocapitalize="none"
+               autocorrect="off" spellcheck="false" enterkeyhint="send"
+               placeholder="Type here" aria-label="Text">
+          <button id="send" class="primary">Send</button></div>
+        <div class="bar"><button id="key-back" aria-label="Backspace">
+            <svg class="i" aria-hidden="true"><use href="#i-erase"/></svg></button>
+          <button id="key-enter" aria-label="Enter"><svg class="i" aria-hidden="true"><use href="#i-enter"/></svg>Enter</button></div>
       </div>
-      <p class="subtle" id="type-hint">Select a field, then type here.</p>
-      <p id="mirror-text">On screen: <b></b></p>
-      <div class="send-row"><input id="text" autocomplete="off" autocapitalize="none"
-             autocorrect="off" spellcheck="false" enterkeyhint="send"
-             placeholder="Type here" aria-label="Text">
-        <button id="send" class="primary">Send</button></div>
-      <div class="bar"><button id="key-back" aria-label="Backspace">
-          <svg class="i" aria-hidden="true"><use href="#i-erase"/></svg></button>
-        <button id="key-enter" aria-label="Enter"><svg class="i" aria-hidden="true"><use href="#i-enter"/></svg>Enter</button></div>
     </section>
   </section>
   <!-- A temporary navigation surface inside Remote. It is not modal: the
