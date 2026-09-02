@@ -183,7 +183,8 @@ def test_the_popup_reports_candidates_and_dismissal_but_not_a_choice() -> None:
     )
 
     assert popup.open_for(row, anchor=box, position=Gtk.PositionType.TOP)
-    popup.handle_action(Action.UP)
+    # A previewed list is a horizontal strip, so LEFT/RIGHT walk it.
+    popup.handle_action(Action.LEFT)
     assert candidates == ["a"]
     popup.handle_action(Action.BACK)
     assert dismissals == [1] and not popup.is_open

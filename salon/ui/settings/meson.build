@@ -22,6 +22,7 @@ python_sources = [
   'settings_row.py',
   'value_rows.py',
   'popup.py',
+  'popup_geometry.py',
   'popup_option.py',
   'panels.py',
   'about_panel.py',

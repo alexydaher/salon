@@ -158,3 +158,43 @@ class RangePreview(Gtk.Box):
         index = min(len(self._labels) - 1, max(0, round(slider.get_value())))
         self._value.set_label(self._labels[index])
         self._on_change(index)
+
+
+def build_value_list(
+    scale: Scale,
+    choices: list[tuple[str, str]],
+    *,
+    selected: int,
+    swatches: dict[str, str],
+    preview: bool,
+    range_preview: bool,
+    row_height: int,
+    on_click: Callable[[int], None],
+    on_hover: Callable[[int], None],
+    on_range: Callable[[int], None],
+) -> tuple[list[ValueOption], RangePreview | None]:
+    """The widgets that fill a `ValuePopup`: one `RangePreview` when the row
+    is a previewed range, otherwise one `ValueOption` per choice."""
+    if range_preview:
+        widget = RangePreview(
+            scale, [label for _key, label in choices], selected, on_range
+        )
+        return [], widget
+    buttons: list[ValueOption] = []
+    for index, (key, label) in enumerate(choices):
+        button = ValueOption(
+            scale,
+            label,
+            current=index == selected,
+            index=index,
+            height=row_height,
+            on_click=on_click,
+            on_hover=on_hover,
+            swatch=swatches.get(key, ""),
+            preview=preview,
+        )
+        if preview:
+            button.set_hexpand(True)
+            button.set_size_request(-1, scale.px(122.0))
+        buttons.append(button)
+    return buttons, None
