@@ -6,6 +6,16 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
+## 0.4.4 — 2026-09-04
+
+### Fixed
+
+- The Wayland release smoke fixture now keeps its injected media players in
+  the same model used by asynchronous artwork refreshes, so a refresh cannot
+  clear the now-playing card just before its geometry is checked. This release
+  supersedes the unpublished 0.4.3 tag; the application changes remain those
+  documented in the 0.4.3 section below.
+
 ## 0.4.3 — 2026-09-04
 
 ### Changed

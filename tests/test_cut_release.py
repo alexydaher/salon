@@ -107,7 +107,7 @@ def test_prepare_rewrites_every_version_location(tmp_path: Path) -> None:
     version = "9.9.9"
     changelog = tmp_path / "CHANGELOG.md"
     changelog.write_text(
-        changelog.read_text().replace("## 0.4.3", NOTES + "\n## 0.4.3", 1)
+        changelog.read_text().replace("## 0.4.4", NOTES + "\n## 0.4.4", 1)
     )
 
     result = subprocess.run(
@@ -127,7 +127,7 @@ def test_prepare_rewrites_every_version_location(tmp_path: Path) -> None:
     metainfo = (tmp_path / "data" / f"{APP_ID}.metainfo.xml.in").read_text()
     assert f'<release version="{version}" date="2026-12-24">' in metainfo
     assert f"/salon/v{version}/docs/screenshots/" in metainfo
-    assert "/salon/v0.4.3/" not in metainfo
+    assert "/salon/v0.4.4/" not in metainfo
     assert (tmp_path / "debian" / "changelog").read_text().startswith(
         f"salon ({version}-1) unstable; urgency=medium"
     )

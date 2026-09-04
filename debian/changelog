@@ -1,3 +1,13 @@
+salon (0.4.4-1) unstable; urgency=medium
+
+  * The Wayland release smoke fixture now keeps its injected media players
+    in the same model used by asynchronous artwork refreshes, so a refresh
+    cannot clear the now-playing card just before its geometry is checked.
+    This release supersedes the unpublished 0.4.3 tag; the application
+    changes remain those documented in the 0.4.3 section below.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Fri, 04 Sep 2026 14:21:48 +0200
+
 salon (0.4.3-1) unstable; urgency=medium
 
   * The left rail's now-playing card shows one media source at a time. With
