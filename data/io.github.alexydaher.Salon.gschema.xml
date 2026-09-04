@@ -4,7 +4,7 @@
     <key name="accent-color" type="s">
       <default>'#E8A33D'</default>
       <summary>Accent colour</summary>
-      <description>Hex colour used for focus highlighting and bloom.</description>
+      <description>Hex colour used for focus highlighting.</description>
     </key>
     <key name="theme" type="s">
       <default>'midnight'</default>
@@ -90,7 +90,7 @@
       <range min="0.5" max="1.5"/>
       <default>0.55</default>
       <summary>Tile size multiplier</summary>
-      <description>Scales every tile relative to the 342x204du wide-card design size, along with its type, padding, bloom and row heading. The 0.55 design default produces a 188x112du Home card. At the 0.5 floor the title reaches its legibility limit and stops shrinking with the card.</description>
+      <description>Scales every tile relative to the 342x204du wide-card design size, along with its type, padding and row heading. The 0.55 design default produces a 188x112du Home card. At the 0.5 floor the title reaches its legibility limit and stops shrinking with the card.</description>
     </key>
     <key name="row-spacing-scale" type="d">
       <range min="0.45" max="1.6"/>

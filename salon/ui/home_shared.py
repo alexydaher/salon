@@ -16,15 +16,15 @@ Three geometry decisions here are worth knowing before changing anything:
 
 * **Row viewports span the full window width, not the safe area.** The safe
   margin is a navigation boundary, while the real clip remains the screen
-  edge so a focused tile's bleed and bloom are not sliced by a hard vertical
-  line inside the screen.
+  edge so a focused tile's scaled edge is not sliced by a hard vertical line
+  inside the screen.
 * **Scroll offsets are clamped to the content bounds on both axes.** A row
   moves only enough to reveal a focused card at either safe edge, and never
   past its first or last card. Without the content clamp, focusing the last
   tile of a short row leaves most of a 1920px screen empty.
 * **Rows are positioned by absolute y, not stacked in a box.** Every tile
-  carries transparent bleed for its bloom to render into, so consecutive
-  rows' footprints have to overlap. A box's non-negative spacing can't
+  carries transparent bleed for its focused scale, so consecutive rows'
+  footprints have to overlap. A box's non-negative spacing can't
   express that; explicit positions can.
 
 All pixel geometry comes from the du scale (`ui/scale.py`) and is rebuilt
@@ -166,8 +166,8 @@ _BUMP_DISTANCE_DU = 26.0
 # Short, and doing a different job from the fade that used to be here. The
 # band no longer reaches under the two bars at all — it is inset to the gap
 # between them — so nothing has to be dimmed to keep it off the clock. What
-# is left is that a tile cut by a hard clip edge reads as a rendering fault,
-# and a tile's bloom needs somewhere to go. Forty du is about a quarter of a
+# is left is that a tile cut by a hard clip edge reads as a rendering fault.
+# Forty du is about a quarter of a
 # wide tile: enough that a row leaving the band looks like it is leaving,
 # little enough that it costs nothing while it goes.
 _EDGE_FADE_DU = 40.0

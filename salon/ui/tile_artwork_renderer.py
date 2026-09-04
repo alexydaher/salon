@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Artwork, icon, bloom, and generated-card painting for a tile."""
+"""Artwork, icon, and generated-card painting for a tile."""
 
 from __future__ import annotations
 
@@ -10,8 +10,6 @@ gi.require_version("Gsk", "4.0")
 gi.require_version("Graphene", "1.0")
 from gi.repository import Graphene, Gsk, Gtk  # noqa: E402
 
-from salon.core import tokens  # noqa: E402
-from salon.services.artwork import glow_color  # noqa: E402
 from salon.ui import theme  # noqa: E402
 from salon.ui.tile_geometry import (  # noqa: E402
     _TRANSPARENT,
@@ -31,35 +29,6 @@ _TINT_BOTTOM = 0.14
 
 
 class TileArtworkRenderer:
-    def snapshot_bloom(self, snapshot: Gtk.Snapshot, focus: float) -> None:
-        """§7.1's light-fall: the focused tile casts a soft warm bloom onto
-        its neighbours, as though a lamp turned toward it. Bounded to the
-        tile's own footprint, so the blur cost stays small even on the weak
-        HTPC GPUs §7.3 warns about — unlike a full-screen backdrop blur,
-        this is a single small region and only ever one tile at a time."""
-        metrics = self._metrics
-        blur = metrics.bloom_blur
-        offset = metrics.bloom_offset * focus
-        # Slightly *larger* than the tile, not inset: the card is opaque and
-        # covers whatever is drawn under it, so a bloom confined to the
-        # tile's own bounds is visible only as the few pixels of feather the
-        # blur pushes past the edge. Spreading it wider is what turns the
-        # effect from an outline into light spilling onto the neighbours.
-        spread = metrics.width * 0.02
-
-        bounds = _rect(
-            metrics.bleed - spread,
-            metrics.bleed - spread + offset,
-            metrics.width + 2 * spread,
-            metrics.height + 2 * spread,
-        )
-        snapshot.push_blur(blur)
-        snapshot.append_color(
-            _with_alpha(glow_color(theme.accent()), tokens.BLOOM_ALPHA * focus),
-            bounds,
-        )
-        snapshot.pop()
-
     def snapshot_texture(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
         """Cover-fit: fill the tile, crop the overflow, never letterbox."""
         texture = self._artwork.texture

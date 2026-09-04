@@ -99,8 +99,8 @@ class HomeLayoutBuilder(ServiceComponent):
                 self._attach_pointer(widget, row_index, col)
                 # Tiles start at x=0, not at -bleed: a child placed at a
                 # negative x inside the tiles box is clipped along that
-                # edge, which cut the left half of the first tile's bloom
-                # clean off. The row's scroll offset carries the bleed
+                # edge, which cut into the first tile's focused scale. The
+                # row's scroll offset carries the bleed
                 # instead — see _row_scroll_x.
                 tiles_box.put(widget, col * metrics.step, 0.0)
                 tiles.append(widget)

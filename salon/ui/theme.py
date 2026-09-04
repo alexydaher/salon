@@ -33,10 +33,6 @@ from gi.repository import Gdk, Gio, Gtk  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
 
-# The bloom's alpha is fixed by the design system (tokens.py ships
-# accent-bloom at 0.22); only the hue follows the user's choice.
-_BLOOM_ALPHA = 0.22
-
 # `tile-background`: what colours a card that has no artwork of its own.
 TILE_BACKGROUND_ICON = "icon"
 TILE_BACKGROUND_UNIFORM = "uniform"
@@ -96,7 +92,6 @@ def build_css(color_value: Gdk.RGBA, palette: dict[str, str]) -> str:
     lines = [
         "/* Generated at runtime by salon/ui/theme.py — do not edit. */",
         f"@define-color accent rgb({red},{green},{blue});",
-        f"@define-color accent-bloom rgba({red},{green},{blue},{_BLOOM_ALPHA});",
     ]
     lines.extend(f"@define-color {name} {value};" for name, value in palette.items())
     return "\n".join(lines) + "\n"

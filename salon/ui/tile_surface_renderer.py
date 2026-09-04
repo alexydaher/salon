@@ -54,8 +54,8 @@ class TileSurfaceRenderer:
     def _snapshot_shadow(
         self, snapshot: Gtk.Snapshot, rounded: Gsk.RoundedRect, focus: float
     ) -> None:
-        # The neutral shadow carries elevation. Accent light is deliberately
-        # separate and faint, so selection never turns into a coloured fog.
+        # Keep elevation neutral. The accent belongs to the crisp focus ring,
+        # not in a glow that spills beyond the selected tile.
         snapshot.append_outset_shadow(
             rounded,
             _with_alpha(theme.color("surface-0"), 0.28 + 0.10 * focus),
@@ -64,15 +64,6 @@ class TileSurfaceRenderer:
             0.0,
             self._scale.du(14.0 + 8.0 * focus),
         )
-        if focus > 0.01:
-            snapshot.append_outset_shadow(
-                rounded,
-                _with_alpha(theme.accent(), 0.12 * focus),
-                0.0,
-                self._scale.du(2.0),
-                self._scale.du(2.0),
-                self._scale.du(12.0),
-            )
 
     def _snapshot_surface_light(
         self, snapshot: Gtk.Snapshot, rect: Graphene.Rect, focus: float

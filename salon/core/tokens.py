@@ -30,7 +30,6 @@ COLORS: tuple[ColorToken, ...] = (
     ColorToken("text-primary", "#F2EDE4"),
     ColorToken("text-secondary", "#9AA3AE"),
     ColorToken("accent", "#E8A33D"),
-    ColorToken("accent-bloom", "rgba(232,163,61,0.22)"),
     ColorToken("danger", "#D9584B"),
 )
 
@@ -186,17 +185,9 @@ CONTENT_GUTTER_DU: float = 48.0
 ACTION_BAR_HEIGHT_DU: float = 88.0
 CONSOLE_GAP_DU: float = 18.0
 # Transparent padding carried inside every tile widget's own footprint, so
-# the focus scale-up and the bloom have somewhere to render without the row
-# viewport's clip cutting into either. Has to comfortably exceed both the
-# scale growth (TILE_HEIGHT * (FOCUS_SCALE_FOCUSED - 1) / 2) and the bloom's
-# blur radius plus its downward offset — see ui/tile_surface_renderer.py.
+# the focus scale-up has somewhere to render without the row viewport's clip
+# cutting into it.
 TILE_BLEED_DU: float = 56.0
-
-# The "light-fall" bloom (§7.1/§7.3 stage 2): a blurred, accent-tinted copy
-# of the focused tile's bounds rendered beneath its neighbours.
-BLOOM_BLUR_DU: float = 26.0
-BLOOM_OFFSET_DU: float = 10.0
-BLOOM_ALPHA: float = 0.28
 FOCUS_RING_DU: float = 3.0
 
 SAFE_AREA_DEFAULT_PERCENT: float = 4.5

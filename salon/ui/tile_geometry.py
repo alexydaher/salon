@@ -34,8 +34,6 @@ class TileMetrics:
     padding: float
     title_size: float
     subtitle_size: float
-    bloom_blur: float
-    bloom_offset: float
 
     @property
     def outer_width(self) -> float:
@@ -53,9 +51,8 @@ class TileMetrics:
 
 def metrics_for(scale: Scale, aspect: str = "wide", *, size_scale: float = 1.0) -> TileMetrics:
     """`size_scale` is the user's tile-size preference (§6.8). The bleed
-    scales with the card because it exists to hold the bloom and the
-    focus growth, both of which are proportional to the card; the gap and
-    the corner radius do not, because those are design constants.
+    scales with the card because it leaves room for focus growth; the gap
+    and the corner radius do not, because those are design constants.
 
     The type and the inner padding scale with it too, floored at
     `MIN_READABLE_SIZE_DU` — see `tokens.scaled_type_size_du`. Everything a
@@ -63,13 +60,8 @@ def metrics_for(scale: Scale, aspect: str = "wide", *, size_scale: float = 1.0) 
     smaller cards gets smaller cards rather than the same text in a
     smaller box.
 
-    The bloom scales as well, and that is what lets `size_scale` go below
-    0.75. The bleed is the room the row viewport leaves for the focus
-    growth and the bloom, and it is proportional to the card — but the
-    bloom's blur and offset were design constants, so at 0.75 they needed
-    42du of a 42du budget and anything smaller had its halo clipped. That
-    coincidence is why the schema's old floor was 0.75. Scaling both makes
-    the relationship scale-invariant instead of true at exactly one size.
+    The bleed stays proportional to the card so the relationship between
+    the card and its focused scale is consistent at every tile size.
     """
     size = tokens.tile_size(aspect)
     return TileMetrics(
@@ -81,8 +73,6 @@ def metrics_for(scale: Scale, aspect: str = "wide", *, size_scale: float = 1.0) 
         padding=scale.du(tokens.TILE_PADDING_DU * size_scale),
         title_size=scale.du(tokens.scaled_type_size_du("tile-title", size_scale)),
         subtitle_size=scale.du(tokens.scaled_type_size_du("tile-subtitle", size_scale)),
-        bloom_blur=scale.du(tokens.BLOOM_BLUR_DU * size_scale),
-        bloom_offset=scale.du(tokens.BLOOM_OFFSET_DU * size_scale),
     )
 
 

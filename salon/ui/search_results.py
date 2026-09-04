@@ -103,10 +103,10 @@ class SearchResultsController:
             motion = Gtk.EventControllerMotion()
             motion.connect("motion", lambda *_, i=index: self._hover_result(i))
             widget.add_controller(motion)
-            # Vertically a full bleed down, so the first row's bloom is
-            # inside the clip. Horizontally at -bleed on purpose: this
-            # viewport's left edge borders the keyboard, and glow spilling
-            # over the keys is worse than glow that stops at them.
+            # Vertically a full bleed down, so the first row's focused scale
+            # is inside the clip. Horizontally at -bleed on purpose: this
+            # viewport's left edge borders the keyboard, so the tile itself
+            # remains aligned with the results pane.
             self._results_content.put(
                 widget,
                 col * metrics.step - metrics.bleed,
@@ -202,9 +202,9 @@ class SearchResultsController:
             return
         metrics = metrics_for(self._scale)
         row_height = metrics.height + metrics.gap
-        # Card positions, not widget positions: the content carries a bleed
-        # of padding at the top and bottom so the first and last rows' bloom
-        # is inside the clip.
+        # Card positions, not widget positions: the content carries bleed
+        # padding at the top and bottom so the first and last rows' focused
+        # scale stays inside the clip.
         card_top = metrics.bleed + self._results_focus.row * row_height
         viewport_height = self._results_height or self._results_viewport.get_height()
         if viewport_height <= 0:

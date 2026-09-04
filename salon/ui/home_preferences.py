@@ -77,8 +77,8 @@ class HomePreferences(ServiceComponent):
     @property
     def _animations_enabled(self) -> bool:
         """§7.2: respect gtk-enable-animations and the reduced-motion
-        override. When off, focus changes are instant — the tile's ring and
-        bloom carry the indication instead of the motion."""
+        override. When off, focus changes are instant and the tile's ring
+        carries the indication instead of the motion."""
         if self._owner._settings.get_boolean("reduced-motion"):
             return False
         # "Animation speed: Off" is the third way to say the same thing, and
@@ -129,8 +129,8 @@ class HomePreferences(ServiceComponent):
         self._owner._row_tops = tops
         trailing = self._owner._rows[-1].metrics.bleed if self._owner._rows else 0.0
         # The last row's bleed counts as content. It is the room the tile
-        # needs for the focus growth and the bloom, and a scroll limit that
-        # stopped at the card's own bottom edge put both of them past the end
+        # needs for focus growth, and a scroll limit that stopped at the
+        # card's own bottom edge put the ring past the end
         # of the band: the focused tile in the last row had its ring sliced
         # off by the clip, which is exactly the rendering fault the edge fade
         # exists to avoid.

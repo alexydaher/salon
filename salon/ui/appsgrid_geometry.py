@@ -27,8 +27,6 @@ def grid_metrics(scale: Scale, tile_scale: float) -> TileMetrics:
         padding=scale.du(18.0 * factor),
         title_size=scale.du(20.0 * factor),
         subtitle_size=scale.du(14.0 * factor),
-        bloom_blur=base.bloom_blur,
-        bloom_offset=base.bloom_offset,
     )
 
 

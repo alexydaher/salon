@@ -52,9 +52,9 @@ from salon.ui.tile_text_renderer import TileTextRenderer  # noqa: E402
 
 
 class TileWidget(Gtk.Widget, TileSurfaceRenderer, TileArtworkRenderer, TileTextRenderer):
-    """One tile. Focus drives a single 0..1 spring value; scale, bloom
-    intensity, shadow depth and edge lighting are all derived from it,
-    so they can never disagree with each other mid-animation."""
+    """One tile. Focus drives a single 0..1 spring value; scale, shadow
+    depth and edge lighting are all derived from it, so they can never
+    disagree with each other mid-animation."""
 
     def __init__(
         self,
@@ -179,9 +179,8 @@ class TileWidget(Gtk.Widget, TileSurfaceRenderer, TileArtworkRenderer, TileTextR
         target_value = 1.0 if focused else 0.0
         if not self._animations_enabled:
             # §7.2's reduced-motion rule: focus changes become instant, but
-            # the focus indicator itself must stay unmistakable — the ring
-            # and bloom are drawn from the same value, so jumping it to the
-            # endpoint keeps the treatment at full strength.
+            # the focus indicator itself must stay unmistakable — jumping
+            # to the endpoint keeps the ring at full strength.
             self._on_focus_tick(target_value)
             return
         self._animation.set_value_from(self._focus_amount)
@@ -197,9 +196,6 @@ class TileWidget(Gtk.Widget, TileSurfaceRenderer, TileArtworkRenderer, TileTextR
     def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
         metrics = self._metrics
         focus = max(0.0, min(1.0, self._focus_amount))
-
-        if focus > 0.01:
-            self.snapshot_bloom(snapshot, focus)
 
         # Scale about the visual box's own centre. Gsk.Transform is
         # immutable with chaining semantics in PyGObject (§11) — every step

@@ -42,26 +42,16 @@ def test_every_type_token_is_readable_at_distance() -> None:
         assert token.size_du >= tokens.MIN_READABLE_SIZE_DU, token.name
 
 
-def test_tile_bleed_covers_the_focus_growth_and_the_bloom() -> None:
-    """The transparent padding around a tile has to be big enough for both
-    the focus scale-up and the bloom, or the row viewport clips them — the
-    bug that made the focused tile's halo look sliced off.
-
-    Checked at every tile scale the schema allows, because the bleed, the
-    growth and the bloom are now all proportional to the card: this used
-    to hold at 1.0 and come within a design unit of failing at the old
-    0.75 floor, which is the coincidence that kept the range there.
-    """
+def test_tile_bleed_covers_the_focus_growth() -> None:
+    """The transparent padding must keep a scaled focus ring unclipped."""
     tallest = max(t.height_du for t in tokens.TILE_SIZES)
     for size_scale in (0.5, 0.55, 0.75, 1.0, 1.5):
         growth = tallest * size_scale * (tokens.FOCUS_SCALE_FOCUSED - tokens.FOCUS_SCALE_REST) / 2
-        bloom = (tokens.BLOOM_BLUR_DU + tokens.BLOOM_OFFSET_DU) * size_scale
-        assert tokens.TILE_BLEED_DU * size_scale >= growth + bloom, size_scale
+        assert tokens.TILE_BLEED_DU * size_scale >= growth, size_scale
 
 
-def test_tile_focus_is_precise_instead_of_zooming_or_fogging() -> None:
+def test_tile_focus_is_precise_instead_of_zooming() -> None:
     assert 1.0 < tokens.FOCUS_SCALE_FOCUSED <= 1.05
-    assert 0.2 <= tokens.BLOOM_ALPHA <= 0.3
 
 
 def test_tile_type_scales_with_the_card() -> None:

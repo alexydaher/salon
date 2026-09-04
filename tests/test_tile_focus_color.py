@@ -28,3 +28,23 @@ def test_focus_ring_uses_the_interface_accent() -> None:
     assert isinstance(colour.func, ast.Attribute)
     assert isinstance(colour.func.value, ast.Name)
     assert (colour.func.value.id, colour.func.attr) == ("theme", "accent")
+
+
+def test_tile_shadow_has_no_accent_glow() -> None:
+    path = Path(__file__).resolve().parent.parent / "salon/ui/tile_surface_renderer.py"
+    tree = ast.parse(path.read_text(), filename=str(path))
+    shadow_renderer = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_snapshot_shadow"
+    )
+
+    accent_calls = [
+        node
+        for node in ast.walk(shadow_renderer)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and (node.func.value.id, node.func.attr) == ("theme", "accent")
+    ]
+    assert accent_calls == []

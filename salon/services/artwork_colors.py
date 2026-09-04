@@ -59,10 +59,9 @@ def glow_color(accent: Gdk.RGBA) -> Gdk.RGBA:
     A tile's accent is whatever its artwork happens to be built from, and
     plenty of those are dark or desaturated — the hue hashed from a tile id,
     a muted app icon. Blurred at low alpha against a near-black backdrop,
-    such a colour produces no visible bloom at all, which is how the focus
-    treatment ended up reading as a flat outline. Lifting lightness and
-    saturation to a floor keeps each tile's own hue while guaranteeing the
-    bloom actually looks like light falling on the screen.
+    such a colour produces no visible light at all. Lifting lightness and
+    saturation to a floor lets launching surfaces retain the tile's hue
+    while still reading as light falling on the screen.
     """
     hue, lightness, saturation = colorsys.rgb_to_hls(accent.red, accent.green, accent.blue)
     red, green, blue = colorsys.hls_to_rgb(hue, max(lightness, 0.62), max(saturation, 0.65))
