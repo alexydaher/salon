@@ -22,9 +22,19 @@ class HomeLaunchController(ServiceComponent):
         self._owner._publish_remote_state()
 
     def _return_from_child(self) -> bool:
-        """Come back to Salon while leaving the foreground app alive."""
+        """Come back to Salon while leaving the foreground app alive.
+
+        Two things it must never do, both of which it used to: switch away
+        from a Salon already in front, where the MRU switch answers a stale
+        flag by opening an application; and refuse on `return_to_salon`
+        saying False, which only reports that no child is tracked.
+        """
+        if self._owner._salon_in_front():
+            self._owner._reconcile_child_state()
+            return True
         title = self._owner._launcher.child_title or "the app"
-        if self._owner._pointer.ready and self._owner._launcher.return_to_salon():
+        if self._owner._pointer.ready:
+            self._owner._launcher.return_to_salon()
             if self._owner._pointer.switch_window():
                 self._owner._toast(f"Returning to Salon — {title} stays open.")
                 return True

@@ -8,6 +8,7 @@ from salon.ui.home_action_router import HomeActionRouter
 from salon.ui.home_bindings import HomeBindingController
 from salon.ui.home_catalog import HomeCatalogController
 from salon.ui.home_focus import HomeFocusController
+from salon.ui.home_front import HomeFrontController
 from salon.ui.home_idle import HomeIdleController
 from salon.ui.home_landing import HomeLandingController
 from salon.ui.home_launching import HomeLaunchController
@@ -63,6 +64,7 @@ class HomeView(
     HomeNowPlayingCursor,
     HomeOverlayController,
     HomeShellChrome,
+    HomeFrontController,
     HomeLaunchController,
     HomePowerMenuController,
 ):

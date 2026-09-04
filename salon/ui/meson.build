@@ -31,6 +31,8 @@ python_sources = [
   'home_launching.py',
   'home_legend.py',
   'home_legend_policy.py',
+  'home_front.py',
+  'home_front_policy.py',
   'home_playback_policy.py',
   'home_landing.py',
   'home_layout_build.py',

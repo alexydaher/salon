@@ -169,11 +169,7 @@ class HomeFocusController(ServiceComponent):
         and Search do nothing at all, and only the trackpad, the volume and
         Menu still mean something.
         """
-        if (
-            self._owner._child_active
-            or self._owner._pointer_mode
-            or self._owner._launcher.has_child
-        ):
+        if self._owner._app_covering():
             return self._owner._launcher.child_title or "an app"
         return ""
 
@@ -197,8 +193,10 @@ class HomeFocusController(ServiceComponent):
             return f"Opening {self._owner._launcher.child_title or 'an app'}…"
         # pointer_mode as well as child_active: a *browser* tile puts Salon
         # behind Chrome without setting child_active, so testing only the
-        # latter told the phone it was on Home with Netflix on the TV.
-        if self._owner._child_active or self._owner._pointer_mode:
+        # latter told the phone it was on Home with Netflix on the TV. And
+        # both are checked against Salon's own focus, so a flag left
+        # standing by a missing edge cannot name an app that has gone.
+        if self._owner._app_covering():
             return self._owner._launcher.child_title or "app"
         return "home"
 

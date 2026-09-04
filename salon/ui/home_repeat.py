@@ -48,6 +48,10 @@ class HomeRepeatController(ServiceComponent):
         to each of its two dozen early returns: one of those would have been
         forgotten, and the symptom would be a phone showing the wrong screen
         with no clue why."""
+        # Before the dispatch, because half of what it decides turns on "is
+        # an application covering the television" — an answer kept in flags
+        # set from compositor edges that can go missing. See home_front.
+        self._owner._reconcile_child_state()
         self._owner._dispatch_action(action)
         self._owner._publish_remote_state()
         # After the dispatch, not before: the legend describes the mode the

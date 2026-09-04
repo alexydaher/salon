@@ -58,7 +58,7 @@ class HomeLegendController(ServiceComponent):
             # "Close" is a lie on a second level, and the power list is one.
             leaving = "Back a step" if menu.has_back else "Close"
             return ((cap(Action.OK), "Choose"), (cap(Action.BACK), leaving))
-        if self._owner._child_active or self._owner._pointer_mode:
+        if self._owner._app_covering():
             # The one thing that still works from behind another
             # application, and the one nobody can guess.
             return ((cap(Action.MENU), "Back to Salon"),)

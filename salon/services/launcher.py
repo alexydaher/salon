@@ -123,6 +123,25 @@ class LauncherService:
         self._closing_current = False
         return True
 
+    def mark_returned(self) -> None:
+        """Finish an outstanding return because Salon is demonstrably in front.
+
+        The same conclusion `notify_window_active` reaches from an edge,
+        reached from the level instead, because the edge can simply never
+        happen: a launch that produced no window leaves phase 1 waiting on an
+        activity change that has been and gone, and a return switch injected
+        while Salon was *already* focused gives GTK nothing to notify about.
+        Either way `has_child` stayed true for the life of the process, and
+        everything asking whether an app covers the television — the phone's
+        whole D-pad among them — went on answering yes. Never ends a child:
+        the process stays in the running-app registry as it does on the edge.
+        """
+        if not self.has_child:
+            return
+        if not self._closing_current:
+            self._keep_running_on_return = True
+        self._finish_return()
+
     def close_app(self, app_id: str) -> bool:
         if app_id == self.front_child_id:
             return self.close_child()
