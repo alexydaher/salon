@@ -144,3 +144,27 @@ class HomeScrollController(ServiceComponent):
             self._owner._row_anchor.bump(distance)
         elif bump is Bump.DOWN:
             self._owner._row_anchor.bump(-distance)
+
+    def _update_backdrop_position(self) -> None:
+        """Put the ambient pool of light roughly behind the focused tile."""
+        if (
+            not self._owner._rows
+            or self._owner._viewport_width <= 0
+            or self._owner._viewport_height <= 0
+        ):
+            return
+        row = self._owner._rows[min(self._owner._focus.row, len(self._owner._rows) - 1)]
+        col = max(0, min(self._owner._focus.col, len(row.tiles) - 1)) if row.tiles else 0
+        local_x = (
+            self._row_scroll_x(row)
+            + row.metrics.bleed
+            + col * row.metrics.step
+            + row.metrics.width / 2.0
+        )
+        backdrop_width = self._owner._backdrop.get_width()
+        if backdrop_width > 0:
+            x = (self._owner._viewport_host.get_margin_start() + local_x) / backdrop_width
+        else:
+            x = local_x / self._owner._viewport_width
+        y = tokens.ROW_ANCHOR_FRACTION
+        self._owner._backdrop.set_focus_position(x, y)
