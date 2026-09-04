@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -16,8 +18,19 @@ from salon.ui.scale import Scale  # noqa: E402
 class RemoteHintHost(Gtk.Widget):
     """Keep a naturally wide URL or title inside the console rail."""
 
-    def __init__(self, card: RemoteHint, scale: Scale) -> None:
+    def __init__(
+        self,
+        card: RemoteHint,
+        scale: Scale,
+        on_reserve: Callable[[int], None] | None = None,
+    ) -> None:
         super().__init__()
+        # Reported rather than asked for: the now-playing card above this
+        # one is a different overlay child and is sized against whatever is
+        # left of the rail, so every change of footprint here — appearing,
+        # going away, moving out to Settings' own layout — has to reach it.
+        self._on_reserve = on_reserve
+        self.connect("notify::visible", lambda *_arguments: self._publish_reserved())
         self._card = card
         self._card.set_parent(self)
         self._settings_layout = False
@@ -54,6 +67,23 @@ class RemoteHintHost(Gtk.Widget):
             # aligned with the previous layout.
             self.set_margin_bottom(self._scale.px(22.0))
         self.queue_resize()
+        self._publish_reserved()
+
+    def _publish_reserved(self) -> None:
+        if self._on_reserve is not None:
+            self._on_reserve(self.reserved_height)
+
+    @property
+    def reserved_height(self) -> int:
+        """How much of the rail's bottom this card is standing on.
+
+        Zero when it is not on screen, or when Settings has moved it out of
+        the rail: the now-playing card above it is given the rest, and a
+        card that is not there reserves nothing.
+        """
+        if not self.get_visible() or self._settings_layout:
+            return 0
+        return self._height + self.get_margin_bottom()
 
     def refresh(self) -> bool:
         return self._card.refresh()

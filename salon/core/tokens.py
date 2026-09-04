@@ -184,6 +184,15 @@ CONSOLE_WIDTH_DU: float = 336.0
 CONTENT_GUTTER_DU: float = 48.0
 ACTION_BAR_HEIGHT_DU: float = 88.0
 CONSOLE_GAP_DU: float = 18.0
+# The rail's insets and its blocks' padding. Here rather than in the CSS
+# generator because the sidebar sizes the now-playing card off them.
+CONSOLE_INSET_X_DU: float = 30.0
+CONSOLE_INSET_Y_DU: float = 34.0
+CONSOLE_BLOCK_PAD_DU: float = 20.0
+# The now-playing covers. The primary one is this size only while it sits
+# beside the text; given the height it stands above it, block-wide.
+NOW_PLAYING_COVER_DU: float = 76.0
+NOW_PLAYING_SOURCE_COVER_DU: float = 30.0
 # Transparent padding carried inside every tile widget's own footprint, so
 # the focus scale-up has somewhere to render without the row viewport's clip
 # cutting into it.

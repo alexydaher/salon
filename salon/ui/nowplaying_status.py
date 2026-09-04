@@ -1,5 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Compact now-playing status centred in the home screen's top bar."""
+"""The console rail's now-playing card: a readout that can be operated.
+
+Three things this owes the room, in order. What is playing — cover, title,
+artist, and which application it arrived through (`nowplaying_primary`).
+Where it has got to — a timeline that advances locally between MPRIS
+snapshots. And the ability to do something about it: a real transport row,
+plus a pair of arrows on the heading line when there is more than one media
+source (`nowplaying_keys`).
+
+**One source is drawn at a time**, and those arrows are how the others are
+reached. That is what makes the card a fixed size; `core/nowplaying_card`
+has the reasoning for dropping the old stacked arrangement, and for why the
+card no longer asks the rail how much room it has been left.
+
+Every control is a D-pad stop as well as a pointer target. LEFT off the
+first column of the home screen enters the card; `ui/home_now_playing`
+drives that path through `move`, `activate` and `set_card_focused`.
+"""
 
 from __future__ import annotations
 
@@ -9,111 +26,93 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-gi.require_version("Pango", "1.0")
-from gi.repository import Gdk, Gtk, Pango  # noqa: E402
+from gi.repository import Gdk, Gtk  # noqa: E402
 
+from salon.core.actions import Action  # noqa: E402
 from salon.core.nowplaying import PLAYING, Player, describe  # noqa: E402
-from salon.ui.nowplaying_progress import MediaProgress, SquareCover, source_button  # noqa: E402
+from salon.core.nowplaying_card import (  # noqa: E402
+    HEADING,
+    CardKey,
+    select_source,
+    source_position,
+    step_source,
+)
+from salon.ui.nowplaying_keys import CardKeys  # noqa: E402
+from salon.ui.nowplaying_primary import PrimaryReadout  # noqa: E402
+from salon.ui.nowplaying_progress import MediaProgress, set_transport_icon  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
+
+_PLAY = ("media-playback-start-symbolic", "Play")
+_PAUSE = ("media-playback-pause-symbolic", "Pause")
 
 
 class NowPlayingStatus(Gtk.Box):
-    def __init__(self, scale: Scale, on_activate: Callable[[str], None] | None = None) -> None:
+    def __init__(
+        self,
+        scale: Scale,
+        on_activate: Callable[[str], None] | None = None,
+        on_skip: Callable[[str, bool], None] | None = None,
+    ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("salon-now-playing")
         self.add_css_class("salon-console-block")
         self.set_halign(Gtk.Align.FILL)
         self.set_valign(Gtk.Align.START)
         self.set_visible(False)
-        # STATUS keeps track changes announced without taking Salon's cursor.
-        self.set_accessible_role(Gtk.AccessibleRole.STATUS)
+        self.set_accessible_role(Gtk.AccessibleRole.GROUP)
+        self.update_property([Gtk.AccessibleProperty.LABEL], ["Now playing"])
         self._on_activate = on_activate
-        self._active_source = ""
-        # Off unless there is something for a click to do: this is an
-        # overlay child sitting over the top of the scrolling rows, and one
-        # that takes pointer events it has no use for is one that eats the
-        # presses meant for the tile underneath.
-        self.set_can_target(on_activate is not None)
-        if on_activate is not None:
-            self.add_css_class("salon-now-playing-active")
-            self.set_cursor(Gdk.Cursor.new_from_name("pointer", None))
-            click = Gtk.GestureClick()
-            click.connect("released", self._on_click)
-            self.add_controller(click)
+        self._on_skip = on_skip
+        self._players: tuple[Player, ...] = ()
+        self._index = 0
+        # The bus name currently drawn, which is what a fresh snapshot is
+        # matched against: the card follows the source someone chose, not
+        # the slot it happened to be in.
+        self._showing = ""
+        self._artwork_for: Callable[[str], Gdk.Paintable | None] | None = None
 
-        heading = Gtk.Label(label="NOW PLAYING")
+        self._keys = CardKeys(
+            scale,
+            {
+                CardKey.PREVIOUS_SOURCE: lambda: self._pick(forward=False),
+                CardKey.NEXT_SOURCE: lambda: self._pick(forward=True),
+                CardKey.PREVIOUS_TRACK: lambda: self._skip(forward=False),
+                CardKey.PLAY_PAUSE: self._toggle,
+                CardKey.NEXT_TRACK: lambda: self._skip(forward=True),
+            },
+        )
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        header.add_css_class("salon-now-playing-header")
+        heading = Gtk.Label(label=HEADING)
         heading.add_css_class("salon-console-heading")
         heading.set_halign(Gtk.Align.START)
-        self.append(heading)
-        self._heading = heading
-        content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.append(content)
-        self._content = content
+        heading.set_hexpand(True)
+        header.append(heading)
+        header.append(self._keys.picker)
+        self.append(header)
 
-        # Cover art stays clean — the play/pause state lives at the left of
-        # the progress timeline below, not on the artwork.
-        self._art = SquareCover()
-        content.append(self._art)
-        labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        content.append(labels)
-        self._title = Gtk.Label()
-        self._title.add_css_class("salon-now-playing-title")
-        self._title.set_halign(Gtk.Align.START)
-        self._title.set_ellipsize(Pango.EllipsizeMode.END)
-        labels.append(self._title)
-        self._separator = Gtk.Label(label="")
-        self._separator.set_visible(False)
-        self._detail = Gtk.Label()
-        self._detail.add_css_class("salon-now-playing-detail")
-        self._detail.set_halign(Gtk.Align.START)
-        self._detail.set_ellipsize(Pango.EllipsizeMode.END)
-        labels.append(self._detail)
-        self._labels = labels
-        self._progress = MediaProgress()
+        self._readout = PrimaryReadout(scale, None if on_activate is None else self._toggle)
+        self.append(self._readout)
+        self._progress = MediaProgress(show_state=False)
         self.append(self._progress)
-        self._extra = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self._extra.add_css_class("salon-now-playing-sources")
-        self.append(self._extra)
+        self._keys.transport.set_visible(on_activate is not None or on_skip is not None)
+        self.append(self._keys.transport)
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
-        self.set_spacing(scale.px(14.0))
-        self._content.set_spacing(scale.px(14.0))
-        self._labels.set_spacing(scale.px(3.0))
-        self._extra.set_spacing(scale.px(4.0))
-        icon_size = scale.px(50.0)
-        self._art.set_size(icon_size)
-        self._progress.set_state_size(scale.px(20.0))
-        # Secondary rows use the same cover size as the primary readout.
-        self._source_art_px = icon_size
-        self.set_size_request(-1, scale.px(141.0))
-        self.set_margin_top(0)
-
-    def set_track(self, title: str, detail: str, *, playing: bool) -> None:
-        state = "Playing" if playing else "Paused"
-        self._title.set_label(title)
-        self._detail.set_label(detail)
-        self._separator.set_visible(bool(detail))
-        self._detail.set_visible(bool(detail))
-        phrase = f"{state} {title}"
-        if detail:
-            phrase += f", {detail}"
-        self.update_property([Gtk.AccessibleProperty.LABEL], [phrase])
-        self.set_visible(True)
+        self.set_spacing(scale.px(12.0))
+        self._readout.set_scale(scale)
+        self._keys.set_scale(scale)
 
     def set_artwork(self, artwork: Gdk.Paintable | None) -> None:
-        # The state marker stays visible with or without a cover.
-        self._art.set_paintable(artwork)
+        self._readout.set_artwork(artwork)
 
     def clear(self) -> None:
         self.set_artwork(None)
-        child = self._extra.get_first_child()
-        while child is not None:
-            following = child.get_next_sibling()
-            self._extra.remove(child)
-            child = following
-        self._active_source = ""
-        self._heading.set_label("NOW PLAYING")
+        self._players = ()
+        self._index = 0
+        self._showing = ""
+        self._keys.set_sources(0)
         self._progress.set_snapshot(-1, 0, False)
         self.set_visible(False)
 
@@ -124,53 +123,78 @@ class NowPlayingStatus(Gtk.Box):
         current_source: str = "",
         artwork_for: Callable[[str], Gdk.Paintable | None] | None = None,
     ) -> None:
-        """Draw every active source in the standing left column."""
+        """Take a fresh MPRIS snapshot, keeping the source that is showing.
+
+        The players arrive in discovery order and stay in it — sorting the
+        chosen one to the front would move every other source out from
+        under the picker each time the front one changed.
+        """
         if not players:
             self.clear()
             return
-        ordered = sorted(
-            players,
-            key=lambda player: (player.bus_name != current_source,),
+        self._artwork_for = artwork_for
+        self._players = tuple(players)
+        self._index = select_source(
+            [player.bus_name for player in self._players], self._showing, current_source
         )
-        first = ordered[0]
-        self._heading.set_label(f"NOW PLAYING · {len(ordered)}")
-        self._active_source = first.bus_name
-        # detail leads with the artist / channel, then the application.
-        title, detail = describe(first, include_status=False)
-        self.set_track(title, detail, playing=first.status == PLAYING)
-        self._progress.set_snapshot(first.position_us, first.length_us, first.status == PLAYING)
-        if artwork_for is not None:
-            self.set_artwork(artwork_for(first.art_url))
+        self._render()
 
-        child = self._extra.get_first_child()
-        while child is not None:
-            following = child.get_next_sibling()
-            self._extra.remove(child)
-            child = following
-        for player in ordered[1:]:
-            source_art = artwork_for(player.art_url) if artwork_for is not None else None
-            self._extra.append(
-                source_button(
-                    player,
-                    self._activate_source,
-                    artwork=source_art,
-                    art_px=self._source_art_px,
-                )
-            )
+    def _render(self) -> None:
+        player = self._players[self._index]
+        self._showing = player.bus_name
+        playing = player.status == PLAYING
+        self._keys.position.set_label(source_position(self._index, len(self._players)))
+        self._keys.set_sources(len(self._players))
+        title, _detail = describe(player, include_status=False)
+        self._readout.set_track(
+            title, player.artist.strip(), player.identity.strip(), playing=playing
+        )
+        set_transport_icon(self._keys[CardKey.PLAY_PAUSE], *(_PAUSE if playing else _PLAY))
+        self._progress.set_snapshot(player.position_us, player.length_us, playing)
+        if self._artwork_for is not None:
+            self.set_artwork(self._artwork_for(player.art_url))
+        self._keys[CardKey.PREVIOUS_TRACK].set_sensitive(player.can_go_previous)
+        self._keys[CardKey.NEXT_TRACK].set_sensitive(player.can_go_next)
         self.set_visible(True)
 
-    def _activate_source(self, source: str) -> None:
-        if self._on_activate is not None:
-            self._on_activate(source)
+    # --- the D-pad path, delegated to the keys ---------------------------
 
-    def _on_click(self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float) -> None:
-        """A press on the readout toggles the player it is describing.
+    @property
+    def has_media(self) -> bool:
+        return bool(self._players)
 
-        On release rather than on press, and only the first of a double:
-        the second click of an accidental double would otherwise pause and
-        resume, which looks exactly like nothing happening.
-        """
-        if n_press != 1 or self._on_activate is None:
+    @property
+    def cursor_hint(self) -> tuple[str, str]:
+        return self._keys.hint
+
+    @property
+    def cursor_widget(self) -> Gtk.Widget | None:
+        return self._keys.widget
+
+    def set_card_focused(self, focused: bool) -> None:
+        self._keys.set_focused(focused)
+
+    def enter_cursor(self) -> None:
+        self._keys.enter()
+
+    def move(self, action: Action) -> bool:
+        return self._keys.move(action)
+
+    def activate(self) -> None:
+        self._keys.activate()
+
+    # --- what the keys do ------------------------------------------------
+
+    def _pick(self, *, forward: bool) -> None:
+        if len(self._players) <= 1:
             return
-        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
-        self._on_activate(self._active_source)
+        self._index = step_source(self._index, len(self._players), forward=forward)
+        self._render()
+
+    def _toggle(self) -> None:
+        if self._on_activate is not None:
+            self._on_activate(self._showing)
+
+    def _skip(self, *, forward: bool) -> None:
+        if self._on_skip is not None:
+            self._on_skip(self._showing, forward)

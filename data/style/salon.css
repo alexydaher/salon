@@ -540,8 +540,8 @@ toast > label {
    visible once the pointer is already on it. Hover only: there is no
    keyboard or controller route in, by design. */
 .salon-now-playing-active:hover {
-  background-color: alpha(@surface-1, 0.92);
-  border-color: alpha(@text-primary, 0.18);
+  background-color: alpha(@text-primary, 0.06);
+  border-radius: var(--radius);
 }
 
 .salon-now-playing-title {
@@ -764,6 +764,27 @@ toast > label {
   margin-bottom: var(--heading-gap);
 }
 
+/* "NOW PLAYING" and the source picker share one line. The gap under the
+   heading moves to the row, or the label's own bottom margin makes the row
+   taller than the arrows standing beside it. */
+.salon-now-playing-header {
+  margin-bottom: var(--heading-gap);
+}
+
+.salon-now-playing-header .salon-console-heading {
+  margin-bottom: 0;
+}
+
+/* Which of several sources the card is showing, and the two keys that walk
+   between them. Present only above one source: the card draws one at a
+   time and these are the whole route to the others. */
+.salon-now-playing-position {
+  color: @text-secondary;
+  font-size: calc(var(--font-tile-subtitle) * 0.52);
+  font-feature-settings: "tnum" 1;
+  font-weight: 600;
+}
+
 .salon-console-stat {
   padding: calc(var(--pad-s) / 2) 0;
 }
@@ -808,27 +829,120 @@ toast > label {
   font-size: calc(var(--font-tile-subtitle) * 0.62);
 }
 
-/* Additional MPRIS sources stay in the same left-column block. Each row is
-   a real independent transport target; the first row remains the physical
-   remote's play-key target and the rows below never borrow its state. */
-.salon-now-playing-sources {
-  margin-top: calc(var(--pad-s) / 2);
-  border-top: calc(var(--focus-ring) / 3) solid alpha(@text-primary, 0.12);
-  padding-top: calc(var(--pad-s) / 2);
+/* The application the sound is arriving through. A badge rather than a
+   third clause on the artist line: it answers "where is this coming from",
+   which is a different question from "who is this", and it is the one of
+   the three that is safe to lose first when the column is narrow. */
+.salon-now-playing-badge {
+  background-color: alpha(@text-primary, 0.1);
+  border-radius: var(--radius-pill);
+  margin-top: calc(var(--pad-s) / 4);
+  padding: calc(var(--pad-s) / 6) calc(var(--pad-s) / 1.6);
 }
 
-.salon-now-playing-source {
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius);
-  /* No horizontal padding: the cover and timeline must line up with the
-     primary readout above, which sits flush against the block edge. */
-  padding: calc(var(--pad-s) / 2) 0;
+/* No letter-spacing here, however much the pill would like it: GTK
+   measures the label without the CSS spacing attribute and renders it
+   with, so the layout came out four pixels wider than the width it had
+   just asked for and Pango ellipsized inside its own allocation —
+   "Spoti…" at a measured natural of 47px in a 47px box. */
+.salon-now-playing-badge-label {
   color: @text-secondary;
+  font-size: calc(var(--font-tile-subtitle) * 0.52);
+  font-weight: 600;
 }
 
-.salon-now-playing-source:hover {
+/* The transport. Three keys, the middle one carrying the state, all of
+   them real buttons — the rail is within the pointer's reach and the marker
+   that used to sit here could report the state and nothing else. */
+.salon-now-playing-transport {
+  margin-top: calc(var(--pad-s) / 3);
+}
+
+.salon-now-playing-key {
+  background-color: alpha(@text-primary, 0.07);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: @text-primary;
+  min-height: 0;
+  min-width: 0;
+  padding: calc(var(--pad-s) / 2) var(--pad-s);
+}
+
+.salon-now-playing-key.primary {
+  background-color: @accent;
+  /* Same ink every other accent-filled surface here uses, rather than a
+     second answer to "what is legible on the accent". */
+  color: @surface-0;
+  padding: calc(var(--pad-s) / 2) calc(var(--pad-s) * 1.4);
+}
+
+.salon-now-playing-key:hover {
+  background-color: alpha(@text-primary, 0.16);
+}
+
+.salon-now-playing-key.primary:hover {
+  background-color: mix(@accent, @text-primary, 0.15);
+}
+
+.salon-now-playing-key:disabled {
+  color: alpha(@text-secondary, 0.4);
+}
+
+/* The picker's arrows are the same key as the transport's, quieter: they
+   ride on the heading line, which is the smallest type on the card.
+   The vertical padding is there for the cursor to stand in: the ring is
+   drawn inside the padding box, so with none of it a 3du ring around a
+   15du chevron is most of the key, and the focused arrow came out an
+   accent lozenge with a smudge in the middle of it. */
+.salon-now-playing-key.pick {
+  background-color: transparent;
+  padding: calc(var(--pad-s) / 4) calc(var(--pad-s) / 2);
+}
+
+.salon-now-playing-key.pick:hover {
+  background-color: alpha(@text-primary, 0.16);
+}
+
+/* The D-pad's ring. Every key on the card is a cursor stop as well as a
+   pointer target, and the ring is what says which one OK would press —
+   drawn on the key rather than around the card, because the card is not
+   the thing being chosen.
+
+   The fill under the ring is a neutral lift, not a wash of accent: 28% of
+   the accent over the rail's near-black mixes to a brown, and a brown key
+   standing next to the accent-filled play button reads as the dimmed one
+   of the pair — which is the reverse of what the ring is saying. Skip
+   backward and skip forward are the two keys this is drawn on most, so it
+   was the common case that read wrong. The accent stays on the outline,
+   where it is against the card rather than against the play key. */
+.salon-now-playing-key.cursor {
+  background-color: alpha(@text-primary, 0.22);
+  box-shadow: inset 0 0 0 var(--focus-ring) @accent;
+  color: @text-primary;
+}
+
+/* Two thirds of a ring on a key a third of the transport's size. */
+.salon-now-playing-key.pick.cursor {
+  background-color: alpha(@text-primary, 0.18);
+  box-shadow: inset 0 0 0 calc(var(--focus-ring) * 0.66) @accent;
+}
+
+.salon-now-playing-key.primary.cursor {
+  background-color: @accent;
+  box-shadow: inset 0 0 0 var(--focus-ring) @text-primary;
+  color: @surface-0;
+}
+
+/* A key the source cannot serve stays greyed while the ring is on it.
+   Previous and Next are cursor stops whether or not the player can skip,
+   and OK there deliberately does nothing — so the one press that reaches
+   them has to arrive at something that still looks unavailable. This rule
+   is what `:disabled` alone could not do: it and `.cursor` weigh the same,
+   and the ring is written second. */
+.salon-now-playing-key.cursor:disabled {
   background-color: alpha(@text-primary, 0.08);
+  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@text-secondary, 0.45);
+  color: alpha(@text-secondary, 0.4);
 }
 
 /* Play/pause marker beside the cover — never drawn over the artwork.
@@ -847,6 +961,17 @@ toast > label {
   margin-top: calc(var(--pad-s) / 3);
   color: @text-secondary;
   font-size: calc(var(--font-tile-subtitle) * 0.52);
+}
+
+/* A GtkProgressBar carries a 150px minimum width from the platform theme,
+   which does not scale with the design units the rail is measured in: on a
+   small surface that alone was 174px of minimum inside a 140px card, and
+   GTK said so on every measure pass. The bar is a timeline in a fixed
+   column here; it can be as narrow as the column is. */
+.salon-media-progress,
+.salon-media-progress trough,
+.salon-media-progress progress {
+  min-width: 0;
 }
 
 .salon-media-progress trough {

@@ -13,9 +13,7 @@ gi.require_version("Graphene", "1.0")
 gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
 gi.require_version("Pango", "1.0")
-from gi.repository import Gdk, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
-
-from salon.core.nowplaying import PLAYING, Player, describe  # noqa: E402
+from gi.repository import Gdk, GLib, Graphene, Gsk, Gtk  # noqa: E402
 
 _TICK_MS = 250
 
@@ -80,8 +78,12 @@ class SquareCover(Gtk.Widget):
         snapshot.pop()
 
 
-_STATE_ICON_PLAYING = "media-playback-pause-symbolic"
-_STATE_ICON_PAUSED = "media-playback-start-symbolic"
+# The marker beside a timeline, which is only drawn on a card that has no
+# transport row of its own to say the state with. Named, rather than spelt
+# out at each use, because two spellings of one icon name is a way for a
+# paused readout to look like a playing one.
+STATE_ICON_PLAYING = "media-playback-pause-symbolic"
+STATE_ICON_PAUSED = "media-playback-start-symbolic"
 # Gap between the state marker and the progress bar it sits beside.
 _TIMELINE_GAP = 8
 
@@ -99,17 +101,22 @@ class MediaProgress(Gtk.Box):
     """A position snapshot that advances against the local monotonic clock,
     with the play/pause marker sitting at the left of the timeline."""
 
-    def __init__(self, state_px: int = 18) -> None:
+    def __init__(self, state_px: int = 18, *, show_state: bool = True) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.add_css_class("salon-media-timeline")
         # The marker shares a row with the bar, so their centres line up;
         # the times row below is inset by the same width to stay under it.
         track = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=_TIMELINE_GAP)
         self.append(track)
-        self._state = Gtk.Image.new_from_icon_name(_STATE_ICON_PAUSED)
+        self._show_state = show_state
+        self._state = Gtk.Image.new_from_icon_name(STATE_ICON_PAUSED)
         self._state.add_css_class("salon-now-playing-state")
         self._state.set_valign(Gtk.Align.CENTER)
         self._state.set_pixel_size(state_px)
+        # A card with a real transport row underneath says the state with a
+        # button that can be pressed; repeating it beside the bar would be
+        # the same fact twice, one copy of which does nothing.
+        self._state.set_visible(show_state)
         track.append(self._state)
         self._bar = Gtk.ProgressBar()
         self._bar.add_css_class("salon-media-progress")
@@ -117,7 +124,7 @@ class MediaProgress(Gtk.Box):
         self._bar.set_valign(Gtk.Align.CENTER)
         track.append(self._bar)
         times = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        times.set_margin_start(state_px + _TIMELINE_GAP)
+        times.set_margin_start(state_px + _TIMELINE_GAP if show_state else 0)
         self._times = times
         self._elapsed = Gtk.Label()
         self._elapsed.set_hexpand(True)
@@ -137,7 +144,7 @@ class MediaProgress(Gtk.Box):
 
     def set_state_size(self, state_px: int) -> None:
         self._state.set_pixel_size(state_px)
-        self._times.set_margin_start(state_px + _TIMELINE_GAP)
+        self._times.set_margin_start(state_px + _TIMELINE_GAP if self._show_state else 0)
 
     def set_snapshot(self, position_us: int, length_us: int, playing: bool) -> None:
         self._position = position_us / 1_000_000
@@ -145,7 +152,7 @@ class MediaProgress(Gtk.Box):
         self._playing = playing
         self._sampled_at = time.monotonic()
         self._valid = self._position >= 0 and self._length > 0
-        self._state.set_from_icon_name(_STATE_ICON_PLAYING if playing else _STATE_ICON_PAUSED)
+        self._state.set_from_icon_name(STATE_ICON_PLAYING if playing else STATE_ICON_PAUSED)
         if playing:
             self._state.add_css_class("playing")
         else:
@@ -175,48 +182,30 @@ class MediaProgress(Gtk.Box):
         self._duration.set_label(_clock(self._length))
 
 
-def source_button(
-    player: Player,
-    on_activate: Callable[[str], None],
-    *,
-    artwork: Gdk.Paintable | None = None,
-    art_px: int = 34,
+def transport_button(
+    icon_name: str, label: str, on_click: Callable[[], None], *, size_px: int
 ) -> Gtk.Button:
-    """One secondary media source, including its independent timeline.
+    """One key in the card's transport row.
 
-    Same shape as the primary readout: the cover art (when the source
-    published one) beside the labels, and the timeline — with its play/pause
-    marker at the left — spanning the full width underneath.
+    A real button rather than the glyph that used to sit beside the bar:
+    the rail is inside the pointer's reach and the old marker only ever
+    reported the state it could not change.
     """
-    playing = player.status == PLAYING
     button = Gtk.Button()
-    button.add_css_class("salon-now-playing-source")
-    outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    if artwork is not None:
-        cover = SquareCover()
-        cover.set_size(art_px)
-        cover.set_paintable(artwork)
-        row.append(cover)
-    copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-    copy.set_hexpand(True)
-    copy.set_valign(Gtk.Align.CENTER)
-    title_text, detail = describe(player, include_status=False)
-    title = Gtk.Label(label=title_text)
-    title.add_css_class("salon-now-playing-title")
-    title.set_halign(Gtk.Align.START)
-    title.set_ellipsize(Pango.EllipsizeMode.END)
-    identity = Gtk.Label(label=detail)
-    identity.add_css_class("salon-now-playing-detail")
-    identity.set_ellipsize(Pango.EllipsizeMode.END)
-    identity.set_halign(Gtk.Align.START)
-    copy.append(title)
-    copy.append(identity)
-    row.append(copy)
-    timeline = MediaProgress(state_px=max(12, round(art_px * 0.4)))
-    timeline.set_snapshot(player.position_us, player.length_us, playing)
-    outer.append(row)
-    outer.append(timeline)
-    button.set_child(outer)
-    button.connect("clicked", lambda _button: on_activate(player.bus_name))
+    button.add_css_class("salon-now-playing-key")
+    image = Gtk.Image.new_from_icon_name(icon_name)
+    image.set_pixel_size(size_px)
+    button.set_child(image)
+    button.set_tooltip_text(label)
+    button.update_property([Gtk.AccessibleProperty.LABEL], [label])
+    button.connect("clicked", lambda _button: on_click())
     return button
+
+
+def set_transport_icon(button: Gtk.Button, icon_name: str, label: str) -> None:
+    """Re-point a transport key without rebuilding the row it lives in."""
+    child = button.get_child()
+    if isinstance(child, Gtk.Image):
+        child.set_from_icon_name(icon_name)
+    button.set_tooltip_text(label)
+    button.update_property([Gtk.AccessibleProperty.LABEL], [label])

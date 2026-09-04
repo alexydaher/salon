@@ -31,6 +31,7 @@ from gi.repository import Gdk, Gio, GLib  # noqa: E402
 
 from salon import config  # noqa: E402
 from salon.app import SalonApplication  # noqa: E402
+from salon.core.nowplaying import PLAYING, Player  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.ui.search_models import Pane  # noqa: E402
 from salon.ui.settings.advanced_input_panel import advanced_input_panel  # noqa: E402
@@ -106,8 +107,20 @@ def main() -> int:
 
             def show_now_playing() -> None:
                 home._phone_pairing.close()
-                home._now_playing_status.set_track(
-                    "Blue Monday", "New Order", playing=True
+                home._now_playing_status.set_players(
+                    (
+                        Player(
+                            "org.mpris.MediaPlayer2.capture",
+                            "Spotify",
+                            PLAYING,
+                            title="Blue Monday",
+                            artist="New Order",
+                            position_us=61_000_000,
+                            length_us=442_000_000,
+                            can_go_next=True,
+                            can_go_previous=True,
+                        ),
+                    )
                 )
                 home._now_playing_status.set_artwork(
                     Gdk.Texture.new_from_filename(str(ROOT / "tests/fixtures/movie-night.svg"))

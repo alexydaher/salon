@@ -98,9 +98,11 @@ def build_css(scale: Scale) -> str:
     lines.append(f"  --console-width: {scale.du(tokens.CONSOLE_WIDTH_DU):.1f}px;")
     lines.append(f"  --content-gutter: {scale.du(tokens.CONTENT_GUTTER_DU):.1f}px;")
     lines.append(f"  --action-height: {scale.du(tokens.ACTION_BAR_HEIGHT_DU):.1f}px;")
-    lines.append(f"  --console-inset-x: {scale.du(30.0):.1f}px;")
-    lines.append(f"  --console-inset-y: {scale.du(34.0):.1f}px;")
-    lines.append(f"  --console-block-pad: {scale.du(20.0):.1f}px;")
+    lines.append(f"  --console-inset-x: {scale.du(tokens.CONSOLE_INSET_X_DU):.1f}px;")
+    lines.append(f"  --console-inset-y: {scale.du(tokens.CONSOLE_INSET_Y_DU):.1f}px;")
+    lines.append(
+        f"  --console-block-pad: {scale.du(tokens.CONSOLE_BLOCK_PAD_DU):.1f}px;"
+    )
     lines.append(f"  --settings-inset: {scale.du(64.0):.1f}px;")
     lines.append(f"  --pad-s: {scale.du(12.0):.1f}px;")
     lines.append(f"  --pad-m: {scale.du(24.0):.1f}px;")

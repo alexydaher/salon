@@ -114,6 +114,19 @@ class HomeIdleController(ServiceComponent):
         self.wake()
         self._play_pause()
 
+    def _skip_source(self, source: str, forward: bool) -> None:
+        """The rail's transport keys move within the row they belong to.
+
+        Unlike the remote's NEXT, which addresses whatever is playing, these
+        keys are drawn beside a particular readout and have to reach the
+        player that readout describes.
+        """
+        self.wake()
+        watcher = self._owner._now_playing
+        skip = watcher.next_track if forward else watcher.previous_track
+        if not skip(source or None):
+            self._owner._toast("That media source is no longer available.")
+
     def _toggle_source_playback(self, source: str) -> None:
         """The left column addresses the row that was actually pressed."""
         self.wake()
@@ -129,6 +142,9 @@ class HomeIdleController(ServiceComponent):
             current_source=player.bus_name if player is not None else "",
             artwork_for=self._owner._artwork.texture_for_uri,
         )
+        # The last player quitting hides the whole block, and the D-pad's
+        # ring can be sitting in it when that happens.
+        self._owner._sync_card_focus()
 
     def _on_artwork_fetched(self) -> None:
         """Refresh both consumers of Salon's shared artwork cache."""

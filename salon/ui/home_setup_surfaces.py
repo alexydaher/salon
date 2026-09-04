@@ -73,15 +73,22 @@ class HomeSurfaceSetup(ServiceComponent):
             on_power=self._owner._show_power_menu,
         )
         self._owner._nav_focused = False
+        # Whether the ring is in the rail's now-playing card. It, the top
+        # bar and the tiles are one cursor with three homes; see
+        # HomeNavigationController._set_card_focused.
+        self._owner._card_focused = False
         self._owner._menu_focus_owned = False
         self._owner._menu_origin_nav_focused = False
+        self._owner._menu_origin_card_focused = False
         self._owner._overlay.add_overlay(self._owner._status_bar)
         # Playback is global state rather than detail about the selected
         # tile, so give it the otherwise quiet centre of the top bar.  It is
         # an independent overlay child: putting it in the bottom row made it
         # compete with both the selection description and the button legend.
         self._owner._now_playing_status = NowPlayingStatus(
-            self._owner._scale, on_activate=self._owner._toggle_source_playback
+            self._owner._scale,
+            on_activate=self._owner._toggle_source_playback,
+            on_skip=self._owner._skip_source,
         )
         self._owner._console_sidebar = ConsoleSidebar(
             self._owner._scale,
@@ -126,6 +133,7 @@ class HomeSurfaceSetup(ServiceComponent):
                 on_open=self._owner._open_phone_pairing,
             ),
             self._owner._scale,
+            self._owner._console_sidebar.set_bottom_reserved,
         )
         self._owner._launching_overlay = LaunchingOverlay(self._owner._scale)
         self._owner._overlay.add_overlay(self._owner._launching_overlay)

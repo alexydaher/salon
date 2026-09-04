@@ -4,6 +4,7 @@ python_sources = [
   'errors.py',
   'model.py',
   'nowplaying.py',
+  'nowplaying_card.py',
   'catalog.py',
   'bindings.py',
   'buttons.py',

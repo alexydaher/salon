@@ -22,13 +22,24 @@ class ConsoleSidebar(Gtk.Widget):
     ) -> None:
         super().__init__()
         self._width = 1
+        self._status = status
+        self._card = now_playing
+        self._reserved = 0
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._content.add_css_class("salon-console-sidebar")
         self._content.set_parent(self)
         self.set_halign(Gtk.Align.START)
         self.set_valign(Gtk.Align.FILL)
         self.set_vexpand(True)
-        self.set_can_target(False)
+        # The rail takes presses, because the now-playing card in it is a
+        # transport. It used to refuse them as a whole, which made that
+        # card's click-to-toggle and every transport key dead: `pick()` at
+        # the card's centre returned the overlay underneath. Nothing scrolls
+        # behind the rail — the viewport host starts at its right edge — so
+        # the cost of being targetable is nil. The blocks that only report
+        # facts still keep their hands off the pointer.
+        self.set_can_target(True)
+        status.set_can_target(False)
         self.set_overflow(Gtk.Overflow.HIDDEN)
         self._content.set_overflow(Gtk.Overflow.HIDDEN)
         self._content.append(status)
@@ -36,9 +47,23 @@ class ConsoleSidebar(Gtk.Widget):
         self.set_scale(scale)
 
     def set_scale(self, scale: Scale) -> None:
+        self._scale = scale
         self._width = scale.px(tokens.CONSOLE_WIDTH_DU)
         self._content.set_spacing(scale.px(tokens.CONSOLE_GAP_DU))
         self.queue_resize()
+
+    def set_bottom_reserved(self, reserved_px: int) -> None:
+        """How much of the column's bottom something else has taken.
+
+        The pairing card is pinned to the bottom of this rail and is a
+        separate overlay child, so neither it nor the now-playing card can
+        see the other. This is where they are told about each other.
+        """
+        reserved = max(0, reserved_px)
+        if reserved == self._reserved:
+            return
+        self._reserved = reserved
+        self.queue_allocate()
 
     def do_measure(
         self, orientation: Gtk.Orientation, for_size: int
@@ -48,7 +73,20 @@ class ConsoleSidebar(Gtk.Widget):
         return self._content.measure(orientation, self._width)
 
     def do_size_allocate(self, width: int, height: int, baseline: int) -> None:
-        self._content.allocate(self._width, height, baseline, None)
+        # The content is allocated the height *above* the pairing card, not
+        # the rail's full height. The now-playing card's design no longer
+        # grows with the number of media sources, so this is a backstop
+        # rather than a policy — but it is the one that keeps a future
+        # addition to the card from being drawn behind the QR code instead
+        # of being noticed. It used to be a height budget handed to the card
+        # on an idle, which the card answered by rebuilding itself into a
+        # second, shorter arrangement; that is the thing being removed.
+        self._content.allocate(self._width, self._usable_height(height), baseline, None)
+
+    def _usable_height(self, height: int) -> int:
+        if not self._reserved:
+            return height
+        return max(1, height - self._reserved - self._scale.px(tokens.CONSOLE_GAP_DU))
 
     def do_dispose(self) -> None:
         if self._content is not None:
