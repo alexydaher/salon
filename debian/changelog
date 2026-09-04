@@ -1,3 +1,75 @@
+salon (0.4.3-1) unstable; urgency=medium
+
+  * The left rail's now-playing card shows one media source at a time. With
+    more than one playing, a pair of arrows beside "Now playing" walks
+    between them and the card says which it is on. It used to stack every
+    source in one block — the first with its cover and timeline, the rest as
+    single lines, with a note about however many did not fit.
+  * That card is now the same card whether or not the pairing QR is standing
+    under it. Its arrangement used to be chosen against the height the rail
+    had left, so pairing a phone shrank the cover, the title and the block.
+  * The rail's now-playing card is reachable with a remote. Press left from
+    the first tile in a row to put the cursor on it, walk its keys with the
+    D-pad, and press right off the end to go back to the tiles. Play/pause,
+    the two skip keys and the source arrows all work from there; until now
+    they were buttons only a mouse could press.
+  * Web tiles can find a site's own icon again. Salon discarded any page
+    over 512 KiB instead of reading the front of it, so Netflix, Prime
+    Video, Disney+ and YouTube — four of the five tiles the first-run home
+    screen ships with — resolved no icon at all and drew identical generic
+    marks. A failed lookup was also remembered forever; it now expires after
+    a week, and Appearance has one action that forgets both the icons and
+    the failures and looks again.
+  * The idle screen covers the whole screen. The clock card, the "Home"
+    title and the top-bar buttons stayed at full brightness behind it, which
+    is the static bright image it exists to keep off a panel.
+  * A menu no longer draws its button legend on top of the description of
+    the selected tile. The standing bottom band steps aside for a menu, for
+    Settings' live preview and for a message.
+  * The volume readout and messages no longer land on the bottom band.
+  * Settings' "▲ More" indicator no longer covers the first visible row, and
+    the section list is the same height as the panel beside it, so all eight
+    sections fit without scrolling.
+  * Row descriptions in Settings wrap to a second line instead of being cut
+    off mid-word.
+  * The bottom strip repeats a tile's name whenever the card truncated it,
+    measured against the card rather than guessed from a character count. In
+    All Apps the selected application's name is no longer cut to three
+    characters.
+  * Search results fit the space beside the keyboard instead of assuming
+    three columns fit.
+  * Opening Settings at a section that does not exist is logged instead of
+    quietly landing on the section list.
+  * The console status card now chooses its four most useful live facts: the
+    current audio output, connected controller or headphone battery, and
+    controller/phone presence in normal use; low storage and overheating
+    replace quieter rows only while they need attention. Limited internet
+    now says so instead of reporting healthy Wi-Fi strength. System-health
+    checks stay off the rendering thread and work through the host when
+    Salon is installed as a Flatpak.
+  * The clock follows the region: 12- or 24-hour, and the date in the local
+    order. Appearance → Clock overrides the dial. The spoken and drawn
+    formats are now the same one.
+  * Next and Previous track, on HDMI-CEC transport keys and the keyboard's
+    media keys. They reach the player from any screen, like volume.
+  * A Power key on the phone remote, which raises the television's own Power
+    list.
+  * A button legend on the search screen, the only surface that had none.
+  * Tiles without artwork are tinted with their own colour instead of all
+    drawing the same neutral card, so a row of six is six things at a glance
+    — and the tile editor's accent picker now changes the tile you are
+    editing. Appearance → Tile background switches between that and the
+    uniform card, previewed live over the home screen; tiles with their own
+    artwork are unaffected either way.
+  * The starter catalogue no longer seeds a "Web" row containing a single
+    link to gnome.org.
+  * The console column shows network, battery and running-app rows only when
+    they have something to report, rather than standing empty.
+  * Options over a tile offers to open it from every screen, not only from
+    All Apps and search.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Fri, 04 Sep 2026 14:11:31 +0200
+
 salon (0.4.2-1) unstable; urgency=medium
 
   * Publish a signed APT archive beside the Flatpak repository, so that

@@ -6,7 +6,7 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
-## Unreleased
+## 0.4.3 — 2026-09-04
 
 ### Changed
 
