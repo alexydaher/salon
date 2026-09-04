@@ -36,11 +36,18 @@ window {
 }
 
 /* Aurora Console keeps the whole catalogue readable while letting the live
-   row come forward as one unit.  This is the mockup's 80% resting treatment,
-   with the same short transition as its heading so moving vertically feels
-   like attention shifting rather than rows blinking on and off. */
+   row come forward as one unit, with the same short transition as its
+   heading so moving vertically feels like attention shifting rather than
+   rows blinking on and off.
+
+   The mockup's resting treatment was 80%, which multiplies with a card that
+   is already translucent over a dimmed wallpaper: four rows of the
+   catalogue were being drawn at a fifth of white with nothing focused at
+   all. 0.92 still reads as "that one is live" — the focused row also
+   scales and takes an accent ring — without the whole screen
+   looking switched off. */
 .salon-tile-row {
-  opacity: 0.80;
+  opacity: 0.92;
   transition: opacity 180ms ease;
 }
 
@@ -906,7 +913,7 @@ toast > label {
   padding-left: 0;
   font-weight: 700;
   letter-spacing: 0.18em;
-  opacity: 0.55;
+  opacity: 0.74;
 }
 
 .salon-row-heading.row-focused {
