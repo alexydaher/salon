@@ -107,13 +107,17 @@ def main() -> int:
 
         A turn of the loop between the players arriving and the geometry
         being read: the rail is an overlay child and its allocation is not
-        settled in the same frame the card is filled in.
+        settled in the same frame the card is filled in. Populate the watcher
+        as well as the card: an artwork callback can refresh the card during
+        this pause, and it must see the same fixture instead of clearing it.
         """
         window = app.get_active_window()
         if window is not None:
-            window.get_content()._now_playing_status.set_players(  # noqa: SLF001
-                media_players(), current_source="org.mpris.MediaPlayer2.first"
-            )
+            home = window.get_content()
+            players = media_players()
+            for player in players:
+                home._now_playing._selection.update(player)  # noqa: SLF001
+            home._on_now_playing(home._now_playing.current)  # noqa: SLF001
         GLib.timeout_add(400, inspect)
         return GLib.SOURCE_REMOVE
 
