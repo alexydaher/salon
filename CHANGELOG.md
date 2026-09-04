@@ -40,6 +40,12 @@ Notable changes per release. Dates are ISO. This project follows
 
 ### Added
 
+- The console status card now chooses its four most useful live facts: the
+  current audio output, connected controller or headphone battery, and
+  controller/phone presence in normal use; low storage and overheating replace
+  quieter rows only while they need attention. Limited internet now says so
+  instead of reporting healthy Wi-Fi strength. System-health checks stay off the
+  rendering thread and work through the host when Salon is installed as a Flatpak.
 - The clock follows the region: 12- or 24-hour, and the date in the local
   order. Appearance → Clock overrides the dial. The spoken and drawn
   formats are now the same one.

@@ -28,7 +28,6 @@ from salon.services.audio_types import (  # noqa: E402
 
 _SINK = "@DEFAULT_AUDIO_SINK@"
 _DEFAULT_VOLUME_STEP_PERCENT = 5
-
 # Settings owns the step; this is the value the OSD path actually uses, kept
 # module-level so every caller changes together rather than each passing it.
 _volume_step_percent = _DEFAULT_VOLUME_STEP_PERCENT
@@ -117,6 +116,13 @@ def set_default_sink_result(sink_id: int, on_done: Callable[[AudioResult], None]
 _WPCTL_VOLUME_RE = re.compile(r"Volume:\s*([\d.]+)\s*(\[MUTED\])?")
 
 
+def parse_volume(output: str) -> tuple[float, bool] | None:
+    match = _WPCTL_VOLUME_RE.search(output)
+    if match is None:
+        return None
+    return (float(match.group(1)), match.group(2) is not None)
+
+
 def _have_wpctl() -> bool:
     if sandbox.in_flatpak():
         return shutil.which("flatpak-spawn") is not None
@@ -180,21 +186,27 @@ def get_volume(on_result: Callable[[float, bool], None]) -> None:
     """Reports (volume 0..1, muted). Calls on_result(1.0, False) if the
     mixer can't be reached at all — a missing sink is a real-world top
     failure mode (§11) and shouldn't crash the OSD."""
-    if not _have_wpctl():
-        on_result(1.0, False)
-        return
-
-    def on_output(stdout: str | None) -> None:
-        if stdout is None:
+    def finished(result: AudioResult, volume: float, muted: bool) -> None:
+        if result.availability is AudioAvailability.AVAILABLE:
+            on_result(volume, muted)
+        else:
             on_result(1.0, False)
-            return
-        match = _WPCTL_VOLUME_RE.search(stdout)
-        if match is None:
-            on_result(1.0, False)
-            return
-        on_result(float(match.group(1)), match.group(2) is not None)
 
-    _run_async(wpctl_argv("get-volume", _SINK), on_output)
+    get_volume_result(finished)
+
+
+def get_volume_result(on_result: Callable[[AudioResult, float, bool], None]) -> None:
+    def on_output(result: AudioResult) -> None:
+        if result.availability is not AudioAvailability.AVAILABLE:
+            on_result(result, 0.0, False)
+            return
+        parsed = parse_volume(result.output)
+        if parsed is None:
+            on_result(AudioResult(AudioAvailability.MALFORMED_OUTPUT), 0.0, False)
+            return
+        on_result(result, *parsed)
+
+    run_wpctl(("get-volume", _SINK), on_output)
 
 
 def adjust_volume(direction: int, on_done: Callable[[], None] | None = None) -> None:

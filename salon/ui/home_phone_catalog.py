@@ -155,6 +155,7 @@ class HomePhoneCatalogController(ServiceComponent):
 
     def _on_volume_read(self, level: float, muted: bool) -> None:
         self._owner._osd.show_volume(level, muted)
+        self._owner._status_info.set_audio_muted(muted)
         self._owner._phone_volume = level
         self._owner._phone_muted = muted
         self._owner._publish_remote_state()

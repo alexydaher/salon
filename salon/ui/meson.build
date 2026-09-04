@@ -68,6 +68,7 @@ python_sources = [
   'statusbar.py',
   'status_actions.py',
   'status_info.py',
+  'status_presenters.py',
   'clock_strings.py',
   'console_sidebar.py',
   'detailbar.py',

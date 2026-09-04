@@ -31,14 +31,12 @@ class HomePreferences(ServiceComponent):
         return bool(GLib.SOURCE_CONTINUE)
 
     def _update_remote_hint(self) -> None:
-        """Decide whether the corner card is on screen, and keep the pairing
-        server up for as long as it is.
+        """Decide whether the corner card is visible and keep its pairing server up.
 
         The rule is "does the user have anything to press with": a pad
         plugged in, or a phone that spoke to us in the last few seconds.
         With neither, the card is the only way to get an input device onto
         this machine that does not already require one.
-
         The hold is dropped a beat late on purpose. `release()` stops the
         server outright once the last holder lets go, so letting go the
         instant a phone connects would tear down the session that phone just
@@ -49,6 +47,8 @@ class HomePreferences(ServiceComponent):
             controller=self._owner._gamepad_count > 0,
             phone=self._owner._pairing.connected,
         )
+        self._owner._status_info.set_connections(
+            self._owner._gamepad_count, self._owner._pairing.connected)
         wanted = (
             self._owner._settings.get_boolean("remote-hint") and self._owner._gamepad_count == 0
         )
@@ -224,7 +224,7 @@ class HomePreferences(ServiceComponent):
         def choose(sinks: list[audio.Sink]) -> None:
             for sink in sinks:
                 if sink.description == wanted and not sink.is_default:
-                    audio.set_default_sink(sink.id)
+                    audio.set_default_sink(sink.id, self._owner._status_info.refresh_audio)
                     return
 
         audio.list_sinks(choose)

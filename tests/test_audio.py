@@ -23,6 +23,12 @@ def test_wpctl_sink_parser_finds_default_and_descriptions() -> None:
     ]
 
 
+def test_volume_parser_keeps_mute_distinct_from_zero_volume() -> None:
+    assert audio.parse_volume("Volume: 0.00") == (0.0, False)
+    assert audio.parse_volume("Volume: 0.45 [MUTED]") == (0.45, True)
+    assert audio.parse_volume("not a volume") is None
+
+
 def test_native_wpctl_argv_is_direct() -> None:
     assert audio.wpctl_argv("status", sandboxed=False) == ["wpctl", "status"]
 

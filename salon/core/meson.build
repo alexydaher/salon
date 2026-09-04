@@ -31,6 +31,8 @@ python_sources = [
   'sink_names.py',
   'siteicon.py',
   'status.py',
+  'status_card.py',
+  'health.py',
   'starter.py',
   'clockformat.py',
   'tokens.py',

@@ -22,7 +22,10 @@ from gi.repository import Gio, GLib, Graphene, Gsk, Gtk  # noqa: E402
 
 from salon import config  # noqa: E402
 from salon.app import SalonApplication  # noqa: E402
+from salon.core import status as network_state  # noqa: E402
 from salon.core import tokens  # noqa: E402
+from salon.services.audio_status import AudioStatus  # noqa: E402
+from salon.services.network_status import NetworkStatus  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "build" / "layout-audit"
@@ -193,6 +196,21 @@ def main() -> int:
                 if window is None:
                     raise RuntimeError("Salon did not create a window")
                 home = window.get_content()
+                # Capture mode suppresses machine-dependent watchers. Seed the
+                # quiet everyday state whose layout this audit is responsible for.
+                home._status_info.set_network(  # noqa: SLF001
+                    NetworkStatus(
+                        "Sofa Wi-Fi",
+                        "Wi-Fi",
+                        "Connected",
+                        state=network_state.CONNECTIVITY_FULL,
+                        strength=86,
+                    )
+                )
+                home._status_info.set_audio(  # noqa: SLF001
+                    AudioStatus(True, "HDMI / DisplayPort 3 Output")
+                )
+                home._status_info.set_connections(1, True)  # noqa: SLF001
                 sidebar_ok, sidebar = home._console_sidebar.compute_bounds(window)  # noqa: SLF001
                 content_ok, content = home._viewport_host.compute_bounds(window)  # noqa: SLF001
                 if not sidebar_ok or not content_ok:

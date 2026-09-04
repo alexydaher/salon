@@ -784,6 +784,13 @@ toast > label {
   font-weight: 600;
 }
 
+.salon-console-stat.warning .salon-console-stat-icon,
+.salon-console-stat.warning .salon-console-stat-value {
+  color: @warning_color;
+}
+
+.salon-console-stat.danger .salon-console-stat-icon,
+.salon-console-stat.danger .salon-console-stat-value,
 .salon-console-stat-value.low {
   color: @danger;
 }
