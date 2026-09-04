@@ -14,6 +14,12 @@ from salon.ui.home_shared import (
 
 class HomeNavigationController(ServiceComponent):
     def _set_nav_focused(self, focused: bool) -> None:
+        # The rail's card, the top bar and the tiles share one cursor, so
+        # entering the bar — or dismissing it on the way into a full-screen
+        # surface — is also leaving the card. Written here rather than at
+        # the dozen call sites, because "the ring is in two places" is
+        # exactly the bug this is guarding against.
+        self._drop_card_focus()
         self._owner._nav_focused = focused
         self._owner._status_bar.set_nav_focused(focused)
         self._owner._apps_grid.set_top_bar_focused(
@@ -43,19 +49,26 @@ class HomeNavigationController(ServiceComponent):
             if not self._owner._menu_focus_owned:
                 self._owner._menu_focus_owned = True
                 self._owner._menu_origin_nav_focused = self._owner._nav_focused
+                self._owner._menu_origin_card_focused = self._owner._card_focused
             self._owner._nav_focused = False
+            self._drop_card_focus()
             self._owner._status_bar.set_nav_focused(False)
             self._owner._detail_bar.clear_nav_target()
             self._owner._update_focus()
             self._on_menu_selection_changed()
         elif self._owner._menu_focus_owned:
             restore_nav = self._owner._menu_origin_nav_focused
+            restore_card = self._owner._menu_origin_card_focused and self._card.has_media
             self._owner._menu_focus_owned = False
             self._owner.grab_focus()
             self._owner._nav_focused = restore_nav
             self._owner._status_bar.set_nav_focused(restore_nav)
+            self._owner._card_focused = restore_card
+            self._card.set_card_focused(restore_card)
             if restore_nav:
                 self._publish_nav_detail()
+            elif restore_card:
+                self._publish_card_detail()
             else:
                 self._owner._detail_bar.clear_nav_target()
             self._owner._update_focus()

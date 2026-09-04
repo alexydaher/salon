@@ -33,6 +33,12 @@ class HomeLandingController(ServiceComponent):
             # the whole reason Search/Settings/Power are reachable at all
             # without knowing that MENU exists.
             self._owner._set_nav_focused(True)
+        elif change.bump is Bump.LEFT and self._owner._enter_now_playing():
+            # And the left of the tiles is not a wall either: it's the rail,
+            # whose now-playing card is a transport with no other route in.
+            # `_enter_now_playing` answers False when nothing is playing, in
+            # which case this falls through to the rubber-band below.
+            return
         elif change.bump is not Bump.NONE:
             self._owner._rubber_band(change.bump)
 

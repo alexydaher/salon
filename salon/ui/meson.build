@@ -35,6 +35,7 @@ python_sources = [
   'home_landing.py',
   'home_layout_build.py',
   'home_navigation.py',
+  'home_now_playing.py',
   'home_overlays.py',
   'home_phone_catalog.py',
   'home_phone_tuning.py',

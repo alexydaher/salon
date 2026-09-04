@@ -64,6 +64,11 @@ class HomeLegendController(ServiceComponent):
             return ((cap(Action.MENU), "Back to Salon"),)
         if self._owner._nav_focused:
             return ((cap(Action.OK), "Choose"), (cap(Action.DOWN), "Back to tiles"))
+        if self._owner._card_focused:
+            # RIGHT rather than BACK as the way out, because RIGHT is the
+            # press that is already in the hand: the card was entered with
+            # LEFT and every key on it is walked with the same two keys.
+            return ((cap(Action.OK), "Press"), (cap(Action.RIGHT), "Back to tiles"))
         # Home's available actions do not change with time. Keeping the
         # complete mapping here also means that covering Home with Settings
         # and returning cannot reveal a shorter legend than the one that was

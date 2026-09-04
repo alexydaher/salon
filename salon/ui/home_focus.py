@@ -24,15 +24,22 @@ class HomeFocusController(ServiceComponent):
             focused_row = r == self._owner._focus.row
             for c, widget in enumerate(row.tiles):
                 # Nothing in the rows carries the ring while the top bar
-                # holds the cursor: two full-strength highlights on screen
-                # leaves no answer to "what does OK do right now".
+                # or the rail's card holds the cursor: two full-strength
+                # highlights on screen leaves no answer to "what does OK do
+                # right now".
                 widget.set_focused(
                     not self._owner._nav_focused
+                    and not self._owner._card_focused
                     and not menu_focused
                     and focused_row
                     and c == self._owner._focus.col
                 )
-            if focused_row and not self._owner._nav_focused and not menu_focused:
+            if (
+                focused_row
+                and not self._owner._nav_focused
+                and not self._owner._card_focused
+                and not menu_focused
+            ):
                 row.heading.add_css_class("row-focused")
                 row.tiles_box.add_css_class("row-focused")
             else:
@@ -212,9 +219,16 @@ class HomeFocusController(ServiceComponent):
             target = menu.selected_row
         elif self._owner._nav_focused and self._owner._status_bar.selected_button is not None:
             target = self._owner._status_bar.selected_button
+        elif self._owner._card_focused and self._card_key is not None:
+            target = self._card_key
         else:
             target = widget
         self._owner.update_relation([Gtk.AccessibleRelation.ACTIVE_DESCENDANT], [target])
+
+    @property
+    def _card_key(self) -> Gtk.Widget | None:
+        """The rail card's key under the ring, when the ring is in the rail."""
+        return self._owner._now_playing_status.cursor_widget
 
     def _focused_widget(self) -> TileWidget | None:
         if not (0 <= self._owner._focus.row < len(self._owner._rows)):

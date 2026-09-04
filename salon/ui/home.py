@@ -14,6 +14,7 @@ from salon.ui.home_launching import HomeLaunchController
 from salon.ui.home_layout_build import HomeLayoutBuilder
 from salon.ui.home_legend import HomeLegendController
 from salon.ui.home_navigation import HomeNavigationController
+from salon.ui.home_now_playing import HomeNowPlayingCursor
 from salon.ui.home_overlays import HomeOverlayController
 from salon.ui.home_phone_catalog import HomePhoneCatalogController
 from salon.ui.home_phone_input import HomePhoneInputController
@@ -59,6 +60,7 @@ class HomeView(
     HomeRepeatController,
     HomeActionRouter,
     HomeNavigationController,
+    HomeNowPlayingCursor,
     HomeOverlayController,
     HomeShellChrome,
     HomeLaunchController,

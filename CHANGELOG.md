@@ -8,6 +8,25 @@ Notable changes per release. Dates are ISO. This project follows
 
 ## Unreleased
 
+### Changed
+
+- The left rail's now-playing card shows one media source at a time. With
+  more than one playing, a pair of arrows beside "Now playing" walks
+  between them and the card says which it is on. It used to stack every
+  source in one block — the first with its cover and timeline, the rest as
+  single lines, with a note about however many did not fit.
+- That card is now the same card whether or not the pairing QR is standing
+  under it. Its arrangement used to be chosen against the height the rail
+  had left, so pairing a phone shrank the cover, the title and the block.
+
+### Added
+
+- The rail's now-playing card is reachable with a remote. Press left from
+  the first tile in a row to put the cursor on it, walk its keys with the
+  D-pad, and press right off the end to go back to the tiles. Play/pause,
+  the two skip keys and the source arrows all work from there; until now
+  they were buttons only a mouse could press.
+
 ### Fixed
 
 - Web tiles can find a site's own icon again. Salon discarded any page over

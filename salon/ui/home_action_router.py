@@ -213,6 +213,11 @@ class HomeActionRouter(ServiceComponent):
             # on MENU, which is handled above.
             return
 
+        # The rail's card. Above the BACK handler below, because BACK is
+        # one of the presses it owns; see ui/home_now_playing.
+        if self._owner._card_takes(action):
+            return
+
         if action is Action.SEARCH:
             self._owner._open_search()
             return
