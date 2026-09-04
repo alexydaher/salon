@@ -54,7 +54,9 @@ Notable changes per release. Dates are ISO. This project follows
 - Tiles without artwork are tinted with their own colour instead of all
   drawing the same neutral card, so a row of six is six things at a glance
   — and the tile editor's accent picker now changes the tile you are
-  editing.
+  editing. Appearance → Tile background switches between that and the
+  uniform card, previewed live over the home screen; tiles with their own
+  artwork are unaffected either way.
 - The starter catalogue no longer seeds a "Web" row containing a single
   link to gnome.org.
 - The console column shows network, battery and running-app rows only when

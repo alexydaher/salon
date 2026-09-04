@@ -37,6 +37,10 @@ from salon.core import tokens  # noqa: E402
 # accent-bloom at 0.22); only the hue follows the user's choice.
 _BLOOM_ALPHA = 0.22
 
+# `tile-background`: what colours a card that has no artwork of its own.
+TILE_BACKGROUND_ICON = "icon"
+TILE_BACKGROUND_UNIFORM = "uniform"
+
 
 def _parse(value: str) -> Gdk.RGBA:
     color = Gdk.RGBA()
@@ -49,11 +53,29 @@ _accent = _DEFAULT_ACCENT
 _palette: dict[str, Gdk.RGBA] = {
     name: _parse(value) for name, value in tokens.palette(tokens.DEFAULT_PALETTE).items()
 }
+_tile_background = TILE_BACKGROUND_ICON
 
 
 def accent() -> Gdk.RGBA:
     """The current accent, for code that draws outside CSS."""
     return _accent
+
+
+def tiles_take_their_icon_colour() -> bool:
+    """Whether a card with no artwork is tinted by the icon drawn on it.
+
+    A taste question with a real cost either way, so it is the user's.
+    Tinted, a row of tiles reads as several different things across a room
+    — which is what the shipped catalogue needs, since five of its streaming
+    tiles are the same shape of card and differ only by their mark. Uniform,
+    the rows have an even rhythm and the icons carry the identity on their
+    own, which is the quieter composition and the one the Aurora console was
+    drawn as. Tiles with real artwork are unaffected by either.
+
+    Read at draw time like `accent()` and `color()`, so changing it reaches
+    every already-built widget without anyone threading it through.
+    """
+    return _tile_background == TILE_BACKGROUND_ICON
 
 
 def color(name: str) -> Gdk.RGBA:
@@ -100,13 +122,14 @@ class ThemeManager:
         self._installed = True
         self._settings.connect("changed::accent-color", lambda *_: self.reload())
         self._settings.connect("changed::theme", lambda *_: self.reload())
+        self._settings.connect("changed::tile-background", lambda *_: self.reload())
         self.reload()
 
     def subscribe(self, listener: Callable[[], None]) -> None:
         self._listeners.append(listener)
 
     def reload(self) -> None:
-        global _accent, _palette
+        global _accent, _palette, _tile_background
         chosen = Gdk.RGBA()
         # A hand-edited GSetting can hold anything; an unparseable value
         # falls back to the design default rather than leaving the ring
@@ -116,6 +139,14 @@ class ThemeManager:
         _accent = chosen
         palette = tokens.palette(self._settings.get_string("theme"))
         _palette = {name: _parse(value) for name, value in palette.items()}
+        # Anything but the one recognised alternative means the default, on
+        # the same grounds as the accent above: a hand-edited GSetting can
+        # hold any string and a card has to be drawn either way.
+        _tile_background = (
+            TILE_BACKGROUND_UNIFORM
+            if self._settings.get_string("tile-background") == TILE_BACKGROUND_UNIFORM
+            else TILE_BACKGROUND_ICON
+        )
         self._provider.load_from_string(build_css(chosen, palette))
         for listener in list(self._listeners):
             listener()

@@ -9,16 +9,13 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
-from salon.ui import backdrop_wallpaper  # noqa: E402
-from salon.ui.settings import wallpaper  # noqa: E402
+from salon.ui.settings.background_rows import background_rows  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
     ActionRow,
     GroupRow,
     Keyed,
     SettingsRow,
-    opens_panel,
-    opens_picker,
     restore_defaults_row,
 )
 
@@ -31,6 +28,14 @@ ACCENTS = [
     ("#5FBF7F", "Green"),
     ("#B77BE8", "Violet"),
 ]
+
+# What colours a card that has no artwork of its own. Worded as what you
+# see rather than as the mechanism: "accent" is Salon's word for the tile's
+# colour, and on a card with no explicit accent that colour *is* the icon's.
+_TILE_BACKGROUNDS: tuple[tuple[str, str], ...] = (
+    ("icon", "Match each icon"),
+    ("uniform", "The same for all"),
+)
 
 _THEMES: tuple[tuple[str, str], ...] = (
     ("midnight", "Midnight"),
@@ -66,29 +71,6 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
     keyed = Keyed(settings)
 
     def build() -> list[SettingsRow]:
-        background_has_image = backdrop_wallpaper.has_image(
-            settings.get_string("wallpaper-path").strip()
-        )
-        colour_treatment = keyed.choice(
-            "wallpaper-color-treatment",
-            "Background colours",
-            wallpaper.COLOR_TREATMENTS,
-            preview=True,
-        )
-        dimming = keyed.ranged(
-            "wallpaper-dim",
-            "Background dimming",
-            minimum=0.0,
-            maximum=1.0,
-            step=0.04,
-            fmt=lambda v: "Hidden" if v >= 0.999 else _percent(v),
-            preview=True,
-        )
-        if not background_has_image:
-            reason = "Only applies when a background image is selected"
-            colour_treatment.make_unavailable(reason)
-            dimming.make_unavailable(reason)
-
         return [
             GroupRow("Colour"),
             keyed.choice(
@@ -101,6 +83,16 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 "accent-color",
                 "Accent colour",
                 ACCENTS,
+                preview=True,
+            ),
+            # Beside the accent, because the two are the same question asked
+            # of different things — the accent is the one colour the whole
+            # screen shares, this is whether each tile keeps its own.
+            keyed.choice(
+                "tile-background",
+                "Tile background",
+                _TILE_BACKGROUNDS,
+                detail="Tiles with their own artwork are unaffected",
                 preview=True,
             ),
             GroupRow("Layout"),
@@ -167,29 +159,7 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 off_at=0.0,
                 detail="Drifting clock after inactivity; does not lock",
             ),
-            GroupRow("Background"),
-            keyed.choice(
-                "wallpaper-path",
-                "Background",
-                wallpaper.choices(settings),
-                detail=wallpaper.detail(settings),
-                preview=True,
-            ),
-            opens_picker(
-                "Choose a picture…",
-                lambda: wallpaper.choose(context, settings, folder=False),
-            ),
-            opens_picker(
-                "Choose a folder…",
-                lambda: wallpaper.choose(context, settings, folder=True),
-            ),
-            colour_treatment,
-            dimming,
-            opens_panel(
-                "Type a path…",
-                lambda: context.push(_background_path_panel(context, settings)),
-                detail="For paths the picker cannot reach",
-            ),
+            *background_rows(context, settings, keyed),
             GroupRow("Tile artwork"),
             keyed.toggle(
                 "fetch-site-icons",
@@ -216,30 +186,3 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         panel_id="appearance",
         icon_name="applications-graphics-symbolic",
     )
-
-
-def _background_path_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
-    """The typed path, and a way to find out whether it exists.
-
-    A sub-panel rather than two more rows in Appearance: between them they
-    serve the one person on the machine who keeps their pictures somewhere
-    a file picker will not go, and they were costing everyone else two rows
-    in the longest list in Settings.
-    """
-
-    def build() -> list[SettingsRow]:
-        return [
-            Keyed(settings).text(
-                "wallpaper-path",
-                "Path",
-                lambda: wallpaper.edit_path(context, settings),
-                placeholder="Salon ambient",
-                detail="Image, folder, or - for none",
-            ),
-            ActionRow(
-                "Check this path",
-                lambda: context.toast(wallpaper.detail(settings)),
-            ),
-        ]
-
-    return Panel(title="Background path", build=build)

@@ -161,6 +161,15 @@
       <summary>Buttons the user has rebound</summary>
       <description>Overrides for the built-in button map, as "source:code" to action name — for example "pad:305" to "ok" on a Nintendo-layout controller, whose south and east buttons are the other way round. An empty action means the button is deliberately silenced. Anything not listed here uses Salon's default for that source.</description>
     </key>
+    <key name="tile-background" type="s">
+      <choices>
+        <choice value="icon"/>
+        <choice value="uniform"/>
+      </choices>
+      <default>'icon'</default>
+      <summary>Whether a tile without artwork is coloured by its own icon</summary>
+      <description>Icon tints each card with the dominant colour of the icon on it, so a row of tiles reads as several different things at a glance. Uniform draws every card on the same neutral surface, which is quieter and lets the icons do the work on their own. Tiles that have their own artwork are unaffected either way.</description>
+    </key>
     <key name="clock-format" type="s">
       <choices>
         <choice value="automatic"/>

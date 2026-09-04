@@ -5,6 +5,7 @@ python_sources = [
   'widgets.py',
   'action_rows.py',
   'advanced_input_panel.py',
+  'background_rows.py',
   'backup.py',
   'control_center.py',
   'indicators.py',

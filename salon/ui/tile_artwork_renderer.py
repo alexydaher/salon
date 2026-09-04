@@ -24,9 +24,8 @@ from salon.ui.tile_geometry import (  # noqa: E402
     font_description,
 )
 
-# How much of the tile's own colour reaches its glass, top and bottom.
-# Enough that a row of six reads as six things across a room; short of the
-# phone's full wash. See `TileArtworkRenderer.snapshot_generated`.
+# How much of the tile's own colour reaches its glass, top and bottom, when
+# `tile-background` asks for it. See `snapshot_generated`.
 _TINT_TOP = 0.30
 _TINT_BOTTOM = 0.14
 
@@ -103,32 +102,33 @@ class TileArtworkRenderer:
 
     def snapshot_generated(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
         """§7.4 levels 3 and 4: an icon (or the title's initial) on the
-        Aurora Console's smoked glass, tinted by the tile's own colour.
+        Aurora Console's smoked glass, optionally tinted by the tile.
 
-        The glass used to be identical on every card, reserving colour for
-        focus. On screen that was the weakest thing in the interface: the
-        shipped starter seeds five streaming services that all declare
-        `icon_name="web-browser-symbolic"`, so the flagship row drew five
-        identical rectangles — and the icon was what was meant to tell them
-        apart. The phone remote, fed the same catalogue, draws each tile as
-        its own accent gradient and is plainly more legible; one catalogue
-        cannot have two answers, and the phone had the better one.
+        `Artwork.accent` is the tile's explicit `accent`, else the dominant
+        colour of the icon drawn on it, else a hue hashed from its id — so
+        a catalogue that sets no colours at all still gets distinguishable
+        cards, which is §7.4's "hashed gradient". A tint rather than the
+        phone's full wash, because these sit in rows against a live
+        backdrop.
 
-        A tint, not the phone's full wash: the row rhythm the neutral pane
-        bought is worth keeping. `Artwork.accent` is the tile's explicit
-        `accent`, else its artwork's dominant colour, else a hue hashed from
-        its id, so a catalogue that sets no colours still gets
-        distinguishable cards — §7.4's "hashed gradient". It also makes the
-        editor's accent row mean something. See DECISIONS 2026-09-04.
+        Which composition is drawn is `tile-background` in Appearance and
+        not a decision made here: identical glass loses five seeded
+        streaming tiles to one shared compass glyph, and tinted glass costs
+        the even row rhythm the console was drawn with. Both are real.
+        Zero tint *is* the uniform pane, so the two share one gradient
+        rather than being two code paths. See DECISIONS 2026-09-04.
         """
+        tinted = theme.tiles_take_their_icon_colour()
         accent = self._artwork.accent
+        top_tint = _TINT_TOP if tinted else 0.0
+        bottom_tint = _TINT_BOTTOM if tinted else 0.0
         # Lift surface-2 just enough to retain an edge over a dark corner,
         # then keep enough transparency for the ambient fields to show
         # through.  This is the GTK/GSK counterpart of the mockup's
         # rgba(52, 68, 92, .42) pane.
         glass = _mix(theme.color("surface-2"), theme.color("text-primary"), 0.06)
-        top = _with_alpha(_mix(glass, accent, _TINT_TOP), 0.66)
-        bottom = _with_alpha(_mix(theme.color("surface-1"), accent, _TINT_BOTTOM), 0.54)
+        top = _with_alpha(_mix(glass, accent, top_tint), 0.66)
+        bottom = _with_alpha(_mix(theme.color("surface-1"), accent, bottom_tint), 0.54)
         snapshot.append_linear_gradient(
             rect,
             _point(rect.get_x(), rect.get_y()),
