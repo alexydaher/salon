@@ -3,6 +3,7 @@
 """Focused home-view construction stage."""
 
 from salon.services.component import ServiceComponent
+from salon.ui import overlay_order
 from salon.ui.home_shared import (
     Action,
     Catalog,
@@ -62,16 +63,9 @@ class HomeCatalogSetup(ServiceComponent):
             config_path=str(self._owner._config_path),
         )
         self._owner._overlay.add_overlay(self._owner._settings_screen)
-        # These are root-owned chrome rather than children of Home or Apps.
-        # Raise them above both content surfaces, but leave dialogs and menus
-        # that are created below this point above them.
-        for chrome in (
-            self._owner._console_sidebar,
-            self._owner._home_title,
-            self._owner._status_bar,
-        ):
-            self._owner._overlay.remove_overlay(chrome)
-            self._owner._overlay.add_overlay(chrome)
+        # Above both content surfaces, below the dialogs and menus built
+        # after this point. `overlay_order` is the one statement of depth.
+        self._raise(overlay_order.CONSOLE_CHROME)
         self._owner._system_menu = SystemMenu(
             self._owner._build_system_menu_items(),
             self._owner._scale,
@@ -102,6 +96,9 @@ class HomeCatalogSetup(ServiceComponent):
         # scrim. Visibility policy hides it on the full pairing/onboarding
         # surfaces where another QR or explanation owns the screen.
         self._owner._overlay.add_overlay(self._owner._remote_hint)
+        # And these above the chrome, which is where the setup stages that
+        # build them cannot put them — see `overlay_order`.
+        self._raise(overlay_order.RAISED_ABOVE_CHROME)
         motion.set_animation_speed(self._owner._settings.get_double("animation-scale"))
         self._owner._return_fade = motion.FadeIn(self._owner._overlay, motion.RETURN_FADE_MS)
         self._owner._faded_surfaces: tuple[motion.Fadable, ...] = (
@@ -125,3 +122,16 @@ class HomeCatalogSetup(ServiceComponent):
         self._owner._repeat_action: Action | None = None
         self._owner._repeat_timer_id: int | None = None
         self._owner._held_keyvals: set[int] = set()
+
+    def _raise(self, names: tuple[str, ...]) -> None:
+        """Move each named surface to the top of the overlay, in order.
+
+        Depth in a `Gtk.Overlay` is construction order, and construction
+        order is decided by dependencies rather than by what belongs on
+        top. This is the only way anything is re-raised, so the rule in
+        `overlay_order` and what is applied cannot drift apart.
+        """
+        for name in names:
+            surface = getattr(self._owner, name)
+            self._owner._overlay.remove_overlay(surface)
+            self._owner._overlay.add_overlay(surface)

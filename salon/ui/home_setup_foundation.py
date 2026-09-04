@@ -44,6 +44,9 @@ class HomeFoundationSetup(ServiceComponent):
         self._owner._row_tops: list[float] = []
         self._owner._content_height_px = 0.0
         self._owner._toast_overlay = Adw.ToastOverlay()
+        # The message currently on screen, so a new one replaces it and a
+        # screen change can take it away. See `_toast`.
+        self._owner._current_toast: Adw.Toast | None = None
         self._owner.append(self._owner._toast_overlay)
         self._owner._overlay = Gtk.Overlay()
         self._owner._toast_overlay.set_child(self._owner._overlay)

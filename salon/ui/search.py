@@ -12,25 +12,26 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from salon.core.focus import Bump, FocusModel  # noqa: E402
+from salon.core.focus import FocusModel  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.services import appinfo  # noqa: E402
 from salon.services.artwork import ArtworkResolver  # noqa: E402
 from salon.services.pairing import PairingServer  # noqa: E402
 from salon.ui import motion  # noqa: E402
+from salon.ui.actionbar import SelectionActionBar  # noqa: E402
 from salon.ui.hardware_text import HardwareTextInput  # noqa: E402
 from salon.ui.keyboardpane import KeyboardPane  # noqa: E402
 from salon.ui.motion import AxisSpring, SizeReporter  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
-from salon.ui.search_models import Pane  # noqa: E402
+from salon.ui.search_hints import _KEYBOARD_HINTS  # noqa: E402
+from salon.ui.search_models import MAX_RESULT_COLUMNS, Pane  # noqa: E402
 from salon.ui.search_results import SearchResultsController  # noqa: E402
 from salon.ui.tile import TileWidget  # noqa: E402
 
-RESULT_COLUMNS = 3
-_BUMP_DISTANCE_DU = 26.0
+# The ceiling. What is drawn is `search_models.result_columns`.
+RESULT_COLUMNS = MAX_RESULT_COLUMNS
 
-# Leaves room for three result columns beside the keyboard.
 _KEY_CELL_DU = 64.0
 
 
@@ -62,6 +63,9 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
         self._installed_tiles: list[Tile] = []
         self._results: list[Tile] = []
         self._results_height = 0
+        # Measured, not assumed — see `search_models.result_columns`.
+        self._results_width = 0
+        self._result_columns = RESULT_COLUMNS
         self._result_widgets: list[TileWidget] = []
         self._pane = Pane.KEYBOARD
         self._pointer_active = False
@@ -70,8 +74,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
         self._results_focus = FocusModel([])
 
         # The scrim covers the whole screen; the *content* is inset to the
-        # safe area. Insetting the root instead left the home screen and the
-        # clock showing through the margins behind it.
+        # safe area. Insetting the root left the clock showing through.
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.append(self._content)
 
@@ -105,11 +108,9 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
         self._results_viewport.set_overflow(Gtk.Overflow.HIDDEN)
         self._results_viewport.set_accessible_role(Gtk.AccessibleRole.GRID)
         self._results_viewport.update_property([Gtk.AccessibleProperty.LABEL], ["Search results"])
-        # Wrapped, and reporting a zero minimum: a Gtk.Fixed measures to fit
-        # its children, so a long result list would ask to be taller than
-        # the window, be allocated it, and then scroll nowhere because every
-        # row would test as already on screen. Same defect the apps grid
-        # had; same fix.
+        # Wrapped, reporting a zero minimum: a Gtk.Fixed measures to fit its
+        # children, so a long list would ask to be taller than the window,
+        # get it, and scroll nowhere. Same defect the apps grid had.
         self._results_host = SizeReporter(
             self._results_viewport,
             self._on_results_resized,
@@ -124,6 +125,12 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
         self._results_scroll = AxisSpring(
             self._results_viewport, self._results_content, vertical=True
         )
+
+        # Search was the only surface in Salon with no button legend: the
+        # screen you reach by pressing a button would not say which button
+        # gets you out of it again.
+        self._bottom = SelectionActionBar(scale, _KEYBOARD_HINTS)
+        self._content.append(self._bottom)
 
         self._apply_scale(scale)
 
@@ -150,6 +157,7 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
     def set_scale(self, scale: Scale) -> None:
         self._scale = scale
         self._keyboard.set_scale(scale)
+        self._bottom.set_scale(scale)
         self._apply_scale(scale)
         self._rebuild_result_widgets()
 
@@ -190,30 +198,6 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
             self._handle_keyboard_direction(action)
         else:
             self._handle_results_direction(action)
-
-    def _handle_keyboard_direction(self, action: Action) -> None:
-        if self._keyboard.move(action):
-            self._update_selection()
-            return
-        if action is Action.RIGHT and self._results:
-            self._pane = Pane.RESULTS
-            self._update_selection()
-
-    def _handle_results_direction(self, action: Action) -> None:
-        change = self._results_focus.handle(action)
-        if change.moved:
-            self._update_selection()
-            return
-        if change.bump is Bump.LEFT:
-            self._pane = Pane.KEYBOARD
-            self._update_selection()
-            return
-        if change.bump is not Bump.NONE:
-            distance = self._scale.du(_BUMP_DISTANCE_DU)
-            if change.bump is Bump.UP:
-                self._results_scroll.bump(distance)
-            elif change.bump is Bump.DOWN:
-                self._results_scroll.bump(-distance)
 
     def _press_key(self) -> None:
         result = self._keyboard.press()

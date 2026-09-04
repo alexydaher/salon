@@ -75,6 +75,7 @@ def _context() -> SettingsContext:
         close=lambda: None,
         installed_apps=lambda _cb: None,
         open_control_center=lambda _p: None,
+        refresh_artwork=lambda: None,
         phone_remote_running=lambda: False,
         set_phone_remote=lambda _e: True,
         phone_remote_hint=lambda: "",

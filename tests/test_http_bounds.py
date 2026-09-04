@@ -57,10 +57,18 @@ class Session:
         return self.stream
 
 
-def fetch(body: bytes, *, limit: int, status: int = 200, declared: int = -1) -> bytes | None:
+def fetch(
+    body: bytes, *, limit: int, status: int = 200, declared: int = -1, prefix: bool = False
+) -> bytes | None:
     stream = Stream(body)
     result: list[bytes | None] = []
-    fetch_bytes(Session(stream), Message(status, declared), limit, result.append)  # type: ignore[arg-type]
+    fetch_bytes(
+        Session(stream),  # type: ignore[arg-type]
+        Message(status, declared),  # type: ignore[arg-type]
+        limit,
+        result.append,
+        prefix=prefix,
+    )
     assert stream.closed
     return result[0]
 
@@ -83,3 +91,42 @@ def test_truncated_declared_body_is_rejected() -> None:
 
 def test_non_success_status_is_rejected() -> None:
     assert fetch(b"redirect", limit=16, status=302) is None
+
+
+# --- prefix mode -------------------------------------------------------
+#
+# The site-icon path reads `<link rel=icon>` out of `<head>`, which is in
+# the first few KiB. Rejecting on size meant netflix.com (3.2 MB),
+# disneyplus.com (1.6 MB), youtube.com (917 KB) and primevideo.com (529 KB)
+# all resolved no icon against a 512 KiB cap — and those four *are* the
+# shipped catalogue's flagship row. See DECISIONS 2026-09-04.
+
+
+def test_prefix_keeps_the_front_of_an_oversized_body() -> None:
+    assert fetch(b"123456789", limit=8, prefix=True) == b"12345678"
+
+
+def test_prefix_keeps_the_whole_body_when_it_fits() -> None:
+    assert fetch(b"12345", limit=8, prefix=True) == b"12345"
+
+
+def test_prefix_reads_despite_a_declared_size_over_the_limit() -> None:
+    """The refusal happened before a byte was read, so a big page never
+    even got as far as being truncated."""
+    assert fetch(b"123456789", limit=8, declared=9, prefix=True) == b"12345678"
+
+
+def test_prefix_accepts_a_body_shorter_than_its_declared_length() -> None:
+    """The front of the document is what was asked for, and it arrived."""
+    assert fetch(b"short", limit=8, declared=8, prefix=True) == b"short"
+
+
+def test_prefix_still_refuses_a_failed_request() -> None:
+    """Truncation is about size, not about status: a 302 body is not a page."""
+    assert fetch(b"redirect", limit=16, status=302, prefix=True) is None
+
+
+def test_the_default_is_still_all_or_nothing() -> None:
+    """An image has to arrive whole — half a PNG is not an icon."""
+    assert fetch(b"123456789", limit=8) is None
+    assert fetch(b"unused", limit=8, declared=9) is None

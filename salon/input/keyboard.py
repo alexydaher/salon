@@ -39,6 +39,8 @@ _KEYVAL_ACTIONS: dict[int, Action] = {
     Gdk.KEY_AudioMute: Action.MUTE,
     Gdk.KEY_AudioPause: Action.PLAY_PAUSE,
     Gdk.KEY_AudioStop: Action.PLAY_PAUSE,
+    Gdk.KEY_AudioNext: Action.NEXT,
+    Gdk.KEY_AudioPrev: Action.PREVIOUS,
     Gdk.KEY_PowerOff: Action.POWER,
 }
 

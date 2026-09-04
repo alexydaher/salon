@@ -15,6 +15,7 @@ from salon.ui.settings.widgets import (  # noqa: E402
     GroupRow,
     InfoRow,
     SettingsRow,
+    external_group,
     opens_gnome,
     opens_panel,
 )
@@ -60,7 +61,7 @@ def network_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 lambda: context.open_control_center("wifi"),
                 detail="Hidden and enterprise networks",
             ),
-            GroupRow("Everything else"),
+            external_group("Everything else"),
             opens_gnome(
                 "Wired and VPN",
                 lambda: context.open_control_center("network"),

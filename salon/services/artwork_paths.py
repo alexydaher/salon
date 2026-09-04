@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import time
 from pathlib import Path
 
 from salon.core import siteicon
@@ -13,6 +14,10 @@ from salon.core.model import Tile
 _ARTWORK_EXTENSIONS = ("jpg", "jpeg", "png", "webp")
 _MAX_CACHE_BYTES = 256 * 1024 * 1024
 _MAX_CACHE_ENTRIES = 512
+
+# How long a failed site-icon lookup is remembered. See
+# site_icon_miss_is_current.
+MISS_TTL_SECONDS = 7 * 24 * 60 * 60.0
 
 
 def artwork_drop_dir() -> Path:
@@ -46,6 +51,45 @@ def site_icon_miss_path(url: str) -> Path:
     config save and every artwork drop.
     """
     return site_icon_path(url).with_suffix(".miss")
+
+
+def site_icon_miss_is_current(url: str, *, ttl_seconds: float = MISS_TTL_SECONDS) -> bool:
+    """Whether a recorded miss is still worth believing.
+
+    It expires, because the reasons a lookup fails are overwhelmingly
+    temporary — no network yet on a television that boots before its
+    router, a site behind a captive portal, a redesign that has since
+    added an `apple-touch-icon`. A permanent marker turned one bad first
+    boot into a home screen that could never show a brand icon again, with
+    nothing in the interface to clear it. A week is long enough that the
+    "two requests per catalogue rebuild" cost this exists to prevent never
+    comes back, and short enough that no one has to know this file exists.
+    """
+    marker = site_icon_miss_path(url)
+    try:
+        age = time.time() - marker.stat().st_mtime
+    except OSError:
+        return False
+    return age < ttl_seconds
+
+
+def forget_site_icons() -> None:
+    """Drop every guessed site icon and every recorded miss.
+
+    Backs "Refresh artwork" in Settings → Tiles: the guesses live in their
+    own directory precisely so this cannot touch artwork the user chose.
+    """
+    root = site_icon_cache_dir()
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.is_file():
+                entry.unlink()
+        except OSError:
+            continue
 
 
 def drop_folder_path(tile_id: str) -> Path | None:

@@ -38,13 +38,14 @@ class Page:
     hint: str
 
 
+# The hint line used to repeat the button directly under it — "Press OK to
+# continue" sitting on top of a button reading "Continue". It now carries
+# the thing each page cannot show: what the page is *for*.
 PAGES: tuple[Page, ...] = (
     Page(
         title="Welcome to Salon",
-        body=(
-            "Use the direction pad to move, OK to open, and Back to return."
-        ),
-        hint="Press OK to continue",
+        body="Use the direction pad to move, OK to open, and Back to return.",
+        hint="Three short screens, then you are in.",
     ),
     Page(
         title="Find your way around",
@@ -52,7 +53,7 @@ PAGES: tuple[Page, ...] = (
             "Press Up from the first row for Search, All Apps, Settings, and Power. "
             "Menu returns to Salon when another app fills the screen."
         ),
-        hint="Press OK to continue",
+        hint="Menu always works, even from inside an app.",
     ),
     Page(
         title="Make it yours",
@@ -60,7 +61,7 @@ PAGES: tuple[Page, ...] = (
             "Options opens a tile's actions. Settings edits your rows, tiles, "
             "artwork, and appearance."
         ),
-        hint="Press OK to start",
+        hint="Everything on the home screen is yours to change.",
     ),
 )
 

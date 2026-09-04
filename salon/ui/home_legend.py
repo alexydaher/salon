@@ -78,5 +78,8 @@ class HomeLegendController(ServiceComponent):
                 visible_menu = menu
             menu.set_hints(hints if menu.get_visible() else ())
         # A menu carries its own copy above the scrim; the standing Home
-        # legend is deliberately underneath it with the rest of Home.
+        # legend is deliberately underneath it with the rest of Home — and
+        # the whole band goes with it, or the detail strip beside the blank
+        # legend expands under the menu's chips. See _sync_bottom_band.
         self._owner._legend.set_hints(() if visible_menu is not None else hints)
+        self._owner._sync_bottom_band()

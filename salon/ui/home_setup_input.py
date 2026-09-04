@@ -101,5 +101,9 @@ class HomeInputSetup(ServiceComponent):
         self._owner._settings.connect(
             "changed::screensaver-minutes", lambda *_: self._owner._apply_screensaver_setting()
         )
+        self._owner._apply_clock_format()
+        self._owner._settings.connect(
+            "changed::clock-format", lambda *_: self._owner._apply_clock_format()
+        )
         self._owner._reload_timeout_id: int | None = None
         self._owner._config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -24,6 +24,12 @@ from salon.ui.tile_geometry import (  # noqa: E402
     font_description,
 )
 
+# How much of the tile's own colour reaches its glass, top and bottom.
+# Enough that a row of six reads as six things across a room; short of the
+# phone's full wash. See `TileArtworkRenderer.snapshot_generated`.
+_TINT_TOP = 0.30
+_TINT_BOTTOM = 0.14
+
 
 class TileArtworkRenderer:
     def snapshot_bloom(self, snapshot: Gtk.Snapshot, focus: float) -> None:
@@ -97,19 +103,32 @@ class TileArtworkRenderer:
 
     def snapshot_generated(self, snapshot: Gtk.Snapshot, rect: Graphene.Rect) -> None:
         """§7.4 levels 3 and 4: an icon (or the title's initial) on the
-        Aurora Console smoked-glass surface.
+        Aurora Console's smoked glass, tinted by the tile's own colour.
 
-        Every missing-artwork tile uses the same neutral glass surface. The
-        icon provides identity; keeping colour out of the pane gives rows a
-        consistent rhythm and reserves the accent for focus.
+        The glass used to be identical on every card, reserving colour for
+        focus. On screen that was the weakest thing in the interface: the
+        shipped starter seeds five streaming services that all declare
+        `icon_name="web-browser-symbolic"`, so the flagship row drew five
+        identical rectangles — and the icon was what was meant to tell them
+        apart. The phone remote, fed the same catalogue, draws each tile as
+        its own accent gradient and is plainly more legible; one catalogue
+        cannot have two answers, and the phone had the better one.
+
+        A tint, not the phone's full wash: the row rhythm the neutral pane
+        bought is worth keeping. `Artwork.accent` is the tile's explicit
+        `accent`, else its artwork's dominant colour, else a hue hashed from
+        its id, so a catalogue that sets no colours still gets
+        distinguishable cards — §7.4's "hashed gradient". It also makes the
+        editor's accent row mean something. See DECISIONS 2026-09-04.
         """
+        accent = self._artwork.accent
         # Lift surface-2 just enough to retain an edge over a dark corner,
         # then keep enough transparency for the ambient fields to show
         # through.  This is the GTK/GSK counterpart of the mockup's
         # rgba(52, 68, 92, .42) pane.
         glass = _mix(theme.color("surface-2"), theme.color("text-primary"), 0.06)
-        top = _with_alpha(glass, 0.66)
-        bottom = _with_alpha(theme.color("surface-1"), 0.54)
+        top = _with_alpha(_mix(glass, accent, _TINT_TOP), 0.66)
+        bottom = _with_alpha(_mix(theme.color("surface-1"), accent, _TINT_BOTTOM), 0.54)
         snapshot.append_linear_gradient(
             rect,
             _point(rect.get_x(), rect.get_y()),

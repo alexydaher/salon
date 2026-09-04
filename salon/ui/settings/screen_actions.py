@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused settings-screen workflow."""
 
+from salon.services import artwork_paths
 from salon.services.component import ServiceComponent
 from salon.ui.settings import control_center
 from salon.ui.settings.navigation_policy import is_settings_back, section_target
@@ -229,3 +230,16 @@ class SettingsActionController(ServiceComponent):
 
     def _open_control_center(self, panel: str) -> None:
         control_center.open_panel(panel, self._owner._context.toast)
+
+    def _refresh_artwork(self) -> None:
+        """Forget every guessed site icon, then rebuild the catalogue.
+
+        Only the guesses: `forget_site_icons` empties the `site/` cache
+        directory, which exists separately from explicit artwork precisely
+        so this cannot take away an image the user chose. The rebuild is
+        what re-runs resolution, and resolution is what starts the fetches
+        again.
+        """
+        artwork_paths.forget_site_icons()
+        self._owner._reload_catalog()
+        self._owner._context.toast("Looking for tile artwork again…")

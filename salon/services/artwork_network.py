@@ -17,6 +17,7 @@ from salon.services.artwork_io import decode_image, document_head, save_png  # n
 from salon.services.artwork_paths import (  # noqa: E402
     cached_remote_path,
     prune_artwork_cache,
+    site_icon_miss_is_current,
     site_icon_miss_path,
     site_icon_path,
 )
@@ -67,7 +68,7 @@ class ArtworkNetworkLoader:
 
     def maybe_fetch_site_icon(self, url: str) -> None:
         key = f"site:{siteicon.origin(url)}"
-        if key in self._in_flight or site_icon_miss_path(url).exists():
+        if key in self._in_flight or site_icon_miss_is_current(url):
             return
         self._in_flight.add(key)
         message = Soup.Message.new("GET", url)
@@ -78,11 +79,15 @@ class ArtworkNetworkLoader:
         # page to anything they do not recognise — and that stripped page is
         # exactly the one with no icon declarations in it.
         message.get_request_headers().append("User-Agent", _SITE_ICON_USER_AGENT)
+        # `prefix=True`: only `<head>` is wanted, and a streaming service's
+        # homepage is measured in megabytes. Rejecting on size here is what
+        # made every large site resolve no icon.
         fetch_bytes(
             self._session_for(),
             message,
             _HTML_DOWNLOAD_BYTES,
             lambda body: self._on_page_fetched(body, url),
+            prefix=True,
         )
 
     def _on_page_fetched(self, body: bytes | None, url: str) -> None:

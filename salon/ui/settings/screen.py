@@ -107,6 +107,7 @@ class SettingsScreen(
             close=self.close,
             installed_apps=installed_apps,
             open_control_center=self._open_control_center,
+            refresh_artwork=self._refresh_artwork,
             phone_remote_running=phone_remote_running,
             set_phone_remote=set_phone_remote,
             phone_remote_hint=phone_remote_hint,

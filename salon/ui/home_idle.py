@@ -15,6 +15,17 @@ class HomeIdleController(ServiceComponent):
             self._owner._settings.get_string("wallpaper-color-treatment"),
         )
 
+    def _apply_clock_format(self) -> None:
+        """One preference, both clocks.
+
+        The standing clock and the idle screen's drifting one are separate
+        widgets drawing the same instant; setting them from one place is
+        what stops them disagreeing about the dial.
+        """
+        preference = self._owner._settings.get_string("clock-format")
+        self._owner._status_info.set_clock_preference(preference)
+        self._owner._screensaver.set_clock_preference(preference)
+
     def _apply_screensaver_setting(self) -> None:
         if self._owner._idle_id is not None:
             GLib.source_remove(self._owner._idle_id)
@@ -52,6 +63,11 @@ class HomeIdleController(ServiceComponent):
             # timer would swap the background out from under someone
             # mid-navigation.
             self._owner._backdrop.next_wallpaper()
+            # The toast lives in the overlay *above* this one — it has to,
+            # so a message can be seen over any surface — so the idle screen
+            # cannot cover it and has to take it away instead. Nobody is
+            # reading it after several minutes of no input anyway.
+            self._owner._dismiss_toast()
             self._owner._screensaver.show()
         return bool(GLib.SOURCE_CONTINUE)
 
@@ -75,6 +91,19 @@ class HomeIdleController(ServiceComponent):
             may_launch=may_launch, source=self._owner._input_source
         ):
             self._owner._launch_focused()
+            return
+        self._owner._toast("Nothing is playing.")
+
+    def _skip_track(self, *, forward: bool) -> None:
+        """NEXT / PREVIOUS: move within whatever is playing.
+
+        No launch fallback, unlike `_play_pause`. That fallback exists
+        because a television remote's biggest button is play and pressing
+        it on a home screen plausibly means "start this" — nobody presses
+        skip meaning "open something".
+        """
+        watcher = self._owner._now_playing
+        if watcher.next() if forward else watcher.previous():
             return
         self._owner._toast("Nothing is playing.")
 

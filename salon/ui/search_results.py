@@ -9,20 +9,25 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
 from salon.core import ranking  # noqa: E402
+from salon.core.focus import Bump  # noqa: E402
 from salon.core.model import Tile  # noqa: E402
+from salon.input.actions import Action  # noqa: E402
 from salon.services import appinfo  # noqa: E402
-from salon.ui.search_models import Pane  # noqa: E402
+from salon.ui.search_hints import _KEYBOARD_HINTS, _RESULT_HINTS  # noqa: E402
+from salon.ui.search_models import MAX_RESULT_COLUMNS, Pane, result_columns  # noqa: E402
 from salon.ui.tile import TileWidget, metrics_for  # noqa: E402
 
-RESULT_COLUMNS = 3
+# The ceiling; `result_columns` decides what is drawn. See it for why.
+RESULT_COLUMNS = MAX_RESULT_COLUMNS
 _MAX_RESULTS = 60
+# How far a card slides and settles when the cursor pushes past an end.
+_BUMP_DISTANCE_DU = 26.0
 
 
 class SearchResultsController:
     def current_text(self) -> str:
-        """What is in the query box, for the phone to mirror. The phone
-        draws its own field over this one, and two keyboards pointed at one
-        box have to agree about what is in it."""
+        """What is in the query box, for the phone to mirror: two keyboards
+        pointed at one box have to agree about what is in it."""
         return self._keyboard.text
 
     def _on_installed_scanned(self, tiles: list[Tile]) -> None:
@@ -34,11 +39,9 @@ class SearchResultsController:
     def _refresh_results(self) -> None:
         query = self._keyboard.text
         self._query_label.set_label(query or "Search")
-
         if not query.strip():
-            # An empty query shows the catalogue rather than nothing: the
-            # user opened search to go somewhere, and a blank screen makes
-            # them type before it will admit anything exists.
+            # An empty query shows the catalogue rather than nothing: a
+            # blank screen makes you type before it admits anything exists.
             self._results = self._catalog_tiles[:_MAX_RESULTS]
         else:
             by_id = {tile.id: tile for tile in (*self._catalog_tiles, *self._installed_tiles)}
@@ -47,9 +50,8 @@ class SearchResultsController:
             pairs = appinfo.search_pairs(self._catalog_tiles) + appinfo.search_pairs(
                 self._installed_tiles
             )
-            # The same call the phone's `/search` makes, deliberately: two
-            # search surfaces that ordered or deduplicated results
-            # differently would be two things to learn.
+            # The same call the phone's `/search` makes: two search surfaces
+            # that ranked differently would be two things to learn.
             self._results = [
                 by_id[tile_id] for tile_id in ranking.rank_best(query, pairs, _MAX_RESULTS)
             ]
@@ -77,8 +79,9 @@ class SearchResultsController:
         self._hint_label.set_label(" · ".join(status))
 
     def _row_lengths(self) -> list[int]:
-        rows, remainder = divmod(len(self._results), RESULT_COLUMNS)
-        lengths = [RESULT_COLUMNS] * rows
+        columns = self._result_columns
+        rows, remainder = divmod(len(self._results), columns)
+        lengths = [columns] * rows
         if remainder:
             lengths.append(remainder)
         return lengths
@@ -93,7 +96,7 @@ class SearchResultsController:
         metrics = metrics_for(self._scale)
         self._result_widgets = []
         for index, tile in enumerate(self._results):
-            row, col = divmod(index, RESULT_COLUMNS)
+            row, col = divmod(index, self._result_columns)
             artwork = self._artwork.resolve(tile, icon_size=round(metrics.height * 0.5))
             widget = TileWidget(tile, artwork, metrics, self._scale)
             click = Gtk.GestureClick()
@@ -102,12 +105,10 @@ class SearchResultsController:
             motion = Gtk.EventControllerMotion()
             motion.connect("motion", lambda *_, i=index: self._hover_result(i))
             widget.add_controller(motion)
-            # Vertically the first row sits a full bleed down, so its bloom
-            # is inside the clip rather than sheared off along the top edge.
-            # Horizontally it stays at -bleed on purpose: the left edge of
-            # this viewport is the boundary with the keyboard pane, the
-            # three columns already fill the pane's width, and glow spilling
-            # over the keys would be worse than glow that stops at them.
+            # Vertically a full bleed down, so the first row's bloom is
+            # inside the clip. Horizontally at -bleed on purpose: this
+            # viewport's left edge borders the keyboard, and glow spilling
+            # over the keys is worse than glow that stops at them.
             self._results_content.put(
                 widget,
                 col * metrics.step - metrics.bleed,
@@ -117,7 +118,7 @@ class SearchResultsController:
 
         self._results_focus.set_row_lengths(self._row_lengths())
         self._results_content.set_size_request(
-            max(1, round(RESULT_COLUMNS * metrics.step)),
+            max(1, round(self._result_columns * metrics.step - metrics.gap + 2 * metrics.bleed)),
             max(
                 1,
                 round(
@@ -135,14 +136,14 @@ class SearchResultsController:
         if not (0 <= index < len(self._results)):
             return
         self._pane = Pane.RESULTS
-        self._results_focus.jump_to(*divmod(index, RESULT_COLUMNS))
+        self._results_focus.jump_to(*divmod(index, self._result_columns))
         self._update_selection()
         self._launch_focused()
 
     def _hover_result(self, index: int) -> None:
         if not self._pointer_active or not (0 <= index < len(self._results)):
             return
-        position = divmod(index, RESULT_COLUMNS)
+        position = divmod(index, self._result_columns)
         if self._pane is Pane.RESULTS and self._results_focus.position == position:
             return
         self._pane = Pane.RESULTS
@@ -162,14 +163,41 @@ class SearchResultsController:
             self.add_css_class("keyboard-pane")
         else:
             self.remove_css_class("keyboard-pane")
+        self._refresh_bottom_bar(index)
         self._scroll_to_focused(animate=animate)
 
+    def _refresh_bottom_bar(self, index: int) -> None:
+        """What the buttons do here, and what the cursor rests on. Keyed on
+        the pane: OK types a letter on one side and opens an app on the
+        other."""
+        on_results = self._pane is Pane.RESULTS
+        self._bottom.set_hints(_RESULT_HINTS if on_results else _KEYBOARD_HINTS)
+        tile = self._results[index] if on_results and 0 <= index < len(self._results) else None
+        if tile is None:
+            self._bottom.set_selection("")
+            return
+        self._bottom.set_selection(tile.title, tile.subtitle or "")
+
     def _focused_index(self) -> int:
-        return self._results_focus.row * RESULT_COLUMNS + self._results_focus.col
+        return self._results_focus.row * self._result_columns + self._results_focus.col
 
     def _on_results_resized(self, width: int, height: int) -> None:
         self._results_height = height
+        self._results_width = width
+        if self._sync_result_columns():
+            self._rebuild_result_widgets()  # the shape changed, so every position did
+            return
         self._scroll_to_focused(animate=False)
+
+    def _sync_result_columns(self) -> bool:
+        """Adopt the column count the measured pane can hold; report whether
+        it changed. The design count is a ceiling, not a promise."""
+        metrics = metrics_for(self._scale)
+        columns = result_columns(self._results_width, metrics.step, metrics.gap)
+        if columns == self._result_columns:
+            return False
+        self._result_columns = columns
+        return True
 
     def _scroll_to_focused(self, *, animate: bool) -> None:
         if self._pane is not Pane.RESULTS or not self._result_widgets:
@@ -192,3 +220,31 @@ class SearchResultsController:
             desired = metrics.bleed - card_top
         target = max(lowest, min(0.0, desired))
         self._results_scroll.animate_to(target) if animate else self._results_scroll.jump_to(target)
+
+    # --- crossing between the two panes ----------------------------------
+    # Here rather than in `search.py`: both halves are about the grid —
+    # whether there are results to cross *to*, and what it does at an end.
+
+    def _handle_keyboard_direction(self, action: Action) -> None:
+        if self._keyboard.move(action):
+            self._update_selection()
+            return
+        if action is Action.RIGHT and self._results:
+            self._pane = Pane.RESULTS
+            self._update_selection()
+
+    def _handle_results_direction(self, action: Action) -> None:
+        change = self._results_focus.handle(action)
+        if change.moved:
+            self._update_selection()
+            return
+        if change.bump is Bump.LEFT:
+            self._pane = Pane.KEYBOARD
+            self._update_selection()
+            return
+        if change.bump is not Bump.NONE:
+            distance = self._scale.du(_BUMP_DISTANCE_DU)
+            if change.bump is Bump.UP:
+                self._results_scroll.bump(distance)
+            elif change.bump is Bump.DOWN:
+                self._results_scroll.bump(-distance)

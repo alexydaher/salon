@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from typing import cast
 
 import gi
 
@@ -40,7 +41,8 @@ gi.require_version("Pango", "1.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
-from salon.ui import motion, theme  # noqa: E402
+from salon.core.clockformat import ClockPreference  # noqa: E402
+from salon.ui import clock_strings, motion, theme  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 from salon.ui.tile import DISPLAY_FAMILY, font_description  # noqa: E402
 
@@ -89,6 +91,7 @@ class ScreenSaver(Gtk.Widget):
         self.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
 
         self._scale = scale
+        self._clock_preference: ClockPreference = "automatic"
         self._opacity = 0.0
         self._phase = 0.0
         self._tick_id: int | None = None
@@ -99,6 +102,10 @@ class ScreenSaver(Gtk.Widget):
 
     def set_scale(self, scale: Scale) -> None:
         self._scale = scale
+        self.queue_draw()
+
+    def set_clock_preference(self, preference: str) -> None:
+        self._clock_preference = cast(ClockPreference, preference)
         self.queue_draw()
 
     # --- lifecycle -------------------------------------------------------
@@ -164,8 +171,17 @@ class ScreenSaver(Gtk.Widget):
         snapshot.append_color(_with_alpha(theme.color("surface-0"), self._opacity), bounds)
 
         now = datetime.now()
-        clock = self._layout(now.strftime("%H:%M"), tokens.type_token("clock").size_du * 2.4, 700)
-        date = self._layout(now.strftime("%A, %-d %B"), tokens.type_token("date").size_du, 400)
+        # The same locale rules as the standing clock (`ui/clock_strings`).
+        # Two clocks in one application disagreeing about whether the hour is
+        # on a 12-hour dial would be worse than either answer.
+        clock = self._layout(
+            now.strftime(clock_strings.clock_format(self._clock_preference)),
+            tokens.type_token("clock").size_du * 2.4,
+            700,
+        )
+        date = self._layout(
+            now.strftime(clock_strings.date_format()), tokens.type_token("date").size_du, 400
+        )
         clock_width, clock_height = clock.get_pixel_size()
         date_width, date_height = date.get_pixel_size()
         block_width = max(clock_width, date_width)

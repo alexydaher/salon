@@ -73,14 +73,12 @@ class SettingsList(Gtk.Fixed):
         for row in self._rows:
             row.set_content_width(width)
         gutter = self._chrome.layout(self._scale, width, height)
-        # No invisible top gutter. The first row starts at the pane's own
-        # padding; a top pill only exists after content has actually moved
-        # above the viewport, where the fade can safely run over it.
-        self._content.set_margin_top(0)
+        # The top gutter comes and goes with its pill (`_scroll_to_selection`
+        # owns it). The bottom one is always reserved: unlike the top, that
+        # pill is there from the first frame of any over-long list.
         self._content.set_margin_bottom(gutter)
-        # And only now is there a height to scroll within: set_rows runs
-        # before the first allocation, so without this the list opens
-        # unscrolled however far down the selection sits.
+        # Only now is there a height to scroll within: set_rows runs before
+        # the first allocation, or the list opens unscrolled.
         self._scroll_to_selection(animate=False)
 
     @property
@@ -239,7 +237,14 @@ class SettingsList(Gtk.Fixed):
             0, len(row_heights) - 1
         )
         band = viewport_height - 2 * gutter
-        self._chrome.set_overhang(
-            above=offset < -1.0, below=content_height + offset > band + 1.0
-        )
+        above = offset < -1.0
+        self._chrome.set_overhang(above=above, below=content_height + offset > band + 1.0)
+        # The top gutter is reserved only while there is a pill to put in
+        # it. `_selection_offset` has always placed rows at `gutter + top +
+        # offset`; the margin making that true existed at the bottom and not
+        # at the top, so the opaque "▲ More" pill landed square on the first
+        # visible row ("Appearanc[▲ More]", "Networ[▲ More]"). Reserving it
+        # unconditionally is what the old comment here rejected, rightly:
+        # at rest there is no pill and it would be a permanent empty band.
+        self._content.set_margin_top(gutter if above else 0)
         self._scroll.animate_to(offset) if animate else self._scroll.jump_to(offset)

@@ -71,7 +71,22 @@ class RowContent(Gtk.Box):
 
         self._detail = Gtk.Label(label=detail)
         self._detail.set_halign(Gtk.Align.START)
+        self._detail.set_xalign(0.0)
+        # Wrapped to a second line rather than ellipsized. This line is the
+        # explanation — "Not granted yet; you'll be asked the ne…", "Needs
+        # cec-client, which isn'…", "Increase if screen …" — and a sentence
+        # cut mid-word at three metres is not a shorter explanation, it is
+        # no explanation. Two lines is the cap: past that a row grows tall
+        # enough to change how many fit in the pane, which is a bigger cost
+        # than the one being fixed. `set_wrap` alone would let a long
+        # sentence claim the label's full natural width and stretch the
+        # row, so the character cap bounds it — the same pairing
+        # `ui/onboarding.py` uses, and for the same reason.
+        self._detail.set_wrap(True)
+        self._detail.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self._detail.set_lines(2)
         self._detail.set_ellipsize(Pango.EllipsizeMode.END)
+        self._detail.set_max_width_chars(48)
         self._detail.add_css_class("salon-settings-detail")
         self._detail.set_visible(bool(detail))
         text.append(self._detail)

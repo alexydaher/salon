@@ -61,6 +61,13 @@ _CODE_TO_ACTION = {
     0x44: Action.PLAY_PAUSE,
     0x46: Action.PLAY_PAUSE,
     0x45: Action.PLAY_PAUSE,
+    # Skip. 0x4B/0x4C are CEC 1.4's "forward"/"backward"; 0x49/0x48 are
+    # fast-forward and rewind, which no remote sends as a *held* code over
+    # CEC and which every remote's user reaches for to change track.
+    0x4B: Action.NEXT,
+    0x49: Action.NEXT,
+    0x4C: Action.PREVIOUS,
+    0x48: Action.PREVIOUS,
     # Power. Handled as "open the system menu" rather than as an immediate
     # suspend — see ui/home.py.
     0x40: Action.POWER,

@@ -48,8 +48,22 @@ class SelectionActionBar(Gtk.Box):
         self._legend.set_scale(scale)
 
     def set_selection(self, title: str, detail: str = "") -> None:
+        """The selected item's name, and optionally a line about it.
+
+        The detail label expands and the title does not, which is right
+        when there is a detail and wrong when there is not: an ellipsizing
+        label's *minimum* width is about one character, so under pressure
+        from the legend the title collapsed to its minimum while an empty
+        label beside it held the rest of the band. The all-apps grid never
+        passes a detail, and its selected application rendered as `Adv…`
+        with 200px of empty band next to it. So the detail only takes part
+        when it has something to say, and the title expands when it does
+        not.
+        """
         self._title.set_label(title)
         self._detail.set_label(detail)
+        self._detail.set_visible(bool(detail))
+        self._title.set_hexpand(not detail)
 
     def set_hints(self, hints: tuple[Hint, ...]) -> None:
         self._legend.set_hints(hints)

@@ -91,6 +91,11 @@ class SettingsContext:
     close: Callable[[], None]
     installed_apps: Callable[[Callable[[list[Tile]], None]], None]
     open_control_center: Callable[[str], None]
+    # Drop every icon Salon guessed from a website and look again. Needed
+    # because a guess that fails is remembered, so a television that booted
+    # before its network did would otherwise keep a row of blank tiles with
+    # nothing in the interface to say why.
+    refresh_artwork: Callable[[], None]
     # The phone remote (services/pairing.py). Three callables rather than a
     # reference to the server, because Settings has no business starting or
     # stopping it on its own — the home screen owns the one hold that

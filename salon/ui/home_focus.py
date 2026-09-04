@@ -41,16 +41,18 @@ class HomeFocusController(ServiceComponent):
                 row.tiles_box.remove_css_class("row-focused")
 
         tile = self._owner._catalog.tile_at(self._owner._focus.row, self._owner._focus.col)
-        self._owner._detail_bar.set_tile(tile)
+        focused = self._focused_widget()
+        self._owner._detail_bar.set_tile(
+            tile, title_truncated=focused.title_truncated if focused is not None else None
+        )
         if tile is not None:
             self._owner._settings.set_string("last-focused-tile", tile.id)
-            focused_widget = self._focused_widget()
-            if focused_widget is not None and not menu_focused:
-                self._owner._backdrop.set_focus(focused_widget.artwork_accent)
-                self._publish_active_descendant(focused_widget)
-        # A vertical move explicitly suppresses this even though its landing
-        # geometry normally makes it a no-op. That keeps the no-sideways-
-        # motion contract true even in a viewport too narrow for one card.
+            if focused is not None and not menu_focused:
+                self._owner._backdrop.set_focus(focused.artwork_accent)
+                self._publish_active_descendant(focused)
+        # A vertical move suppresses this even though its landing geometry
+        # usually makes it a no-op: it keeps the no-sideways-motion contract
+        # true in a viewport too narrow for one card.
         if reveal_horizontal:
             self._update_row_scroll(
                 self._owner._focus.row, self._owner._focus.col, animate=animate
@@ -87,10 +89,9 @@ class HomeFocusController(ServiceComponent):
                 can_next=source.can_go_next,
                 can_previous=source.can_go_previous,
                 art_url=source.art_url if remote_cover else "",
-                # Not a stat: this runs on every cursor movement, and
-                # /np-art answers 404 for a file that turns out to be
-                # unreadable — which the phone's card already falls back
-                # from rather than drawing a broken glyph.
+                # Not a stat: this runs on every cursor move, and /np-art
+                # answers 404 for an unreadable file — which the phone's
+                # card already falls back from.
                 has_art=source.art_url.startswith("file://"),
                 source_id=source.bus_name,
                 identity=source.identity,
@@ -189,9 +190,8 @@ class HomeFocusController(ServiceComponent):
         if self._owner._launcher.is_launching:
             return f"Opening {self._owner._launcher.child_title or 'an app'}…"
         # pointer_mode as well as child_active: a *browser* tile puts Salon
-        # behind Chrome without ever setting child_active, so testing only
-        # the latter told the phone it was on the home screen while Netflix
-        # was on the television.
+        # behind Chrome without setting child_active, so testing only the
+        # latter told the phone it was on Home with Netflix on the TV.
         if self._owner._child_active or self._owner._pointer_mode:
             return self._owner._launcher.child_title or "app"
         return "home"

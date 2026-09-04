@@ -161,6 +161,16 @@
       <summary>Buttons the user has rebound</summary>
       <description>Overrides for the built-in button map, as "source:code" to action name — for example "pad:305" to "ok" on a Nintendo-layout controller, whose south and east buttons are the other way round. An empty action means the button is deliberately silenced. Anything not listed here uses Salon's default for that source.</description>
     </key>
+    <key name="clock-format" type="s">
+      <choices>
+        <choice value="automatic"/>
+        <choice value="12-hour"/>
+        <choice value="24-hour"/>
+      </choices>
+      <default>'automatic'</default>
+      <summary>Whether the clock is written on a 12-hour or a 24-hour dial</summary>
+      <description>Automatic follows this computer's region setting, which is what a television should do; the other two override it. The date beside the clock always follows the region, including whether the day comes before the month.</description>
+    </key>
     <key name="screensaver-minutes" type="i">
       <range min="0" max="120"/>
       <default>10</default>

@@ -177,13 +177,12 @@ def _starter_rows(apps: list[Tile], *, geforce_now: Tile | None) -> list[Row]:
                 geforce_tile,
             ],
         ),
-        Row(
-            id="web",
-            title="Web",
-            provider_id="static",
-            tiles=[_web_tile("gnome-org", "GNOME.org", "https://www.gnome.org/")],
-        ),
     ]
+    # There was a third row here, "Web", holding one link to gnome.org. It
+    # demonstrated that a URL tile exists — to somebody who had not asked —
+    # by spending a whole row and a heading on a project homepage nobody
+    # opens from a sofa. Adding a web tile is two presses in the editor and
+    # the Streaming row above is already five worked examples of one.
 
 
 def _legacy_seed_rows() -> list[Row]:

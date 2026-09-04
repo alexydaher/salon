@@ -11,6 +11,10 @@ class HomeShellChrome(ServiceComponent):
         self._sync_shell_chrome()
 
     def _sync_shell_chrome(self) -> None:
+        # A standing message belongs to the surface that raised it. Left
+        # alone, "Couldn't start Movie Night" outlived two navigations and
+        # sat over the Settings footer.
+        self._owner._dismiss_toast()
         apps = self._owner._apps_grid.get_visible()
         settings = self._owner._settings_screen.get_visible()
         search = self._owner._search.get_visible()
@@ -42,9 +46,39 @@ class HomeShellChrome(ServiceComponent):
             self._owner._scale.px(tokens.CONSOLE_WIDTH_DU)
         )
 
+    def _sync_bottom_band(self) -> None:
+        """Hide the standing bottom band whenever something else owns it.
+
+        Two things want the bottom-right corner: Home's own legend, and the
+        one a menu draws above its scrim (`ui/system_menu.py`).
+        `_update_legend` already hands the hints to whichever is in charge
+        and blanks the other. What it could not do on its own is stop the
+        *detail strip* beside Home's legend from expanding into the space
+        the menu's legend now occupies — a `Gtk.Box` gives the hexpanding
+        child everything the other one is not asking for, and with Home's
+        legend blank that is the whole band. Measured: 846px of description
+        drawn straight underneath the menu's first chip.
+
+        Faded to zero rather than hidden, for the same reason as the
+        preview strip: `home_scrolling._bottom_inset` measures this row to
+        decide where the tile band ends, and a hidden widget measures zero,
+        so every row on the screen would jump down by the strip's height
+        each time a menu opened.
+        """
+        menu_open = any(
+            menu.get_visible() for menu in (self._owner._system_menu, self._owner._tile_menu)
+        )
+        hidden = (
+            menu_open
+            or self._owner._preview_chrome_active
+            or self._owner._current_toast is not None
+        )
+        self._owner._bottom_bar.set_opacity(0.0 if hidden else 1.0)
+
     def _set_preview_chrome(self, previewing: bool) -> None:
         """Reveal Home's stable shell behind Settings' live preview."""
-        self._owner._bottom_bar.set_opacity(0.0 if previewing else 1.0)
+        self._owner._preview_chrome_active = previewing
+        self._sync_bottom_band()
         if previewing:
             self._owner._remote_hint.set_settings_layout(False)
             self._owner._viewport_host.set_visible(True)

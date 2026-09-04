@@ -3,15 +3,12 @@
 
 from __future__ import annotations
 
-import shutil
-
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
-from salon.services import artwork  # noqa: E402
 from salon.ui import backdrop_wallpaper  # noqa: E402
 from salon.ui.settings import wallpaper  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
@@ -40,6 +37,17 @@ _THEMES: tuple[tuple[str, str], ...] = (
     ("graphite", "Graphite"),
     ("ember", "Ember"),
     ("contrast", "High contrast"),
+)
+
+# The date's order — day before month, or the other way round — always
+# follows the region and is deliberately not offered here: nobody wants a
+# television where the date is written one way and every other clock in the
+# house writes it the other. Only the dial is a preference, because 24-hour
+# is a common personal choice inside a 12-hour region and vice versa.
+_CLOCK_FORMATS: tuple[tuple[str, str], ...] = (
+    ("automatic", "Automatic"),
+    ("12-hour", "12-hour"),
+    ("24-hour", "24-hour"),
 )
 
 
@@ -142,6 +150,13 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 detail="Instant focus changes",
                 preview=True,
             ),
+            GroupRow("Clock"),
+            keyed.choice(
+                "clock-format",
+                "Time",
+                _CLOCK_FORMATS,
+                detail="Automatic follows this computer's region",
+            ),
             keyed.ranged(
                 "screensaver-minutes",
                 "Idle screen",
@@ -181,8 +196,9 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
                 "Use each site's own icon",
             ),
             ActionRow(
-                "Forget fetched site icons",
-                lambda: _forget_site_icons(context),
+                "Look for site icons again",
+                context.refresh_artwork,
+                detail="Forgets what was fetched, and what failed",
             ),
             GroupRow("This section"),
             restore_defaults_row(keyed, context.toast, context.rebuild),
@@ -227,23 +243,3 @@ def _background_path_panel(context: SettingsContext, settings: Gio.Settings) -> 
         ]
 
     return Panel(title="Background path", build=build)
-
-
-def _forget_site_icons(context: SettingsContext) -> None:
-    """Drop the guessed icons without touching artwork the user chose.
-
-    They live in their own directory precisely so this can be one removal:
-    a site that has since changed its logo, or one that was asked before it
-    had an icon at all, is otherwise cached for good.
-    """
-    directory = artwork.site_icon_cache_dir()
-    try:
-        shutil.rmtree(directory)
-    except FileNotFoundError:
-        context.toast("There were no fetched icons to forget.")
-        return
-    except OSError as error:
-        context.toast(f"Couldn't clear the icon cache: {error.strerror or error}")
-        return
-    context.toast("Fetched site icons cleared. They'll be asked for again.")
-    context.rebuild()

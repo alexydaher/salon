@@ -161,6 +161,15 @@ class HomeActionRouter(ServiceComponent):
         if action is Action.MUTE:
             audio.toggle_mute(lambda: audio.get_volume(self._owner._on_volume_read))
             return
+        # Skip belongs to the same group and for the same reason: it is a
+        # command to whatever is playing over MPRIS, not to a window, so it
+        # is as true inside Settings or behind Netflix as it is on Home.
+        # PLAY_PAUSE deliberately stays *below* the guards instead, because
+        # it alone carries the "nothing is playing, so start the focused
+        # tile" fallback, and that is a statement about Home.
+        if action in (Action.NEXT, Action.PREVIOUS):
+            self._owner._skip_track(forward=action is Action.NEXT)
+            return
 
         # Everything from here down draws or acts on Salon's own window, so
         # the guards for "an app is covering it" come first. They used not

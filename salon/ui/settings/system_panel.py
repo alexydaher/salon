@@ -27,6 +27,7 @@ from salon.ui.settings.widgets import (  # noqa: E402
     Keyed,
     SettingsRow,
     ToggleRow,
+    external_group,
     opens_gnome,
     opens_panel,
     restore_defaults_row,
@@ -41,7 +42,7 @@ def system_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
 
     def build() -> list[SettingsRow]:
         return [
-            GroupRow("This computer"),
+            external_group("This computer"),
             gnome("Display and resolution", "display"),
             gnome("Date and time", "datetime"),
             gnome("Region and language", "region"),

@@ -64,6 +64,12 @@ window {
   font-weight: var(--weight-clock);
 }
 
+.salon-status-meridiem {
+  color: @text-secondary;
+  font-size: var(--font-date);
+  font-weight: var(--weight-date);
+}
+
 .salon-status-date {
   color: @text-secondary;
   font-size: var(--font-date);
@@ -724,6 +730,12 @@ toast > label {
 .salon-console-time {
   padding: calc(var(--console-block-pad) - calc(var(--focus-ring) * 1.33))
     var(--console-block-pad);
+}
+
+.salon-console-time .salon-status-meridiem {
+  color: @text-primary;
+  font-size: var(--font-date);
+  font-weight: 600;
 }
 
 .salon-console-time .salon-status-clock {

@@ -24,6 +24,12 @@ class Action(StrEnum):
     PREV_GROUP = "prev_group"
     NEXT_GROUP = "next_group"
     PLAY_PAUSE = "play_pause"
+    # Skip. Every television remote has these two keys, the phone remote has
+    # offered them per source since it grew a media sheet, and until now the
+    # television itself answered neither — a controller or a TV remote could
+    # pause a record and not move to the next track.
+    NEXT = "next"
+    PREVIOUS = "previous"
     VOLUME_UP = "volume_up"
     VOLUME_DOWN = "volume_down"
     MUTE = "mute"

@@ -122,6 +122,7 @@ class DetailBar(Gtk.Box):
         self.append(self._detail)
 
         self._tile: Tile | None = None
+        self._title_truncated = False
         self._nav: tuple[str, str] | None = None
         self.set_scale(scale)
 
@@ -138,8 +139,19 @@ class DetailBar(Gtk.Box):
         self.set_margin_top(0)
         self.set_spacing(scale.px(16.0))
 
-    def set_tile(self, tile: Tile | None) -> None:
+    def set_tile(self, tile: Tile | None, *, title_truncated: bool | None = None) -> None:
+        """*title_truncated* is what the card actually did to the title.
+
+        Asked of the widget rather than guessed from a character count: the
+        card's capacity moves with the `tile-scale` preference, and the
+        constant that used to stand in for it was written for a card at the
+        design size. See `TileWidget.title_truncated`.
+        """
         self._tile = tile
+        if title_truncated is not None:
+            self._title_truncated = title_truncated
+        elif tile is None:
+            self._title_truncated = False
         self._refresh()
 
     def set_nav_target(self, title: str, _detail: str) -> None:
@@ -172,7 +184,8 @@ class DetailBar(Gtk.Box):
             self._detail.set_label("")
             return
         # The subtitle is here instead of on the card. Repeat the title only
-        # when a compact card is likely to have truncated it.
-        self._title.set_label(tile.title if len(tile.title) > 22 else "")
+        # when the card actually truncated it — which is a measurement now,
+        # not a character count.
+        self._title.set_label(tile.title if self._title_truncated else "")
         parts = [part for part in (tile.subtitle, describe(tile)) if part]
         self._detail.set_label(" · ".join(parts))

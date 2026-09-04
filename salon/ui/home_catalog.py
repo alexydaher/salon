@@ -5,7 +5,6 @@
 from salon.core import starter
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
-    Adw,
     Callable,
     Catalog,
     CatalogBuild,
@@ -18,9 +17,6 @@ from salon.ui.home_shared import (
 
 
 class HomeCatalogController(ServiceComponent):
-    def _toast(self, message: str) -> None:
-        self._owner._toast_overlay.add_toast(Adw.Toast(title=message))
-
     def _load_config(self) -> tile_config.Config:
         if not self._owner._config_path.exists():
             config = starter.pending_starter_config()

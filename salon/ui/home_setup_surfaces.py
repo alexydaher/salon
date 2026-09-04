@@ -109,6 +109,10 @@ class HomeSurfaceSetup(ServiceComponent):
         self._owner._bottom_bar.append(self._owner._detail_bar)
         self._owner._bottom_bar.append(self._owner._legend)
         self._owner._overlay.add_overlay(self._owner._bottom_bar)
+        # Whether Settings' live preview has claimed the band. Read by
+        # `_sync_bottom_band`, which is the one place that decides whether
+        # this row is drawn, so a menu and a preview cannot disagree.
+        self._owner._preview_chrome_active = False
         # Which kind of device sent the last press, so the legend can name
         # its buttons rather than Salon's intents. Starts as the remote's
         # vocabulary: "OK" and "Menu" are what a television's own remote

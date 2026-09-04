@@ -6,6 +6,62 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
+## Unreleased
+
+### Fixed
+
+- Web tiles can find a site's own icon again. Salon discarded any page over
+  512 KiB instead of reading the front of it, so Netflix, Prime Video,
+  Disney+ and YouTube — four of the five tiles the first-run home screen
+  ships with — resolved no icon at all and drew identical generic marks. A
+  failed lookup was also remembered forever; it now expires after a week,
+  and Appearance has one action that forgets both the icons and the
+  failures and looks again.
+- The idle screen covers the whole screen. The clock card, the "Home" title
+  and the top-bar buttons stayed at full brightness behind it, which is the
+  static bright image it exists to keep off a panel.
+- A menu no longer draws its button legend on top of the description of the
+  selected tile. The standing bottom band steps aside for a menu, for
+  Settings' live preview and for a message.
+- The volume readout and messages no longer land on the bottom band.
+- Settings' "▲ More" indicator no longer covers the first visible row, and
+  the section list is the same height as the panel beside it, so all eight
+  sections fit without scrolling.
+- Row descriptions in Settings wrap to a second line instead of being cut
+  off mid-word.
+- The bottom strip repeats a tile's name whenever the card truncated it,
+  measured against the card rather than guessed from a character count. In
+  All Apps the selected application's name is no longer cut to three
+  characters.
+- Search results fit the space beside the keyboard instead of assuming
+  three columns fit.
+- Opening Settings at a section that does not exist is logged instead of
+  quietly landing on the section list.
+
+### Added
+
+- The clock follows the region: 12- or 24-hour, and the date in the local
+  order. Appearance → Clock overrides the dial. The spoken and drawn
+  formats are now the same one.
+- Next and Previous track, on HDMI-CEC transport keys and the keyboard's
+  media keys. They reach the player from any screen, like volume.
+- A Power key on the phone remote, which raises the television's own Power
+  list.
+- A button legend on the search screen, the only surface that had none.
+
+### Changed
+
+- Tiles without artwork are tinted with their own colour instead of all
+  drawing the same neutral card, so a row of six is six things at a glance
+  — and the tile editor's accent picker now changes the tile you are
+  editing.
+- The starter catalogue no longer seeds a "Web" row containing a single
+  link to gnome.org.
+- The console column shows network, battery and running-app rows only when
+  they have something to report, rather than standing empty.
+- Options over a tile offers to open it from every screen, not only from
+  All Apps and search.
+
 ## 0.4.2 — 2026-09-02
 
 ### Added

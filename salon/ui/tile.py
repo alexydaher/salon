@@ -43,6 +43,7 @@ from salon.ui.tile_geometry import (  # noqa: E402
     DISPLAY_FAMILY,
     TileMetrics,
     _point,
+    _rect,
     font_description,
     metrics_for,  # noqa: F401 - compatibility re-export
 )
@@ -109,6 +110,31 @@ class TileWidget(Gtk.Widget, TileSurfaceRenderer, TileArtworkRenderer, TileTextR
         subtitle = tokens.type_token("tile-subtitle")
         self._title_font = font_description(DISPLAY_FAMILY, metrics.title_size, title.weight)
         self._subtitle_font = font_description(BODY_FAMILY, metrics.subtitle_size, subtitle.weight)
+
+    @property
+    def title_truncated(self) -> bool:
+        """Whether this card's own width forces its title to ellipsize.
+
+        Measured against the real metrics and the real font rather than
+        guessed from a character count. The detail strip used a constant
+        (`len(title) > 22`) to decide whether to repeat the title, and that
+        constant was written for a card at the design size: at the shipped
+        `tile-scale` of 0.55 a card holds about thirteen characters, so
+        "Living Room Radio" drew as "Living Room …" *and* was withheld from
+        the strip, leaving the full name nowhere on the screen.
+        """
+        title = self.tile.title
+        if not title:
+            return False
+        padding = self._metrics.padding
+        if self._horizontal_content:
+            icon = self._icon_box(_rect(0.0, 0.0, self._metrics.width, self._metrics.height))
+            available = self._metrics.width - padding - (icon.get_x() + icon.get_width() + padding)
+        else:
+            available = self._metrics.width - 2 * padding
+        if available <= 0:
+            return True
+        return bool(self._layout(title, self._title_font, available).is_ellipsized())
 
     @property
     def artwork_accent(self) -> Gdk.RGBA:

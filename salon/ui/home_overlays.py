@@ -117,14 +117,18 @@ class HomeOverlayController(ServiceComponent):
                     submenu=lambda: self._add_to_row_frame(tile),
                 )
             )
-        if from_grid:
-            items.append(
-                SystemMenuItem(
-                    f"Open {tile.title}",
-                    lambda: self._owner._launch_tile(tile),
-                    icon_name="media-playback-start-symbolic",
-                )
+        # Offered from every surface, not only the grid. OK opens the tile
+        # anyway, but a menu that lists "Edit" and "Remove" for a thing and
+        # not "Open" reads as a menu that cannot open it — and the same
+        # menu, over the same tile, did list it when it was reached from
+        # search.
+        items.append(
+            SystemMenuItem(
+                f"Open {tile.title}",
+                lambda: self._owner._launch_tile(tile),
+                icon_name="media-playback-start-symbolic",
             )
+        )
         if located is not None:
             row_id, tile_id = located
             items.append(

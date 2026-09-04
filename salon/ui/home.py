@@ -31,6 +31,7 @@ from salon.ui.home_setup_monitors import HomeMonitorSetup
 from salon.ui.home_setup_surfaces import HomeSurfaceSetup
 from salon.ui.home_shared import Gtk, ScaleManager, ThemeManager
 from salon.ui.home_shell_chrome import HomeShellChrome
+from salon.ui.home_toast import HomeToastController
 
 
 class HomeView(
@@ -42,6 +43,7 @@ class HomeView(
     HomeMonitorSetup,
     HomePreferences,
     HomeCatalogController,
+    HomeToastController,
     HomeLayoutBuilder,
     HomeFocusController,
     HomeLandingController,

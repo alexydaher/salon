@@ -4,6 +4,7 @@
 from salon.ui.settings.action_rows import (
     ActionRow,
     ToggleRow,
+    external_group,
     opens_gnome,
     opens_panel,
     opens_picker,
@@ -18,6 +19,7 @@ __all__ = [
     "ActionRow",
     "ChoiceRow",
     "GroupRow",
+    "external_group",
     "InfoRow",
     "Keyed",
     "RangeRow",

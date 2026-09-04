@@ -282,3 +282,31 @@ def test_an_uncloseable_app_keeps_the_return_to_salon_escape_hatch() -> None:
     assert 'menu.setAttribute("aria-label", inApp ? "Return to Salon" : "Menu")' in render
     assert 'front?.closeable === false' in render
     assert "#hdr-menu.salon-return::after" in style
+
+
+def test_the_header_carries_the_presses_that_do_not_depend_on_a_pane() -> None:
+    """Menu, Power, and the way out of a launched app.
+
+    Power was documented here for a week before it existed: there was no
+    "power", "suspend" or "shutdown" anywhere under `data/remote/`, so the
+    remote for a television had no off button and the only route was Menu,
+    then four D-pad presses while looking at the screen. It raises the
+    television's own Power list rather than acting — that list already
+    confirms anything destructive. See DECISIONS 2026-09-04.
+    """
+    page = PAGE.read_text()
+    header = page[page.index("<header"): page.index("</header>")]
+    for control in ('data-action="menu"', 'data-action="power"', 'id="close-app"'):
+        assert control in header, control
+    assert 'id="i-power"' in page, "the power key needs a glyph in the sprite"
+
+
+def test_every_header_action_is_one_the_television_accepts() -> None:
+    """The page and the action set are edited in different places. A button
+    naming something `ACTION_NAMES` does not hold answers 400."""
+    from salon.core.actions import Action
+
+    page = PAGE.read_text()
+    names = {action.value for action in Action}
+    for name in re.findall(r'data-action="([a-z_]+)"', page):
+        assert name in names, name

@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from salon.ui.settings.settings_row import SettingsRow
+from salon.ui.settings.static_rows import GroupRow
 
 _CHEVRON = "›"
 
@@ -72,8 +73,23 @@ def opens_panel(
 
 
 def opens_gnome(label: str, on_activate: Callable[[], None], *, detail: str = "") -> ActionRow:
-    """A row that hands over to gnome-control-center (§1)."""
+    """A row that hands over to gnome-control-center (§1).
+
+    `↗` is the mark for "this leaves Salon" and nothing on screen defined
+    it. The definition belongs on the *group* these rows sit in — see
+    `EXTERNAL_GROUP` — and not on each row: six consecutive rows all
+    reading "Opens the desktop settings" is a worse answer than none.
+    """
     return ActionRow(label, on_activate, detail=detail, value="↗", external=True)
+
+
+def external_group(title: str) -> GroupRow:
+    """A heading for a run of `opens_gnome` rows, which says what `↗` means.
+
+    Once per group. It matters most in the `Salon (Kiosk)` session, where
+    what opens is a window with no shell behind it to come back from.
+    """
+    return GroupRow(f"{title} ↗ opens the desktop settings")
 
 
 def opens_picker(label: str, on_activate: Callable[[], None], *, detail: str = "") -> ActionRow:

@@ -13,6 +13,7 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
+from salon.core import tokens  # noqa: E402
 from salon.ui import motion  # noqa: E402
 from salon.ui.scale import Scale  # noqa: E402
 
@@ -45,7 +46,11 @@ class VolumeOsd(Gtk.Box):
 
     def set_scale(self, scale: Scale) -> None:
         self.set_spacing(scale.px(20.0))
-        self.set_margin_bottom(scale.safe_margin_px)
+        # Clear of the bottom action band rather than on top of it. At the
+        # safe margin alone this pill straddled the detail strip and the
+        # legend, so a volume press covered the two readouts that describe
+        # what the cursor is on and what the buttons do.
+        self.set_margin_bottom(scale.px(tokens.ACTION_BAR_HEIGHT_DU) + scale.safe_margin_px)
         self._icon.set_pixel_size(scale.px(40.0))
         self._bar.set_size_request(scale.px(360.0), scale.px(8.0))
 

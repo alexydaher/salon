@@ -2,6 +2,8 @@
 # ruff: noqa: F403, F405
 """Focused settings-screen workflow."""
 
+import logging
+
 from salon.services.component import ServiceComponent
 from salon.ui.settings.screen_shared import (
     ActionRow,
@@ -108,6 +110,21 @@ class SettingsStateController(ServiceComponent):
             None,
         )
         if index is None:
+            # Loud, because the quiet version is indistinguishable from
+            # success: a menu item pointing at a section that has been
+            # renamed or removed lands on the section list, which is
+            # exactly where a correct "Settings" item lands. The sections
+            # are built at runtime, so a stale id is a live possibility
+            # rather than something the type checker would have caught —
+            # `open_at("setup")` still worked after "Set up this
+            # television" was folded into the other sections, and nothing
+            # anywhere said so.
+            logging.getLogger(__name__).warning(
+                "No settings section %r; opening the section list instead. "
+                "Known sections: %s",
+                panel_id,
+                ", ".join(panel.panel_id for panel in self._owner._section_panels),
+            )
             self.open()
             return
         self._owner._popup.close()
@@ -157,7 +174,13 @@ class SettingsStateController(ServiceComponent):
         # the section. The panel beside it is capped at 1150du anyway, so
         # the extra 100du comes out of dead space rather than out of a row.
         self._owner._sections_host.set_size_request(scale.px(540.0), -1)
-        self._owner._sections_host.set_margin_bottom(scale.px(140.0))
+        # No dead band under the sections. This column used to reserve 140du
+        # the panel beside it did not, so it measured ~140px shorter and
+        # scrolled with four of eight sections showing — while About, at the
+        # end of the list, drew three rows, half an empty card, and a "▲ More"
+        # pill over the first of them. Both columns are the same height now,
+        # which is also what makes them read as one pair.
+        self._owner._sections_host.set_margin_bottom(0)
         self._owner._sections.set_scale(scale)
         self._owner._panel_list.set_scale(scale)
         self._owner._legend.set_scale(scale)

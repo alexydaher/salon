@@ -32,6 +32,7 @@ python_sources = [
   'siteicon.py',
   'status.py',
   'starter.py',
+  'clockformat.py',
   'tokens.py',
 ]
 
