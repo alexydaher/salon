@@ -38,7 +38,6 @@ class AppsGrid(Gtk.Overlay, motion.FadesIn, AppsGridLayout):
         on_launch: Callable[[Tile], None],
         on_close: Callable[[], None],
         on_focus_top_bar: Callable[[], None],
-        on_count: Callable[[int], None] | None = None,
     ) -> None:
         super().__init__()
         self._init_fade()
@@ -54,7 +53,6 @@ class AppsGrid(Gtk.Overlay, motion.FadesIn, AppsGridLayout):
         self._on_launch = on_launch
         self._on_close = on_close
         self._on_focus_top_bar = on_focus_top_bar
-        self._on_count = on_count
 
         self._tiles: list[Tile] = []
         self._widgets: list[TileWidget] = []
@@ -188,8 +186,6 @@ class AppsGrid(Gtk.Overlay, motion.FadesIn, AppsGridLayout):
         # this screen wants: an A–Z grid is scannable, a ranked one is not.
         self._tiles = tiles
         self._count.set_label(f"{len(tiles)} installed")
-        if self._on_count is not None:
-            self._on_count(len(tiles))
         self._rebuild()
 
     def _set_hint(self, text: str) -> None:

@@ -20,8 +20,11 @@ URL = "https://www.example.com/watch"
 
 
 @pytest.fixture(autouse=True)
-def _cache_in_tmp(tmp_path: Path) -> None:
-    os.environ["XDG_CACHE_HOME"] = str(tmp_path)
+def _cache_in_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # `monkeypatch`, not a bare assignment: the variable is read by every
+    # artwork path helper, so leaving it set points the rest of the session
+    # at a temporary directory this test owns.
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
 
 
 def _record_miss() -> Path:

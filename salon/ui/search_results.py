@@ -14,11 +14,9 @@ from salon.core.model import Tile  # noqa: E402
 from salon.input.actions import Action  # noqa: E402
 from salon.services import appinfo  # noqa: E402
 from salon.ui.search_hints import _KEYBOARD_HINTS, _RESULT_HINTS  # noqa: E402
-from salon.ui.search_models import MAX_RESULT_COLUMNS, Pane, result_columns  # noqa: E402
+from salon.ui.search_models import Pane, result_columns  # noqa: E402
 from salon.ui.tile import TileWidget, metrics_for  # noqa: E402
 
-# The ceiling; `result_columns` decides what is drawn. See it for why.
-RESULT_COLUMNS = MAX_RESULT_COLUMNS
 _MAX_RESULTS = 60
 # How far a card slides and settles when the cursor pushes past an end.
 _BUMP_DISTANCE_DU = 26.0

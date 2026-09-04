@@ -46,7 +46,6 @@ class HomePhoneCatalogController(ServiceComponent):
 
         def scanned(tiles: list[Tile]) -> None:
             self._owner._phone_apps = tiles
-            self._owner._status_info.set_application_count(len(tiles))
 
         appinfo.list_installed_async(scanned)
 

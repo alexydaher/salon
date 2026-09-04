@@ -89,7 +89,6 @@ class StatusInfo(Gtk.Box):
         self._network = self._make_row(system_card, "network-wireless-symbolic", "Network")
         self._battery = self._make_row(system_card, "battery-symbolic", "Battery")
         self._applications = self._make_row(system_card, "view-grid-symbolic", "Applications")
-        self._application_count = 0
         system_card.set_visible(False)
         self.append(system_card)
         self._system_card = system_card
@@ -134,7 +133,15 @@ class StatusInfo(Gtk.Box):
 
     def set_network(self, status: NetworkStatus) -> None:
         icon, name, value = self._network
-        _reveal(icon)
+        # `available` is "NetworkManager answered at all", which is the same
+        # test the battery row makes and for the same reason: with no daemon
+        # there is nothing true to say, and the row would draw "Network —
+        # Unknown" for the life of the session. Not connected is a different
+        # answer and keeps its row — "No connection" is a fact, and the one
+        # somebody staring at a dead television needs.
+        _reveal(icon, status.available)
+        if not status.available:
+            return
         if status.icon_name:
             icon.set_from_icon_name(status.icon_name)
         name.set_label(status.name or status.kind or "Network")
@@ -166,19 +173,14 @@ class StatusInfo(Gtk.Box):
         else:
             value.remove_css_class("low")
 
-    def set_application_count(self, count: int) -> None:
-        """How many applications are installed.
-
-        Kept, but no longer drawn on its own: a count of installed
-        applications is a fact nobody acts on, and it held a permanent line
-        in the console for the life of the session. All Apps says it in its
-        own header, where somebody is actually asking.
-        """
-        self._application_count = max(0, count)
-
     def set_running_count(self, count: int) -> None:
-        """How many launched applications are still up — which *is* actionable,
-        and is the only state this row now appears for."""
+        """How many launched applications are still up.
+
+        The only state this row appears for. It used to carry a count of
+        *installed* applications the rest of the time — a fact nobody acts
+        on, holding a permanent line in the console; All Apps says it in
+        its own header, where somebody is actually asking.
+        """
         icon, name, value = self._applications
         running = max(0, count)
         _reveal(icon, bool(running))

@@ -103,7 +103,8 @@ class HomeIdleController(ServiceComponent):
         skip meaning "open something".
         """
         watcher = self._owner._now_playing
-        if watcher.next() if forward else watcher.previous():
+        skip = watcher.next_track if forward else watcher.previous_track
+        if skip():
             return
         self._owner._toast("Nothing is playing.")
 

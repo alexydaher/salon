@@ -29,9 +29,6 @@ from salon.ui.search_models import MAX_RESULT_COLUMNS, Pane  # noqa: E402
 from salon.ui.search_results import SearchResultsController  # noqa: E402
 from salon.ui.tile import TileWidget  # noqa: E402
 
-# The ceiling. What is drawn is `search_models.result_columns`.
-RESULT_COLUMNS = MAX_RESULT_COLUMNS
-
 _KEY_CELL_DU = 64.0
 
 
@@ -65,7 +62,9 @@ class SearchOverlay(Gtk.Box, motion.FadesIn, SearchResultsController, HardwareTe
         self._results_height = 0
         # Measured, not assumed — see `search_models.result_columns`.
         self._results_width = 0
-        self._result_columns = RESULT_COLUMNS
+        # The ceiling; what is drawn is `search_models.result_columns`, once
+        # the pane it has to fit in has been measured.
+        self._result_columns = MAX_RESULT_COLUMNS
         self._result_widgets: list[TileWidget] = []
         self._pane = Pane.KEYBOARD
         self._pointer_active = False
