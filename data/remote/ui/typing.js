@@ -191,6 +191,24 @@ export function bindTyping() {
     post("/type", { text: "\n" });
     pollSoon();
   });
+  // Escape, Tab and the arrows. These are not characters, so there is no
+  // string `/type` could carry that means them — the server refuses control
+  // characters rather than type an invisible glyph — and they get their own
+  // endpoint. They are also deliberately *not* `data-tv-only`: the state
+  // they exist for is the one where everything else here is switched off.
+  // With an application in front Salon stops routing its own Actions, and
+  // that application's own menu then has nothing at all to walk it.
+  //
+  // Anything typed but not sent goes first, for the same reason Enter does:
+  // an arrow key that jumps a field before the text arrives reorders them.
+  for (const key of document.querySelectorAll("#keyrow [data-key]")) {
+    key.addEventListener("click", async () => {
+      buzz(8);
+      await flush();
+      post("/key", { name: key.dataset.key });
+      pollSoon();
+    });
+  }
   // Empty the field at the far end. For a box Salon draws itself that is
   // backspaces over what we know is there; for a launched app it is a
   // select-all-and-delete the server injects, since its contents cannot be

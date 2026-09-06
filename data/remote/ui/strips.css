@@ -264,6 +264,9 @@ nav button.on { color: var(--accent); background: var(--s1); }
   }
   #pad { grid-column: 1; grid-row: 1; margin: 0; min-height: 0; }
   .pad-meta { grid-column: 1; grid-row: 2; }
+  /* Dropped like `.dpad-hint` above: the grid this pane becomes has exactly
+     two rows, and a phone on its side is 390px tall to begin with. */
+  .pad-gestures { display: none; }
   #pane-pad > .bar { grid-column: 2; flex-direction: column; margin: 0; }
   #pane-pad > .pad-actions { grid-row: 1; }
   #pane-pad > .bar:not(.pad-actions) { grid-row: 2; }

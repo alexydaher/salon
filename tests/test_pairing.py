@@ -23,6 +23,7 @@ whole point of the exercise is the wire behaviour.
 
 from __future__ import annotations
 
+import functools
 import json
 import socket
 import time
@@ -1008,3 +1009,76 @@ def test_the_stream_is_dropped_when_the_server_stops(remote) -> None:
         return held
 
     assert _run(server, exchange) == 1
+
+
+@pytest.fixture()
+def keying():
+    """A server wired the way the home screen wires it once the desktop has
+    granted Salon its input devices, for `/key` rather than `/type`."""
+    pressed: list[str] = []
+    instance = PairingServer(
+        port=_free_port(),
+        on_key=lambda name: bool(pressed.append(name)) or True,
+    )
+    if not instance.start():
+        pytest.skip("could not bind a local port for the pairing server")
+    yield instance, pressed
+    instance.stop()
+
+
+def test_a_named_key_reaches_the_focused_application(keying) -> None:
+    """Escape and the arrows exist for the state the D-pad is switched off
+    in: an application in front, Salon no longer routing its own Actions,
+    and that application's own menu otherwise unreachable from the phone."""
+    server, pressed = keying
+    port = server._port  # noqa: SLF001
+    for name in ("escape", "tab", "up", "down", "left", "right"):
+        send = functools.partial(_send, port, "/key", {"key": server.token, "name": name})
+        assert _run(server, send) == 200, name
+    assert pressed == ["escape", "tab", "up", "down", "left", "right"]
+
+
+def test_the_key_travels_as_name_because_key_is_the_token(keying) -> None:
+    """`key` is the session credential in every body on this server. A key
+    *name* sent in that field must not be mistaken for one — the same
+    collision `/tune` had to route around, and the failure would be a token
+    read as a keystroke."""
+    server, pressed = keying
+    port = server._port  # noqa: SLF001
+    status = _run(server, lambda: _send(port, "/key", {"key": "escape"}))
+    assert status == 401
+    assert pressed == []
+
+
+def test_an_unoffered_key_is_refused_rather_than_ignored(keying) -> None:
+    """The page and `KEY_NAMES` are edited in different files. Drifting
+    apart has to show up as an error, not as a button that does nothing."""
+    server, pressed = keying
+    port = server._port  # noqa: SLF001
+    status = _run(server, lambda: _send(port, "/key", {"key": server.token, "name": "f13"}))
+    assert status == 400
+    assert pressed == []
+
+
+def test_a_named_key_does_not_divert_into_a_salon_field(keying) -> None:
+    """Unlike `/type`, which prefers Salon's own text sink. A field Salon
+    draws is walked with the D-pad, which is live on that screen; routing
+    these keys there too would make one button mean two things."""
+    server, pressed = keying
+    server.set_text_sink(lambda text: None)
+    port = server._port  # noqa: SLF001
+    status = _run(server, lambda: _send(port, "/key", {"key": server.token, "name": "escape"}))
+    assert status == 200
+    assert pressed == ["escape"]
+
+
+def test_a_named_key_with_no_grant_names_the_setting(remote) -> None:
+    """No input grant at all. The refusal says which setting would fix it,
+    because a key that silently does nothing reads as a dead connection."""
+    server, _received = remote
+    port = server._port  # noqa: SLF001
+    status, body = _run(
+        server, lambda: _send_full(port, "/key", {"key": server.token, "name": "escape"})
+    )
+    assert status == 409
+    assert "Gamepad cursor" in body.decode()

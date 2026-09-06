@@ -43,6 +43,7 @@ python_sources = [
   'phone_remote_connection.py',
   'phone_remote_delivery.py',
   'phone_remote_input.py',
+  'phone_remote_keys.py',
   'phone_remote_lifecycle.py',
   'phone_remote_limits.py',
   'phone_remote_resources.py',

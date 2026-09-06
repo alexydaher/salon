@@ -43,6 +43,7 @@ class PhoneRemoteLifecycle(PhoneRemoteComponent):
         server.add_handler("/np-art", self._owner._handle_now_playing_art)
         server.add_handler("/apps", self._owner._handle_apps)
         server.add_handler("/type", self._owner._handle_type)
+        server.add_handler("/key", self._owner._handle_key)
         server.add_handler("/action", self._owner._handle_action)
         server.add_handler("/launch", self._owner._handle_launch)
         server.add_handler("/transport", self._owner._handle_transport)

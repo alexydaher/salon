@@ -108,6 +108,9 @@ class PointerInjector:
     def clear_field(self) -> bool:
         return self._events.clear_field()
 
+    def tap_key(self, name: str) -> bool:
+        return self._events.tap_key(name)
+
     def switch_window(self) -> bool:
         """Ask the compositor for its most-recent-window switch."""
         return self._events.switch_window()
@@ -128,10 +131,7 @@ class PointerInjector:
         self._portal_calls._portal_notify(method, parameters)  # noqa: SLF001
 
     def _portal_sync(
-        self,
-        interface: str,
-        method: str,
-        parameters: GLib.Variant | None,
+        self, interface: str, method: str, parameters: GLib.Variant | None,
         reply_type: GLib.VariantType | None,
     ) -> GLib.Variant | None:
         return self._portal_calls._portal_sync(  # noqa: SLF001

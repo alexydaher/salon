@@ -104,6 +104,9 @@ class PhoneRemoteRoutes:
     def _handle_type(self, *args: Any) -> None:
         self._input._handle_type(*args)  # noqa: SLF001
 
+    def _handle_key(self, *args: Any) -> None:
+        self._keys._handle_key(*args)  # noqa: SLF001
+
     def _handle_action(self, *args: Any) -> None:
         self._input._handle_action(*args)  # noqa: SLF001
 

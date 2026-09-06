@@ -14,6 +14,7 @@ from salon.services.pointer_shared import (  # noqa: E402
     _RELEASED,
     BTN_LEFT,
     keysym_for,
+    named_keysym,
 )
 
 _XK_TAB = 0xFF09
@@ -149,6 +150,28 @@ class PointerEventInjection(ServiceComponent):
         GLib.timeout_add(_KEY_GAP_MS, self._notify_keysym, _XK_TAB, _PRESSED)
         GLib.timeout_add(_KEY_GAP_MS * 2, self._notify_keysym, _XK_TAB, _RELEASED)
         GLib.timeout_add(_KEY_GAP_MS * 3, self._notify_keysym, _XK_ALT_L, _RELEASED)
+        return True
+
+    def tap_key(self, name: str) -> bool:
+        """Tap one named key — Escape, Tab, an arrow — into the session.
+
+        The counterpart to `type_text` for the keys that are not characters.
+        It exists for the state the phone's D-pad is switched off in: with an
+        application covering the television Salon stops routing its own
+        Actions, so a player's own menu has nothing to walk it with. These go
+        the same way the trackpad does, into whatever the compositor has
+        focused, and are refused the same way when there is no grant.
+
+        Returns False for a name outside the offered set as well as for no
+        session, because both mean the key did not land and the phone is
+        entitled to be told rather than watching a button do nothing.
+        """
+        if not self._owner.ready:
+            return False
+        keysym = named_keysym(name)
+        if keysym is None:
+            return False
+        self._tap_keysym(keysym)
         return True
 
     def _tap_keysym(self, keysym: int) -> bool:

@@ -139,6 +139,31 @@ _KEYSYMS = {
     "\x7f": 0xFFFF,  # Delete
 }
 
+# The keys that are a name rather than a character. `keysym_for` refuses
+# control characters on purpose — sending one as a Unicode keysym types an
+# invisible glyph instead of doing nothing — so there is no string a phone
+# could put in `/type` that means Escape. These need their own door.
+#
+# The set is chosen by where it is useful: inside a launched application the
+# television's D-pad is deliberately dead, and that is exactly where a
+# player's own menu has to be walked with arrows and left with Escape. Six
+# keys, no modifiers: a modifier held across a tap is a different shape (see
+# `switch_window`) and nothing has asked for one.
+NAMED_KEYSYMS = {
+    "escape": 0xFF1B,
+    "tab": 0xFF09,
+    "up": 0xFF52,
+    "down": 0xFF54,
+    "left": 0xFF51,
+    "right": 0xFF53,
+}
+
+
+def named_keysym(name: str) -> int | None:
+    """The X11 keysym for one named key, or None if it is not one we offer."""
+    return NAMED_KEYSYMS.get(name)
+
+
 # Between the press and the release of one key, and between one key and the
 # next. Zero works against a toolkit reading an event stream and does not
 # work against a web page doing its own key handling with a debounce — and

@@ -162,37 +162,44 @@ body.in-app .dpad-hint { visibility: hidden; }
    saying so is what stops it reading as a pointer that stopped working. */
 #pad.scrolling { border-color: var(--dim); }
 
-/* A gesture nobody is told about is a gesture nobody has. Two fingers to
-   scroll is the one people try; the rest are here because the legend
-   costs one line and the alternative is a surface with five secrets. */
-.pad-meta { min-height: 2rem; display: flex; align-items: center; justify-content: space-between; color: var(--dim); font-size: 0.8rem; }
-#gesture-help { position: relative; }
-#gesture-help summary {
-  list-style: none;
-  width: var(--touch);
-  height: var(--touch);
-  border-radius: 50%;
+.pad-meta { min-height: 2rem; display: flex; align-items: center; color: var(--dim); font-size: 0.8rem; }
+/* A gesture nobody is told about is a gesture nobody has. This used to be a
+   popover reached through a "?" beside the status line; the popover opened
+   *upward*, across the trackpad it was explaining, so the second and third
+   fingers were being taught over the exact surface that needed them read
+   first. A quiet permanent line under the pad costs the same one line of
+   height without ever covering the thing it describes. */
+.pad-gestures { margin: 0; text-align: center; }
+
+/* The one Pointer preference the page carries, parked in the slack the
+   deleted help button left in this row. It is a toggle rather than a
+   setting because there are two answers and no third, and it says which
+   one is current rather than what tapping it would do: "Scroll: natural"
+   is the state, and the aria-pressed carries the same fact to a reader. */
+#scroll-dir {
+  margin-inline-start: auto;
+  padding: 0.3rem 0.6rem;
+  border-radius: 10px;
   background: var(--s1);
-  display: grid;
-  place-items: center;
-  color: var(--fg);
-  font-weight: 700;
-}
-#gesture-help summary::-webkit-details-marker { display: none; }
-#gesture-help p {
-  position: absolute;
-  z-index: 4;
-  right: 0;
-  bottom: 2.7rem;
-  width: min(18rem, calc(100vw - 2 * var(--pad)));
-  margin: 0;
-  padding: 0.8rem;
-  border-radius: 14px;
-  background: var(--s2);
-  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.35);
+  color: var(--dim);
+  font-size: 0.78rem;
 }
 
 /* --- keyboard ----------------------------------------------------------- */
+
+/* Escape, Tab and the arrows. Six across a 390px phone, so they are square
+   and unlabelled where a glyph will do — and they are the one row in this
+   card that stays live with an application in front, which is the only
+   state they are for. */
+.bar.keyrow { margin-top: 0.5rem; gap: 0.4rem; }
+.bar.keyrow button {
+  min-height: var(--touch);
+  padding: 0.5rem 0.2rem;
+  background: transparent;
+  border: 1px solid var(--s2);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
 
 /* A full-page scrim with the card pinned to the bottom, so a tap outside
    dismisses it and it is not left stranded under the now-playing card or

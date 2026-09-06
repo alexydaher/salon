@@ -17,7 +17,7 @@
 // so a phone is a mouse over a browser tile that was never built for a
 // remote — which is the whole reason the trackpad exists.
 
-import { $, buzz } from "./dom.js";
+import { $, buzz, store } from "./dom.js";
 import { post } from "./transport.js";
 
 const TAP_SLOP_PX = 12;        // a finger on glass always moves a little
@@ -36,6 +36,14 @@ const SCROLL_DIVISOR = 2.2;
 // stays exactly 1:1 so a button is still aimable, and a flick multiplies.
 const ACCEL_PER_PX_MS = 1.9;
 const MAX_GAIN = 4.5;
+
+// Which way two fingers push the page. The default inverts, and the comment
+// on the scroll accumulation below says why — but it is a preference with no
+// right answer, and unlike the acceleration curve there is no measurement
+// that settles it. It is also a property of the hand holding *this* phone
+// rather than of the television, so it lives in this phone's own storage and
+// never reaches the server: two people on two phones each get their own.
+const SCROLL_STORE = "salon.scroll-natural";
 
 function gainFor(distance, elapsed) {
   if (elapsed <= 0) return 1;
@@ -59,6 +67,24 @@ export function bindPad(surface) {
   let lastTapAt = 0;
   let scrolled = false;
   let statusTimer = null;
+  // -1 is the inverted default described at SCROLL_STORE.
+  let scrollSign = store.get(SCROLL_STORE) === "0" ? 1 : -1;
+
+  const scrollToggle = $("scroll-dir");
+  const showScrollDirection = () => {
+    const natural = scrollSign === -1;
+    scrollToggle.textContent = natural ? "Scroll: natural" : "Scroll: reversed";
+    scrollToggle.setAttribute("aria-pressed", String(natural));
+  };
+  scrollToggle.addEventListener("click", () => {
+    buzz(6);
+    scrollSign = -scrollSign;
+    // "0" and not "" for reversed: `store.set` removes a falsy value, and a
+    // removed key is indistinguishable from never having chosen.
+    store.set(SCROLL_STORE, scrollSign === -1 ? "1" : "0");
+    showScrollDirection();
+  });
+  showScrollDirection();
 
   const say = (message, settle = false) => {
     $("pad-status").textContent = message;
@@ -155,8 +181,8 @@ export function bindPad(surface) {
         // content up, which is what the same gesture does on every laptop
         // trackpad and on the phone's own screen. Deliberately not
         // accelerated — a scroll is a distance, not a nudge at a target.
-        sx -= mx / SCROLL_DIVISOR;
-        sy -= my / SCROLL_DIVISOR;
+        sx += scrollSign * mx / SCROLL_DIVISOR;
+        sy += scrollSign * my / SCROLL_DIVISOR;
         scrolled = true;
       } else {
         const gain = gainFor(step, event.timeStamp - lastAt);

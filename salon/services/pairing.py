@@ -6,6 +6,7 @@ from salon.services.phone_remote_browse import PhoneRemoteBrowse
 from salon.services.phone_remote_catalog import PhoneRemoteCatalog
 from salon.services.phone_remote_connection import PhoneRemoteConnection
 from salon.services.phone_remote_input import PhoneRemoteInput
+from salon.services.phone_remote_keys import PhoneRemoteKeys
 from salon.services.phone_remote_lifecycle import PhoneRemoteLifecycle
 from salon.services.phone_remote_resources import PhoneRemoteResources
 from salon.services.phone_remote_routes import PhoneRemoteRoutes
@@ -45,6 +46,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         pointer_ready: Callable[[], bool] | None = None,
         on_remote_text: Callable[[str], bool] | None = None,
         on_clear_text: Callable[[], bool] | None = None,
+        on_key: Callable[[str], bool] | None = None,
         on_search: Callable[[str], list[RemoteTile]] | None = None,
         on_tile_action: Callable[[str, str], str] | None = None,
         on_volume: Callable[[float], None] | None = None,
@@ -70,6 +72,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         self._pointer_ready = pointer_ready
         self._on_remote_text = on_remote_text
         self._on_clear_text = on_clear_text
+        self._on_key = on_key
         self._on_search = on_search
         self._on_tile_action = on_tile_action
         self._on_volume = on_volume
@@ -126,6 +129,7 @@ class PhoneRemoteServer(PhoneRemoteRoutes):
         self._resources = PhoneRemoteResources(self)
         self._connection = PhoneRemoteConnection(self)
         self._input = PhoneRemoteInput(self)
+        self._keys = PhoneRemoteKeys(self)
         self._catalog = PhoneRemoteCatalog(self)
         self._browse = PhoneRemoteBrowse(self)
         self._state = PhoneRemoteState(self)

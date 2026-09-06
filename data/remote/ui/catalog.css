@@ -157,14 +157,18 @@ body:not(.searching) #all-apps { display: flex; }
   height: var(--touch);
   border-radius: 50%;
   color: var(--fg);
-  opacity: 0.85;
 }
+/* Contrast, not size: the touch target above is already a full `--touch`
+   square, so the circle grows through its own padding rather than through
+   the glyph, and a hairline border keeps it visible over artwork as dark as
+   the backing itself. */
 .tile-more .i {
   width: 1.35rem;
   height: 1.35rem;
-  padding: 0.15rem;
+  padding: 0.3rem;
   border-radius: 50%;
-  background: rgba(14, 17, 22, 0.72);
+  background: rgba(14, 17, 22, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 .tile-more:active .i { background: var(--accent); color: var(--on-accent); }
 .tile .art {

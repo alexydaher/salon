@@ -85,6 +85,20 @@ class HomePhoneInputController(ServiceComponent):
         self._owner.wake()
         return self._owner._pointer.clear_field()
 
+    def _press_remote_key(self, name: str) -> bool:
+        """One named key from the phone, into whatever the compositor focused.
+
+        The phone offers Escape, Tab and the four arrows for the state its
+        D-pad is switched off in: with an application in front Salon stops
+        routing its own Actions, and a player's own menu is then unreachable
+        from the remote entirely. These take the trackpad's route instead of
+        Salon's, so they land where the mouse would.
+        """
+        if not self._owner._pointer.ready:
+            return False
+        self._owner.wake()
+        return self._owner._pointer.tap_key(name)
+
     def _open_phone_pairing(self) -> None:
         self._owner._clear_global_surfaces("phone")
         if not self._owner._phone_pairing.open():

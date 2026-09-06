@@ -6,6 +6,37 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
+## Unreleased
+
+### Added
+
+- The phone's Type drawer has Escape, Tab and the four arrow keys. They are
+  the one row on the remote that stays live while an application is covering
+  the television, which is exactly what they are for: Salon stops routing its
+  own buttons behind a launched app, so a player's own menu previously had
+  nothing on the phone that could walk it.
+- The phone's trackpad can reverse its scroll direction, from a toggle beside
+  the pointer status. The setting is kept on the phone rather than on the
+  television, so two people on two phones each get their own answer.
+
+### Changed
+
+- The Remote tab's icon is a remote control. It was a cross, which is the
+  same glyph most interfaces use for "Add".
+- "Picture" on the Remote pane now looks like something you can open: a
+  title, the line "Brightness, contrast, colour" and a chevron. It was a bare
+  word that read as a label.
+- The per-tile actions button is easier to see against bright artwork.
+- The pointer's gesture hints are printed under the trackpad instead of in a
+  popover, which opened upward across the trackpad it was describing.
+- With an application in front, the Remote pane now says where the controls
+  that still work are, rather than naming two escapes without locating them.
+
+### Removed
+
+- The "Connected to Salon" message that appeared over the app list at the
+  moment the header appeared saying the same thing.
+
 ## 0.4.4 — 2026-09-04
 
 ### Fixed

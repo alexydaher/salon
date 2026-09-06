@@ -4,7 +4,7 @@
 // a bootstrap accepted at /connect and nowhere else, and what comes back is
 // the session token every later request carries.
 
-import { $, settleViewport, toast } from "./dom.js";
+import { $, settleViewport } from "./dom.js";
 import { rememberKey, session } from "./session.js";
 import { setLive } from "./transport.js";
 import { startFeed, stopFeed } from "./feed.js";
@@ -52,7 +52,9 @@ export async function connect(credential) {
   setLive(true);
   startFeed();
   keepAwake();
-  toast("Connected to Salon");
+  // No confirmation toast: the header appears in this same moment already
+  // showing "Salon / Home" with a live connection dot, which says the same
+  // thing without covering the catalogue underneath it.
   return true;
 }
 

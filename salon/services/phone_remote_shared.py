@@ -155,6 +155,12 @@ TILE_ACTIONS = frozenset({"pin", "unpin", "edit", "remove"})
 # and an unknown name is refused rather than passed through to the portal.
 POINTER_BUTTONS = frozenset({"left", "right", "middle"})
 
+# The named keys `/key` will forward. Deliberately the same six the injector
+# knows and no more: this list and `NAMED_KEYSYMS` are edited in different
+# files, so the endpoint checks membership here and lets the injector refuse
+# anything that drifted, rather than trusting either one alone.
+KEY_NAMES = frozenset({"escape", "tab", "up", "down", "left", "right"})
+
 def local_address() -> str | None:
     """The address a phone on the same LAN can actually reach.
 
