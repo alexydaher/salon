@@ -6,7 +6,7 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
-## Unreleased
+## 0.4.5 — 2026-09-06
 
 ### Added
 
@@ -31,6 +31,25 @@ Notable changes per release. Dates are ISO. This project follows
   popover, which opened upward across the trackpad it was describing.
 - With an application in front, the Remote pane now says where the controls
   that still work are, rather than naming two escapes without locating them.
+- In Settings, the pane that does not hold the cursor draws its selection as
+  a hairline instead of a filled block. The inactive pane had been the more
+  prominent of the two at three metres, and the row with a value list open
+  was pixel-identical to a plain selected one.
+
+### Fixed
+
+- The phone's Remote pane no longer stays greyed out after coming back from
+  an application. Salon decided an app was still in front from a window
+  event that three situations never produce — a launch that opened no
+  window, a return while Salon was already in front, and a child that
+  stopped following — which left the D-pad, OK, Back, Search and Options
+  disabled while the trackpad and keyboard went on working.
+- The Picture drawer's sliders draw a track and a handle again. Both were
+  written in one rule naming two browser engines' pseudo-elements, which
+  makes the rule invalid in both, so tile size and row density were a
+  percentage above an empty strip with nothing to put a finger on.
+- A finger landing on one of those sliders can scroll the pane it sits in;
+  the slider claimed every direction and only needs the horizontal one.
 
 ### Removed
 

@@ -106,25 +106,77 @@
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.4/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.4/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.4/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.4/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.4.5" date="2026-09-06">
+      <description>
+        <p>Added</p>
+        <ul>
+          <li>The phone&#x27;s Type drawer has Escape, Tab and the four arrow keys. They
+            are the one row on the remote that stays live while an application is
+            covering the television, which is exactly what they are for: Salon stops
+            routing its own buttons behind a launched app, so a player&#x27;s own menu
+            previously had nothing on the phone that could walk it.</li>
+          <li>The phone&#x27;s trackpad can reverse its scroll direction, from a toggle
+            beside the pointer status. The setting is kept on the phone rather than on
+            the television, so two people on two phones each get their own answer.</li>
+        </ul>
+        <p>Changed</p>
+        <ul>
+          <li>The Remote tab&#x27;s icon is a remote control. It was a cross, which is the
+            same glyph most interfaces use for &quot;Add&quot;.</li>
+          <li>&quot;Picture&quot; on the Remote pane now looks like something you can
+            open: a title, the line &quot;Brightness, contrast, colour&quot; and a
+            chevron. It was a bare word that read as a label.</li>
+          <li>The per-tile actions button is easier to see against bright artwork.</li>
+          <li>The pointer&#x27;s gesture hints are printed under the trackpad instead of
+            in a popover, which opened upward across the trackpad it was describing.</li>
+          <li>With an application in front, the Remote pane now says where the controls
+            that still work are, rather than naming two escapes without locating them.</li>
+          <li>In Settings, the pane that does not hold the cursor draws its selection as a
+            hairline instead of a filled block. The inactive pane had been the more
+            prominent of the two at three metres, and the row with a value list open was
+            pixel-identical to a plain selected one.</li>
+        </ul>
+        <p>Fixed</p>
+        <ul>
+          <li>The phone&#x27;s Remote pane no longer stays greyed out after coming back
+            from an application. Salon decided an app was still in front from a window
+            event that three situations never produce — a launch that opened no window,
+            a return while Salon was already in front, and a child that stopped
+            following — which left the D-pad, OK, Back, Search and Options disabled
+            while the trackpad and keyboard went on working.</li>
+          <li>The Picture drawer&#x27;s sliders draw a track and a handle again. Both were
+            written in one rule naming two browser engines&#x27; pseudo-elements, which
+            makes the rule invalid in both, so tile size and row density were a
+            percentage above an empty strip with nothing to put a finger on.</li>
+          <li>A finger landing on one of those sliders can scroll the pane it sits in; the
+            slider claimed every direction and only needs the horizontal one.</li>
+        </ul>
+        <p>Removed</p>
+        <ul>
+          <li>The &quot;Connected to Salon&quot; message that appeared over the app list
+            at the moment the header appeared saying the same thing.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.4" date="2026-09-04">
       <description>
         <p>Fixed</p>

@@ -1,3 +1,46 @@
+salon (0.4.5-1) unstable; urgency=medium
+
+  * The phone's Type drawer has Escape, Tab and the four arrow keys. They
+    are the one row on the remote that stays live while an application is
+    covering the television, which is exactly what they are for: Salon stops
+    routing its own buttons behind a launched app, so a player's own menu
+    previously had nothing on the phone that could walk it.
+  * The phone's trackpad can reverse its scroll direction, from a toggle
+    beside the pointer status. The setting is kept on the phone rather than
+    on the television, so two people on two phones each get their own
+    answer.
+  * The Remote tab's icon is a remote control. It was a cross, which is the
+    same glyph most interfaces use for "Add".
+  * "Picture" on the Remote pane now looks like something you can open: a
+    title, the line "Brightness, contrast, colour" and a chevron. It was a
+    bare word that read as a label.
+  * The per-tile actions button is easier to see against bright artwork.
+  * The pointer's gesture hints are printed under the trackpad instead of in
+    a popover, which opened upward across the trackpad it was describing.
+  * With an application in front, the Remote pane now says where the
+    controls that still work are, rather than naming two escapes without
+    locating them.
+  * In Settings, the pane that does not hold the cursor draws its selection
+    as a hairline instead of a filled block. The inactive pane had been the
+    more prominent of the two at three metres, and the row with a value list
+    open was pixel-identical to a plain selected one.
+  * The phone's Remote pane no longer stays greyed out after coming back
+    from an application. Salon decided an app was still in front from a
+    window event that three situations never produce — a launch that opened
+    no window, a return while Salon was already in front, and a child that
+    stopped following — which left the D-pad, OK, Back, Search and Options
+    disabled while the trackpad and keyboard went on working.
+  * The Picture drawer's sliders draw a track and a handle again. Both were
+    written in one rule naming two browser engines' pseudo-elements, which
+    makes the rule invalid in both, so tile size and row density were a
+    percentage above an empty strip with nothing to put a finger on.
+  * A finger landing on one of those sliders can scroll the pane it sits in;
+    the slider claimed every direction and only needs the horizontal one.
+  * The "Connected to Salon" message that appeared over the app list at the
+    moment the header appeared saying the same thing.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Sun, 06 Sep 2026 11:12:57 +0200
+
 salon (0.4.4-1) unstable; urgency=medium
 
   * The Wayland release smoke fixture now keeps its injected media players
