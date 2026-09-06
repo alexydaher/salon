@@ -192,6 +192,35 @@ def test_no_card_grid_track_can_be_widened_by_its_contents() -> None:
         )
 
 
+def test_no_stylesheet_groups_two_engines_pseudo_elements_in_one_rule() -> None:
+    """A selector list is invalid *as a whole* if it names a pseudo-element
+    the engine does not know, so `::-webkit-slider-thumb,
+    ::-moz-range-thumb { ... }` is dropped by WebKit and by Gecko alike.
+
+    That is what the Picture drawer's sliders were: `appearance: none` on
+    the input removed the native control, and both rules meant to draw a
+    track and a thumb in its place were being thrown away — an invisible,
+    zero-width slider that still reported its value to the readout above
+    it, which reads as "there is no way to change the percentage". The
+    volume popover in the same file is written out one engine at a time
+    and worked throughout, which is the comparison that found it.
+    """
+    for sheet in sorted(UI.glob("*.css")):
+        # Comments first: the rule below is explained in one, and a comment
+        # that names both spellings is not a selector list.
+        style = re.sub(r"/\*.*?\*/", "", sheet.read_text(), flags=re.S)
+        for selectors in re.findall(r"([^{}]+)\{", style):
+            engines = {
+                prefix
+                for prefix in ("-webkit-", "-moz-")
+                if f"::{prefix}" in selectors
+            }
+            assert len(engines) < 2, (
+                f"{sheet.name}: `{' '.join(selectors.split())}` names both "
+                "engines' pseudo-elements, so neither engine applies it"
+            )
+
+
 def test_the_browse_surfaces_clear_the_sticky_search_row() -> None:
     """Both the A-Z rail and the mirrored cursor scroll things into view in
     a scrollport whose first 60px are covered by the search field. Without a
