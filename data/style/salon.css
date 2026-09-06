@@ -293,9 +293,16 @@ toast > label {
 
 /* The cursor. Fill *and* ring, so the pane that owns it is unmistakably
    the heavier of the two — see the inactive rule below for why that
-   ordering had to be made explicit. */
+   ordering had to be made explicit. The fill is neutral and the accent is
+   spent on the ring alone: Aurora's panes are already a lit surface, and an
+   accent fill on top of one stopped separating from it.
+
+   Every state below is a variation on this rule at the same specificity, so
+   they are all stated here, in file order. A second `.salon-settings-row
+   .selected` block further down the file silently beat `.adjusting` and the
+   inactive rule for both — see the Aurora Console section. */
 .salon-settings-row.selected {
-  background-color: alpha(@accent, 0.22);
+  background-color: alpha(@text-primary, 0.17);
   box-shadow: inset 0 0 0 var(--focus-ring) @accent;
 }
 
@@ -305,7 +312,7 @@ toast > label {
    the value, and at three metres a small panel floating near a list of
    twenty rows needs its row named. */
 .salon-settings-row.adjusting {
-  background-color: alpha(@accent, 0.32);
+  background-color: alpha(@text-primary, 0.25);
   box-shadow: inset 0 0 0 calc(var(--focus-ring) * 1.75) @accent;
 }
 
@@ -417,7 +424,7 @@ toast > label {
    tint, the inactive one a flat 7% block, and the eye goes to the block. */
 .salon-settings-list:not(.active) .salon-settings-row.selected {
   background-color: transparent;
-  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@text-primary, 0.20);
+  box-shadow: inset 0 0 0 calc(var(--focus-ring) / 2) alpha(@text-primary, 0.22);
 }
 
 .salon-settings-list:not(.active) .salon-settings-row.selected
@@ -1146,15 +1153,14 @@ toast > label {
   padding: var(--pad-s);
 }
 
-.salon-settings-row.selected {
-  background-color: alpha(@text-primary, 0.17);
-  box-shadow: inset 0 0 0 var(--focus-ring) @accent;
-}
-
-.salon-settings-list:not(.active) .salon-settings-row.selected {
-  background-color: alpha(@text-primary, 0.08);
-  box-shadow: inset 0 0 0 var(--focus-ring) alpha(@text-primary, 0.22);
-}
+/* Aurora's settings-row colours are in the §6.8 block above, not here. They
+   were restated at this point in the file and, at equal specificity and
+   later in source order, quietly won against two rules that describe *other*
+   states of the same row: `.adjusting` lost its heavier fill and 1.75x ring,
+   so the row a value list belonged to drew identically to any other, and the
+   inactive pane's hairline went back to being the filled block the comment
+   up there says it stopped being. Neither is expressible as an override —
+   they are different states, not a different theme. */
 
 .salon-settings-screen .salon-scroll-indicator {
   background-color: alpha(@surface-2, 0.92);
