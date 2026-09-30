@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Continuous integration: every push to main and every pull request runs the
+# quality gates and the metadata check. Releases are release.yml's, which
+# triggers on v* tags only and does not re-run any of this — it checks that
+# its commit already went green here.
+#
+# This is the second time CI has been its own workflow. The first, checks.yml,
+# triggered on a bare `push:` and so also ran on every tag; folding it into
+# the release workflow fixed that, but left every main run listing six
+# skipped release jobs. Split on the trigger instead, so each workflow shows
+# only what it runs.
+name: Salon CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Quality gates
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    container: fedora:41
+    steps:
+      # Before the checkout, so git is in the container when actions/checkout
+      # runs: without it the action falls back to a REST-API tarball with no
+      # .git, which is what turned main red on 2026-09-03. Parallel downloads
+      # and no weak dependencies because fetching ~590 packages three at a
+      # time was a minute of a 2m15s job; the weak ones were Vulkan and VA
+      # drivers, PipeWire, tracker-miners and libadwaita's demo and docs.
+      - name: Install system dependencies
+        run: |
+          dnf install -y \
+            --setopt=max_parallel_downloads=20 \
+            --setopt=install_weak_deps=False \
+            git \
+            python3-gobject python3-cairo python3-pytest python3-ruff python3-mypy \
+            gtk4-devel libadwaita-devel libsoup3-devel gdk-pixbuf2-devel \
+            libmanette-devel glib2-devel meson ninja-build \
+            desktop-file-utils appstream adwaita-icon-theme \
+            xorg-x11-server-Xvfb dbus-x11 weston
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: ruff
+        run: ruff check .
+
+      - name: mypy --strict (salon.core, salon.input)
+        run: mypy --strict salon/core salon/input
+
+      - name: pytest
+        run: xvfb-run -a python3 -m pytest -q
+        env:
+          PYTHONPATH: .
+
+      - name: meson compile
+        run: |
+          meson setup build
+          meson compile -C build
+
+      - name: Reject missing or too-old native dependencies
+        run: python3 scripts/meson-negative-dependencies.py
+
+      - name: Wayland smoke test
+        run: bash scripts/wayland-smoke.sh
+
+      - name: Upload Wayland smoke frame
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wayland-smoke-frame
+          path: build/meson-logs/wayland-smoke.png
+          if-no-files-found: warn
+
+      - name: meson test (AppStream and desktop entry validation)
+        run: meson test -C build --print-errorlogs
+
+      - name: meson install into a staging prefix
+        run: DESTDIR="$PWD/staging" meson install -C build
+
+  version:
+    name: Check release metadata
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check version consistency
+        run: python3 scripts/prepare-flatpak-release.py --require-changelog
