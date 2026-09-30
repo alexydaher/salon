@@ -168,13 +168,13 @@ modules:
     sources:
       - type: git
         url: https://gitlab.gnome.org/GNOME/libmanette.git
-        tag: '0.2.9'
+        tag: '0.2.13'
         # Flathub wants every git source pinned to a hash as well as a tag,
         # because a tag can be moved and a hash cannot. This one is an
         # external repository, so unlike the salon module below there is
-        # nothing self-referential about naming it. 0.2.9 is an annotated
+        # nothing self-referential about naming it. 0.2.13 is an annotated
         # tag; this is the commit it points at, not the tag object.
-        commit: 508df238f9c25a20c0d06da8c9bf83138759d40f
+        commit: 990f8797da563b32f15f56d5f297d9963aa59d9c
 
   - name: salon
     buildsystem: meson

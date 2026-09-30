@@ -7,6 +7,7 @@ generated AppStream entry and Debian stanza land where the checker expects.
 from __future__ import annotations
 
 import importlib.util
+import re
 import shutil
 import subprocess
 import sys
@@ -123,7 +124,11 @@ def test_prepare_rewrites_every_version_location(tmp_path: Path) -> None:
     manifest = (tmp_path / f"{APP_ID}.yaml").read_text()
     assert f"tag: v{version}" in manifest
     # The libmanette source has a tag too, and it must be left alone.
-    assert "tag: '0.2.9'" in manifest
+    libmanette_tag = re.search(
+        r"libmanette\.git\n\s+tag: '([^']+)'", (ROOT / f"{APP_ID}.yaml").read_text()
+    )
+    assert libmanette_tag is not None
+    assert f"tag: '{libmanette_tag.group(1)}'" in manifest
     metainfo = (tmp_path / "data" / f"{APP_ID}.metainfo.xml.in").read_text()
     assert f'<release version="{version}" date="2026-12-24">' in metainfo
     assert f"/salon/v{version}/docs/screenshots/" in metainfo
