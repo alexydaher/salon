@@ -30,7 +30,7 @@ jobs:
     name: Quality gates
     timeout-minutes: 30
     runs-on: ubuntu-24.04
-    container: fedora:41
+    container: fedora:44
     steps:
       # Before the checkout, so git is in the container when actions/checkout
       # runs: without it the action falls back to a REST-API tarball with no
