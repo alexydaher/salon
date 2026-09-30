@@ -6,6 +6,14 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
+## 0.4.7 — 2026-09-30
+
+### Changed
+
+- No changes to the application. This release rebuilds 0.4.6 through a
+  faster release process, so updates are published sooner after they are
+  ready.
+
 ## 0.4.6 — 2026-09-30
 
 ### Added

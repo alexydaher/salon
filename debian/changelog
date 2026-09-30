@@ -1,3 +1,11 @@
+salon (0.4.7-1) unstable; urgency=medium
+
+  * No changes to the application. This release rebuilds 0.4.6 through a
+    faster release process, so updates are published sooner after they are
+    ready.
+
+ -- Alexy Daher <alexydaher@users.noreply.github.com>  Wed, 30 Sep 2026 17:41:24 +0200
+
 salon (0.4.6-1) unstable; urgency=medium
 
   * Settings → Appearance → Accent colour has a "Match GNOME" choice, which
