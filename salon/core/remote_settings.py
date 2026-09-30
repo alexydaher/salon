@@ -102,6 +102,10 @@ _ACCENTS = (
     ("#4C9BE8", "Cold blue"),
     ("#5FBF7F", "Green"),
     ("#B77BE8", "Violet"),
+    # Not a colour: GNOME's own accent, resolved on the television. Offered
+    # even where that libadwaita is too old to report one, because this
+    # layer cannot ask; the television falls back to the default amber.
+    ("system", "Match GNOME"),
 )
 
 _WALLPAPER_COLOR_TREATMENTS = (

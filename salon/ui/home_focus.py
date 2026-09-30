@@ -3,6 +3,7 @@
 """Focused home-view workflow."""
 
 from salon.services.component import ServiceComponent
+from salon.ui import theme
 from salon.ui.home_shared import (
     Gtk,
     RemoteNowPlaying,
@@ -128,7 +129,7 @@ class HomeFocusController(ServiceComponent):
                 remote_input=self._owner._pointer.ready,
                 repeat_delay_ms=round(timing.initial_delay * 1000),
                 repeat_interval_ms=round(timing.interval * 1000),
-                accent=self._owner._settings.get_string("accent-color") or "#E8A33D",
+                accent=theme.accent_hex(),
                 # Named separately from `screen`, which carries the same
                 # string but as one of six reserved words. The page hides
                 # half its own controls on this, so it cannot be guessing.

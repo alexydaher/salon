@@ -22,7 +22,7 @@ shipped, which is `modified` (a dot in the margin) and `reset_to_default`
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 import gi
 
@@ -101,6 +101,7 @@ class Keyed:
         *,
         detail: str = "",
         preview: bool = False,
+        swatches: Mapping[str, str] | None = None,
     ) -> ChoiceRow:
         self.keys.add(key)
         return ChoiceRow(
@@ -111,6 +112,7 @@ class Keyed:
             detail=detail,
             preview=preview,
             default=str(self.default(key)),
+            swatches=swatches,
         )
 
     def ranged(

@@ -26,16 +26,21 @@ from collections.abc import Callable
 
 import gi
 
+gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 
-from gi.repository import Gdk, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
 
 # `tile-background`: what colours a card that has no artwork of its own.
 TILE_BACKGROUND_ICON = "icon"
 TILE_BACKGROUND_UNIFORM = "uniform"
+
+# `accent-color`: the one value that is not a colour. It means "whatever
+# GNOME Settings → Appearance says", read live through Adw.StyleManager.
+SYSTEM_ACCENT = "system"
 
 
 def _parse(value: str) -> Gdk.RGBA:
@@ -55,6 +60,37 @@ _tile_background = TILE_BACKGROUND_ICON
 def accent() -> Gdk.RGBA:
     """The current accent, for code that draws outside CSS."""
     return _accent
+
+
+def _hex(color_value: Gdk.RGBA) -> str:
+    channels = (color_value.red, color_value.green, color_value.blue)
+    return "#{:02X}{:02X}{:02X}".format(*(round(channel * 255) for channel in channels))
+
+
+def accent_hex() -> str:
+    """The current accent as `#RRGGBB`, for the phone, which cannot be
+    handed the word "system" and has to draw the colour itself."""
+    return _hex(_accent)
+
+
+def system_accent_supported() -> bool:
+    """Whether this libadwaita can report GNOME's accent (1.6+) and the
+    platform actually has one to report."""
+    manager = Adw.StyleManager.get_default()
+    probe = getattr(manager, "get_system_supports_accent_colors", None)
+    return bool(probe and probe())
+
+
+def _system_accent() -> Gdk.RGBA | None:
+    if not system_accent_supported():
+        return None
+    return Adw.StyleManager.get_default().get_accent_color_rgba()
+
+
+def system_accent_hex() -> str:
+    """GNOME's accent as `#RRGGBB`, or "" where there is none to report."""
+    found = _system_accent()
+    return _hex(found) if found is not None else ""
 
 
 def tiles_take_their_icon_colour() -> bool:
@@ -115,10 +151,22 @@ class ThemeManager:
             display, self._provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2
         )
         self._installed = True
+        style = Adw.StyleManager.get_default()
+        # Salon is always dark, whatever the desktop is. Its own surfaces
+        # come from the palette, but the few stock libadwaita widgets it
+        # uses — toasts, a file picker — follow the system scheme and would
+        # arrive light over a dark screen.
+        style.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        if system_accent_supported():
+            style.connect("notify::accent-color", lambda *_: self._on_system_accent())
         self._settings.connect("changed::accent-color", lambda *_: self.reload())
         self._settings.connect("changed::theme", lambda *_: self.reload())
         self._settings.connect("changed::tile-background", lambda *_: self.reload())
         self.reload()
+
+    def _on_system_accent(self) -> None:
+        if self._settings.get_string("accent-color") == SYSTEM_ACCENT:
+            self.reload()
 
     def subscribe(self, listener: Callable[[], None]) -> None:
         self._listeners.append(listener)
@@ -126,10 +174,15 @@ class ThemeManager:
     def reload(self) -> None:
         global _accent, _palette, _tile_background
         chosen = Gdk.RGBA()
+        requested = self._settings.get_string("accent-color").strip()
+        if requested == SYSTEM_ACCENT:
+            # On a libadwaita too old to say, or a platform with no accent,
+            # the design default rather than nothing.
+            chosen = _system_accent() or _DEFAULT_ACCENT
         # A hand-edited GSetting can hold anything; an unparseable value
         # falls back to the design default rather than leaving the ring
         # transparent, which would look like the focus indicator broke.
-        if not chosen.parse(self._settings.get_string("accent-color").strip()):
+        elif not chosen.parse(requested):
             chosen = _DEFAULT_ACCENT
         _accent = chosen
         palette = tokens.palette(self._settings.get_string("theme"))

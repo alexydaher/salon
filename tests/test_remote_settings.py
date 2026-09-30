@@ -8,6 +8,8 @@ a key of its own, and everything it will act on is described here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from salon.core import remote_settings as rs
@@ -94,4 +96,15 @@ def test_the_accent_options_are_colours_the_phone_can_draw() -> None:
     colours, which is the thing this pane exists to stop being."""
     accent = next(f for f in rs.FIELDS if f.key == "accent-color")
     for value, _label in accent.options:
+        if value == "system":
+            continue
         assert value.startswith("#") and len(value) == 7, value
+
+
+def test_the_accent_can_follow_gnome() -> None:
+    """ "system" is the one accent value that is not a colour; the television
+    resolves it through Adw.StyleManager. It must stay reachable from the
+    phone, and must stay spelled the way `ui/theme.SYSTEM_ACCENT` spells it."""
+    assert rs.coerce("accent-color", "system") is not None
+    theme_source = (Path(__file__).parent.parent / "salon/ui/theme.py").read_text()
+    assert 'SYSTEM_ACCENT = "system"' in theme_source

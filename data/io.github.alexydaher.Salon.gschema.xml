@@ -4,7 +4,7 @@
     <key name="accent-color" type="s">
       <default>'#E8A33D'</default>
       <summary>Accent colour</summary>
-      <description>Hex colour used for focus highlighting.</description>
+      <description>Hex colour used for focus highlighting, or "system" to follow the accent chosen in GNOME Settings (libadwaita 1.6 or newer; older versions fall back to the default).</description>
     </key>
     <key name="theme" type="s">
       <default>'midnight'</default>

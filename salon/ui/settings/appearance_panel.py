@@ -9,6 +9,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio  # noqa: E402
 
 from salon.core import tokens  # noqa: E402
+from salon.ui import theme  # noqa: E402
 from salon.ui.settings.background_rows import background_rows  # noqa: E402
 from salon.ui.settings.context import Panel, SettingsContext  # noqa: E402
 from salon.ui.settings.widgets import (  # noqa: E402
@@ -28,6 +29,23 @@ ACCENTS = [
     ("#5FBF7F", "Green"),
     ("#B77BE8", "Violet"),
 ]
+
+# Last, not first: GNOME's accents are tuned for small highlights on a desk
+# monitor, and the default amber is the one drawn for a ring seen across a
+# room. Offered only where libadwaita can actually report one (1.6+).
+_SYSTEM_ACCENT_LABEL = "Match GNOME"
+
+
+def _accent_choices() -> list[tuple[str, str]]:
+    if not theme.system_accent_supported():
+        return list(ACCENTS)
+    return [*ACCENTS, (theme.SYSTEM_ACCENT, _SYSTEM_ACCENT_LABEL)]
+
+
+def _accent_swatches() -> dict[str, str]:
+    found = theme.system_accent_hex()
+    return {theme.SYSTEM_ACCENT: found} if found else {}
+
 
 # What colours a card that has no artwork of its own. Worded as what you
 # see rather than as the mechanism: "accent" is Salon's word for the tile's
@@ -82,8 +100,9 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
             keyed.choice(
                 "accent-color",
                 "Accent colour",
-                ACCENTS,
+                _accent_choices(),
                 preview=True,
+                swatches=_accent_swatches(),
             ),
             # Beside the accent, because the two are the same question asked
             # of different things — the accent is the one colour the whole
@@ -175,9 +194,9 @@ def appearance_panel(context: SettingsContext, settings: Gio.Settings) -> Panel:
         ]
 
     def summary() -> str:
-        theme = dict(_THEMES).get(settings.get_string("theme"), "")
-        accent = dict(ACCENTS).get(settings.get_string("accent-color"), "")
-        return " · ".join(part for part in (theme, accent) if part)
+        palette = dict(_THEMES).get(settings.get_string("theme"), "")
+        accent = dict(_accent_choices()).get(settings.get_string("accent-color"), "")
+        return " · ".join(part for part in (palette, accent) if part)
 
     return Panel(
         title="Appearance",

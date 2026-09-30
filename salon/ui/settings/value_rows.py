@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from salon.ui.settings.settings_row import SettingsRow
 
@@ -27,9 +27,11 @@ class ChoiceRow(SettingsRow):
         detail: str = "",
         preview: bool = False,
         default: str | None = None,
+        swatches: Mapping[str, str] | None = None,  # for keys that aren't colours
     ) -> None:
         super().__init__(label, detail=detail, preview=preview)
         self._options = list(options)
+        self._extra_swatches = dict(swatches or {})
         self._get = get
         self._set = set_
         self._default = default
@@ -48,7 +50,9 @@ class ChoiceRow(SettingsRow):
 
     @property
     def swatches(self) -> dict[str, str]:
-        return {key: key for key, _ in self._options if _is_colour(key)}
+        found = {key: key for key, _ in self._options if _is_colour(key)}
+        found.update(self._extra_swatches)
+        return found
 
     @property
     def current_choice(self) -> str:
@@ -78,7 +82,7 @@ class ChoiceRow(SettingsRow):
             return
         current = self._options[self._index()]
         self.set_value(current[1])
-        self._content.set_swatch(current[0] if _is_colour(current[0]) else "")
+        self._content.set_swatch(self.swatches.get(current[0], ""))
 
     def can_adjust(self, delta: int) -> bool:
         return bool(self._options) and 0 <= self._index() + delta < len(self._options)
