@@ -6,6 +6,38 @@ Notable changes per release. Dates are ISO. This project follows
 [semantic versioning](https://semver.org/) from 0.1.0 onward, with the usual
 0.x caveat that the interface is still allowed to move.
 
+## 0.4.6 — 2026-09-30
+
+### Added
+
+- Settings → Appearance → Accent colour has a "Match GNOME" choice, which
+  follows the accent picked in GNOME Settings and recolours the focus ring
+  live when it changes there. It is offered last rather than as the default,
+  because GNOME's accents are tuned for a desk monitor rather than a ring
+  seen across a room. It needs libadwaita 1.6 and is hidden on older systems.
+
+### Changed
+
+- Salon's stock widgets — toasts and the file picker — stay dark on a
+  desktop that uses the light style, instead of arriving light over a dark
+  screen.
+- While an application is launching, the D-pad, OK, Search and Options no
+  longer act on the home screen hidden under the launching screen.
+
+### Fixed
+
+- Pressing a button while an application was launching no longer abandons
+  the launch. Salon took itself still being in front for a return that had
+  already happened, hid the launching screen and stopped tracking the
+  application it was starting.
+- BACK on the launching screen cancels the launch, as that screen says it
+  does. The press had already been consumed before it could.
+- Turning the cursor off with BACK over a web tile leaves the application in
+  front: MENU still brings Salon back, and the D-pad no longer moves a home
+  screen nobody can see.
+- Asking for Power over an application, when Salon cannot switch windows,
+  no longer opens the Power list at some later, unrelated return.
+
 ## 0.4.5 — 2026-09-06
 
 ### Added

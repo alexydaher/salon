@@ -106,25 +106,60 @@
   <screenshots>
     <screenshot type="default">
       <caption>The home screen: rows of tiles, one focused</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/home.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.6/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
       <caption>Search, with the on-screen keyboard on the left</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/search.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.6/docs/screenshots/search.png</image>
     </screenshot>
     <screenshot>
       <caption>Settings, in the home screen's own visual language</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/settings.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.6/docs/screenshots/settings.png</image>
     </screenshot>
     <screenshot>
       <caption>The tile editor, driven entirely from a controller</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.5/docs/screenshots/tile-editor.png</image>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/alexydaher/salon/v0.4.6/docs/screenshots/tile-editor.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.4.6" date="2026-09-30">
+      <description>
+        <p>Added</p>
+        <ul>
+          <li>Settings → Appearance → Accent colour has a &quot;Match GNOME&quot; choice,
+            which follows the accent picked in GNOME Settings and recolours the focus
+            ring live when it changes there. It is offered last rather than as the
+            default, because GNOME&#x27;s accents are tuned for a desk monitor rather
+            than a ring seen across a room. It needs libadwaita 1.6 and is hidden on
+            older systems.</li>
+        </ul>
+        <p>Changed</p>
+        <ul>
+          <li>Salon&#x27;s stock widgets — toasts and the file picker — stay dark on a
+            desktop that uses the light style, instead of arriving light over a dark
+            screen.</li>
+          <li>While an application is launching, the D-pad, OK, Search and Options no
+            longer act on the home screen hidden under the launching screen.</li>
+        </ul>
+        <p>Fixed</p>
+        <ul>
+          <li>Pressing a button while an application was launching no longer abandons the
+            launch. Salon took itself still being in front for a return that had already
+            happened, hid the launching screen and stopped tracking the application it
+            was starting.</li>
+          <li>BACK on the launching screen cancels the launch, as that screen says it
+            does. The press had already been consumed before it could.</li>
+          <li>Turning the cursor off with BACK over a web tile leaves the application in
+            front: MENU still brings Salon back, and the D-pad no longer moves a home
+            screen nobody can see.</li>
+          <li>Asking for Power over an application, when Salon cannot switch windows, no
+            longer opens the Power list at some later, unrelated return.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.5" date="2026-09-06">
       <description>
         <p>Added</p>
