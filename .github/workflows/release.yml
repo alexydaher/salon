@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # One workflow owns both continuous integration and release. Every push to
 # main and every pull request runs the quality gates and the metadata check
-# and stops there; a v* tag additionally runs packaging, repository
-# deployment and publication.
+# and stops there; a v* tag runs the metadata check, packaging, repository
+# deployment and publication, and not the gates — it checks instead that
+# its commit already passed them on main.
 #
 # The gates used to live in a second workflow (checks.yml) that triggered on
 # a bare `push:`, so `git push origin main vVERSION` produced three runs.
@@ -29,22 +30,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Not on tags. A tag only ever lands on a commit whose push to main has
+  # already passed these — cut-release.py waits for that, and the tag run's
+  # `version` job refuses a commit that has no green main run — so running
+  # them again would only re-test the same tree.
   gates:
     name: Quality gates
     timeout-minutes: 30
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     container: fedora:41
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
+      # Before the checkout, so git is in the container when actions/checkout
+      # runs: without it the action falls back to a REST-API tarball with no
+      # .git, which is what turned main red on 2026-09-03. Parallel downloads
+      # and no weak dependencies because fetching ~590 packages three at a
+      # time was a minute of a 2m15s job; the weak ones were Vulkan and VA
+      # drivers, PipeWire, tracker-miners and libadwaita's demo and docs.
       - name: Install system dependencies
         run: |
           dnf install -y \
+            --setopt=max_parallel_downloads=20 \
+            --setopt=install_weak_deps=False \
+            git \
             python3-gobject python3-cairo python3-pytest python3-ruff python3-mypy \
             gtk4-devel libadwaita-devel libsoup3-devel gdk-pixbuf2-devel \
             libmanette-devel glib2-devel meson ninja-build \
             desktop-file-utils appstream adwaita-icon-theme \
             xorg-x11-server-Xvfb dbus-x11 weston
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: ruff
         run: ruff check .
@@ -82,15 +97,35 @@ jobs:
       - name: meson install into a staging prefix
         run: DESTDIR="$PWD/staging" meson install -C build
 
+  # On a tag this is the only thing standing where the gates used to, so it
+  # checks that they have passed rather than running them: a tag pushed by
+  # hand onto a commit main never went green on stops here, before anything
+  # is built, signed or published.
   version:
     name: Check release metadata
     timeout-minutes: 10
-    needs: gates
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Require a green main run for this commit
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          passed="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&branch=main&event=push&status=success" \
+            --jq '.total_count')"
+          if [ "$passed" -lt 1 ]; then
+            echo "::error::${GITHUB_SHA::7} has no successful run on main. Push main, wait for it to go green, then re-run this workflow."
+            exit 1
+          fi
+          echo "${GITHUB_SHA::7} passed the gates on main ($passed successful run(s))."
 
       - name: Check version consistency
         run: python3 scripts/prepare-flatpak-release.py --require-changelog

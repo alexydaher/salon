@@ -319,9 +319,9 @@ def publish(root: Path, branch: str, skip_checks: bool) -> None:
     pushed_at = datetime.now(UTC)
     run(["git", "push", "origin", branch], root)
     sha = run(["git", "rev-parse", "HEAD"], root, capture=True)
-    print(f"Pushed {branch} at {sha[:7]}; waiting for the gates.")
+    print(f"Pushed {branch} at {sha[:7]}; waiting for the gates. The tag run does not repeat them.")
     run(["gh", "run", "watch", wait_for_run(root, sha, branch, pushed_at),
-         "--exit-status", "--interval", "20"], root)
+         "--exit-status", "--interval", "10"], root)
 
     # Only now. Everything above this line can be repeated; nothing below it
     # can be taken back.
@@ -330,7 +330,7 @@ def publish(root: Path, branch: str, skip_checks: bool) -> None:
     run(["git", "push", "origin", tag], root)
     print(f"\nTagged {tag} at {sha[:7]}. Watching the release run.")
     run(["gh", "run", "watch", wait_for_run(root, sha, tag, tagged_at),
-         "--exit-status", "--interval", "30"], root)
+         "--exit-status", "--interval", "10"], root)
     print(f"\nSalon {version} is published.")
 
 
