@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core.front import PointerOff, QueuePower, Route, route
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     _DIRECTIONS,
@@ -17,6 +18,7 @@ from salon.ui.home_shared import (
 class HomeActionRouter(ServiceComponent):
     def _dispatch_action(self, action: Action) -> None:
         self._owner._last_input = time.monotonic()
+        front_route = route(self._owner._front, action)
         if self._owner._screensaver.showing:
             # Swallowed, not acted on. Someone reaching for the remote to
             # see the clock must not launch Netflix by doing so.
@@ -35,27 +37,14 @@ class HomeActionRouter(ServiceComponent):
             # Salon on a fullscreen, keyboard-less kiosk, so it must never
             # be one of the things a stuck launch or an active pointer
             # session can swallow.
-            if (
-                self._owner._child_active
-                or self._owner._pointer_mode
-                or self._owner._launcher.has_child
-            ):
+            if front_route is Route.RETURN_HOME:
                 # ...and while something else is in front of Salon it means
                 # "bring me home", because a menu drawn in Salon's own
                 # window would appear underneath Netflix where nobody can
-                # see it. See _return_from_child.
-                #
-                # `has_child` is asked as well as the two mode flags, and it
-                # is the one that makes MENU *reliable*. Those flags are set
-                # from `on_child_focused`, which needs Salon's window to go
-                # from active to inactive — an edge that never happens when
-                # the window was already inactive at launch, which is what
-                # the phone does every time it opens a tile while another
-                # app is in front. Without this, MENU fell through to
-                # opening the system menu underneath the app: invisible,
-                # swallowing the next press to close itself again, and
-                # looking for all the world like a button that works every
-                # other time.
+                # see it. See _return_from_child. `route` answers from one
+                # state, launch phase 1 included — the flags this replaced
+                # missed the case where Salon's window was already inactive
+                # at launch, and MENU then opened a menu under the app.
                 self._owner._return_from_child()
                 return
             if self._owner._text_entry.get_visible():
@@ -74,12 +63,8 @@ class HomeActionRouter(ServiceComponent):
             # POWER is as global as MENU on every surface Salon owns. If an
             # external application is covering Salon, return from it first and
             # present Power as soon as the compositor returns us.
-            if (
-                self._owner._child_active
-                or self._owner._pointer_mode
-                or self._owner._launcher.has_child
-            ):
-                self._owner._open_power_on_return = True
+            if front_route is Route.RETURN_THEN_POWER:
+                self._owner._feed_front(QueuePower())
                 self._owner._return_from_child()
                 return
             if self._owner._text_entry.get_visible():
@@ -172,45 +157,13 @@ class HomeActionRouter(ServiceComponent):
             return
 
         # Everything from here down draws or acts on Salon's own window, so
-        # the guards for "an app is covering it" come first. They used not
-        # to, and the three actions that sat above them all misfired from
-        # behind a launched app: SEARCH opened the search overlay where
-        # nobody could see it and then took every press, POWER opened the
-        # system menu the same way, and PLAY_PAUSE with nothing playing fell
-        # through to *launching the focused tile* on top of the app that was
-        # already running — which is also what left MENU with no child to
-        # return from. The rule the MENU handler above states ("a menu drawn in
-        # Salon's own window would appear underneath Netflix") is this one.
-        if self._owner._pointer_mode or self._owner._child_active:
-            if action is Action.PLAY_PAUSE:
-                # The transport half only: there is no focused tile to fall
-                # back to behind an application.
-                self._owner._play_pause()
-                return
-            if self._owner._pointer_mode:
-                if action is Action.SEARCH:
-                    # While the cursor is being driven over a browser
-                    # window, Salon's own search is the wrong thing to open
-                    # — the text field the user is aiming at belongs to
-                    # Chrome, so SEARCH toggles GNOME's on-screen keyboard
-                    # for it instead.
-                    if onscreen_keyboard_available():
-                        set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
-                    else:
-                        self._owner._toast(
-                            "The desktop keyboard isn't available; use the phone's Type tab."
-                        )
-                elif action is Action.OK:
-                    self._owner._pointer.click()
-                elif action is Action.BACK:
-                    self._owner._pointer_mode = False
-                    self._owner._toast("Cursor off. Press MENU to return to Salon.")
-                return
-            # A native app (e.g. a game client) reads the same raw gamepad
-            # device directly — that input bypasses window focus entirely,
-            # unlike keyboard/mouse, so Salon has to deliberately go quiet
-            # rather than fight it for button presses. Resumes on exit, or
-            # on MENU, which is handled above.
+        # what is in front comes first. It used not to, and SEARCH, POWER and
+        # PLAY_PAUSE all misfired from behind a launched app: search opened
+        # where nobody could see it and took every press, and PLAY_PAUSE with
+        # nothing playing launched the focused tile on top of the app that
+        # was already running.
+        if front_route is not Route.SALON:
+            self._behind_app(front_route)
             return
 
         # The rail's card. Above the BACK handler below, because BACK is
@@ -225,12 +178,9 @@ class HomeActionRouter(ServiceComponent):
             self._owner._play_pause(may_launch=True)
             return
         if action is Action.BACK:
-            if self._owner._launcher.is_launching:
-                self._owner._launcher.cancel()
-            # Otherwise a no-op: there's no parent screen at the top level
-            # yet (no search overlay stack built), and BACK must never quit
-            # Salon outright — see _on_key_pressed's dev-only Escape
-            # shortcut, or MENU -> Exit Salon, for that.
+            # A no-op: there's no parent screen at the top level yet, and
+            # BACK must never quit Salon outright — see _on_key_pressed's
+            # dev-only Escape shortcut, or MENU -> Exit Salon, for that.
             return
 
         if self._owner._nav_focused:
@@ -248,3 +198,33 @@ class HomeActionRouter(ServiceComponent):
             self._owner._move_focus(action)
         elif action is Action.OK:
             self._owner._launch_focused()
+
+    def _behind_app(self, front_route: Route) -> None:
+        """A press while a launch is in flight or an application is in front.
+
+        Salon's own screens are not what it is for, so the only things that
+        happen here are the ones that reach the *other* window or the launch.
+        """
+        if front_route is Route.TRANSPORT:
+            self._owner._play_pause()
+        elif front_route is Route.CANCEL_LAUNCH:
+            self._owner._launcher.cancel()
+        elif front_route is Route.POINTER_CLICK:
+            self._owner._pointer.click()
+        elif front_route is Route.POINTER_OFF:
+            self._owner._feed_front(PointerOff())
+            self._owner._toast("Cursor off. Press MENU to return to Salon.")
+        elif front_route is Route.POINTER_OSK:
+            # While the cursor is being driven over a browser window, Salon's
+            # own search is the wrong thing to open — the text field being
+            # aimed at belongs to Chrome, so SEARCH toggles GNOME's on-screen
+            # keyboard for it instead.
+            if onscreen_keyboard_available():
+                set_onscreen_keyboard_enabled(not onscreen_keyboard_enabled())
+            else:
+                self._owner._toast(
+                    "The desktop keyboard isn't available; use the phone's Type tab."
+                )
+        # SWALLOW: a native app reads the gamepad device directly, bypassing
+        # window focus, so Salon goes quiet rather than fight it for the
+        # buttons. Resumes on exit, or on MENU, which is routed above.

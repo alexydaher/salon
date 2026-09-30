@@ -229,7 +229,7 @@ class LauncherService:
         """True from the moment something is spawned until return is
         confirmed, across *both* phases.
 
-        The UI's own `_child_active` flag is set from `on_child_focused`,
+        The UI's front state (`core/front`) moves to APP on `on_child_focused`,
         which only fires if the window-activity edge is seen — and that edge
         does not exist when Salon's window was already inactive at launch
         time, which is exactly the case when the phone launches a tile while

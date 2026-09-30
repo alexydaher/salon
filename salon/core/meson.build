@@ -15,6 +15,7 @@ python_sources = [
   'config.py',
   'config_serialization.py',
   'focus.py',
+  'front.py',
   'gamelib.py',
   'game_library.py',
   'launchspec.py',

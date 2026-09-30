@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core.front import Front
 from salon.services.component import ServiceComponent
 from salon.ui import theme
 from salon.ui.home_shared import (
@@ -190,7 +191,7 @@ class HomeFocusController(ServiceComponent):
             return "search"
         if self._owner._apps_grid.get_visible():
             return "apps"
-        if self._owner._launcher.is_launching:
+        if self._owner._front.front is Front.LAUNCHING:
             return f"Opening {self._owner._launcher.child_title or 'an app'}…"
         # pointer_mode as well as child_active: a *browser* tile puts Salon
         # behind Chrome without setting child_active, so testing only the

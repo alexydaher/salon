@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core.front import PointerOff
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     _POINTER_SPEED,
@@ -116,7 +117,7 @@ class HomeNavigationController(ServiceComponent):
             self._owner._status_bar.activate()
 
     def _on_right_stick(self, x: float, y: float) -> None:
-        if self._owner._pointer_mode and self._owner._pointer.ready:
+        if self._owner._pointer_driving() and self._owner._pointer.ready:
             self._owner._pointer.move(x * _POINTER_SPEED, y * _POINTER_SPEED)
 
     def _on_pointer_ready(self, ok: bool) -> None:
@@ -125,7 +126,7 @@ class HomeNavigationController(ServiceComponent):
         # it needs to hear about.
         self._owner._publish_remote_state()
         if not ok:
-            self._owner._pointer_mode = False
+            self._owner._feed_front(PointerOff())
             self._owner._toast(
                 "Salon wasn't allowed to move the pointer. You can grant it "
                 "again from Settings, under Input."

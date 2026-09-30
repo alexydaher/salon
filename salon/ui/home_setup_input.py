@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view construction stage."""
 
+from salon.core.front import FrontState
 from salon.services import launcher
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
@@ -45,10 +46,8 @@ class HomeInputSetup(ServiceComponent):
         self._owner.add_controller(pointer_motion)
         self._owner._last_pointer_xy: tuple[float, float] | None = None
         self._owner._pointer_visible = False
-        self._owner._pointer_mode = False
-        self._owner._child_active = False
+        self._owner._front = FrontState()
         self._owner._pending_launch: Tile | None = None
-        self._owner._open_power_on_return = False
         self._owner._current_launch_is_browser = False
         self._owner._pointer = PointerInjector(
             on_ready=self._owner._on_pointer_ready,

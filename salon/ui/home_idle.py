@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core.front import blocks_idle
 from salon.services.component import ServiceComponent
 from salon.ui.home_playback_policy import should_launch_focused
 from salon.ui.home_shared import GLib, nowplaying, time
@@ -50,11 +51,7 @@ class HomeIdleController(ServiceComponent):
         # screen Salon is not being looked at, and the child has its own
         # idea about idling; while a launch is in flight, covering the
         # overlay would hide the only feedback there is.
-        if (
-            self._owner._child_active
-            or self._owner._pointer_mode
-            or self._owner._launcher.is_launching
-        ):
+        if blocks_idle(self._owner._front):
             self._owner._last_input = time.monotonic()
             return bool(GLib.SOURCE_CONTINUE)
         if time.monotonic() - self._owner._last_input >= minutes * 60:

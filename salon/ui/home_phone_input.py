@@ -2,6 +2,7 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core.front import Front
 from salon.services.component import ServiceComponent
 from salon.ui.home_shared import (
     _PHONE_ICON_SIZE_PX,
@@ -32,7 +33,7 @@ class HomePhoneInputController(ServiceComponent):
         # yanks the selection back the moment a row scrolls under it. The
         # trackpad brings it straight back. Pointer mode is the exception,
         # same as the gamepad: there the cursor *is* the interface.
-        self._owner._set_pointer_visible(self._owner._pointer_mode)
+        self._owner._set_pointer_visible(self._owner._pointer_driving())
         self._owner._handle_action(action)
 
     def _on_phone_pointer(self, dx: float, dy: float) -> None:
@@ -148,14 +149,14 @@ class HomePhoneInputController(ServiceComponent):
         # on what was actually opened, is the kind of small dishonesty that
         # makes two input methods feel like two applications — and the mouse
         # gets out of the way for the same reason a button press does.
-        self._owner._set_pointer_visible(self._owner._pointer_mode)
+        self._owner._set_pointer_visible(self._owner._pointer_driving())
         self._owner._focus.jump_to(*position)
         self._owner._update_focus()
         self._owner._launch_tile(tile)
 
     def _on_phone_running(self, what: str, app_id: str) -> bool:
         if what == "salon":
-            if not self._owner._launcher.has_child:
+            if self._owner._front.front is Front.HOME:
                 return True
             self._owner._return_from_child()
             return True

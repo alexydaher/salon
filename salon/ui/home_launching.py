@@ -2,11 +2,17 @@
 # ruff: noqa: F403, F405
 """Focused home-view workflow."""
 
+from salon.core.front import (
+    ChildFocused,
+    DropQueued,
+    Front,
+    LaunchStarted,
+    QueueLaunch,
+    Returned,
+)
 from salon.services.component import ServiceComponent
 from salon.ui.home_rows import _is_browser_launch
 from salon.ui.home_shared import (
-    _RELAUNCH_DELAY_MS,
-    GLib,
     LaunchKind,
     MenuFrame,
     SystemMenuItem,
@@ -30,6 +36,11 @@ class HomeLaunchController(ServiceComponent):
         saying False, which only reports that no child is tracked.
         """
         if self._owner._salon_in_front():
+            if self._owner._front.front is Front.LAUNCHING:
+                # Salon being in front is what phase 1 looks like. Give the
+                # launch up; `on_returned` follows and does what was queued.
+                self._owner._launcher.cancel()
+                return True
             self._owner._reconcile_child_state()
             return True
         title = self._owner._launcher.child_title or "the app"
@@ -42,6 +53,7 @@ class HomeLaunchController(ServiceComponent):
             "Salon needs the remote-control permission to switch windows without closing the app."
         )
         self._owner._pending_launch = None
+        self._owner._feed_front(DropQueued())
         return False
 
     def _close_running_app(self, app_id: str) -> bool:
@@ -88,10 +100,11 @@ class HomeLaunchController(ServiceComponent):
             self._owner._apps_grid.close()
         if self._owner._search.get_visible():
             self._owner._search.close()
-        if self._owner._launcher.has_child:
+        if self._owner._front.front is not Front.HOME:
             # Return to Salon without ending what is there, then open this
             # once the compositor has put Salon back in front.
             self._owner._pending_launch = tile
+            self._owner._feed_front(QueueLaunch())
             self._return_from_child()
             return
         self._owner._launcher.launch(tile)
@@ -148,6 +161,7 @@ class HomeLaunchController(ServiceComponent):
         return items
 
     def _on_launch_started(self, tile: Tile) -> None:
+        self._owner._feed_front(LaunchStarted())
         self._owner._current_launch_is_browser = _is_browser_launch(tile)
         # Resolved from the tile rather than read off the focused widget:
         # a launch can come from a search result, which has no counterpart
@@ -172,10 +186,11 @@ class HomeLaunchController(ServiceComponent):
         # _prewarm_pointer_session), which is what made it affordable to
         # default on. Turning it off in Settings → Input leaves a browser
         # tile navigable only by whatever the site itself offers.
-        if self._owner._current_launch_is_browser and self._owner._settings.get_boolean(
+        pointer = self._owner._current_launch_is_browser and self._owner._settings.get_boolean(
             "gamepad-pointer"
-        ):
-            self._owner._pointer_mode = True
+        )
+        self._owner._feed_front(ChildFocused(pointer=pointer))
+        if pointer:
             self._owner._start_pointer_session()
             controls = "Right stick = cursor, OK = click"
             if onscreen_keyboard_available():
@@ -191,7 +206,6 @@ class HomeLaunchController(ServiceComponent):
                 + " = back to Salon"
             )
         else:
-            self._owner._child_active = True
             self._owner._toast(f"{self._close_hint()} to return; {tile_title} keeps running.")
         # The child taking focus arrives asynchronously, long after the
         # press that launched it — so without this the phone's header still
@@ -213,29 +227,10 @@ class HomeLaunchController(ServiceComponent):
         # is the entire thing standing between an application and the home
         # screen.
         self._owner._return_fade.play()
-        self._owner._pointer_mode = False
-        self._owner._child_active = False
+        # Queued work — the power list, a tile tapped on the phone while
+        # another app was up — is carried out by the effects this returns.
+        self._owner._feed_front(Returned())
         self._owner._publish_remote_state()
-        if self._owner._open_power_on_return:
-            self._owner._open_power_on_return = False
-            GLib.timeout_add(_RELAUNCH_DELAY_MS, self._show_power_after_return)
-            return
-        pending, self._owner._pending_launch = self._owner._pending_launch, None
-        if pending is not None:
-            # A tile tapped on the phone while another app was in front. The
-            # old one has just gone; give the compositor a moment to hand
-            # focus back before spawning the next, because the return
-            # detection for *that* launch is the window going inactive and
-            # it can only go inactive from active.
-            GLib.timeout_add(_RELAUNCH_DELAY_MS, lambda: self._start_pending(pending))
-
-    def _show_power_after_return(self) -> bool:
-        self._owner._show_power_menu()
-        return bool(GLib.SOURCE_REMOVE)
-
-    def _start_pending(self, tile: Tile) -> bool:
-        self._launch_tile(tile)
-        return bool(GLib.SOURCE_REMOVE)
 
     def _close_hint(self) -> str:
         """How to get back out, named for the hardware that is actually

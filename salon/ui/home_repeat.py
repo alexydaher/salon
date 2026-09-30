@@ -19,7 +19,7 @@ class HomeRepeatController(ServiceComponent):
             # The press is being captured as a binding; acting on it as
             # well would navigate away from the screen doing the capturing.
             return
-        self._owner._set_pointer_visible(self._owner._pointer_mode)
+        self._owner._set_pointer_visible(self._owner._pointer_driving())
         if action in _DIRECTIONS:
             self._start_repeat(action)
         self._handle_action(action)
